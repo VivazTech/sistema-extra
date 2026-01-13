@@ -1,17 +1,29 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MOCK_USERS } from '../constants';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const success = await login(username);
-    if (!success) setError(true);
+    if (success) {
+      navigate('/');
+    } else {
+      setError(true);
+    }
   };
 
   return (
