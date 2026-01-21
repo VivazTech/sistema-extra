@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertTriangle } from 'lucide-react';
+import { X, Save } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { SHIFTS } from '../constants';
@@ -11,7 +11,7 @@ interface RequestModalProps {
 }
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
-  const { sectors, requesters, reasons, addRequest } = useExtras();
+  const { sectors, requesters, reasons, extras, addRequest } = useExtras();
   const { user } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -27,12 +27,12 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     reason: '',
     extraName: '',
     value: 0,
-    urgency: false,
     observations: '',
     contact: ''
   });
 
   const availableRoles = sectors.find(s => s.name === formData.sector)?.roles || [];
+  const availableExtras = extras.filter(e => e.sector === formData.sector);
 
   const addDays = (dateStr: string, days: number) => {
     const date = new Date(`${dateStr}T00:00:00`);
@@ -121,7 +121,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                 required
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.sector}
-                onChange={(e) => setFormData({ ...formData, sector: e.target.value, role: '' })}
+                onChange={(e) => setFormData({ ...formData, sector: e.target.value, role: '', extraName: '' })}
               >
                 <option value="">Selecione o setor</option>
                 {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -198,14 +198,21 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Nome do Extra *</label>
-              <input 
+              <select 
                 required
-                type="text"
-                placeholder="Nome completo do funcionário"
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                disabled={!formData.sector}
+                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-gray-50"
                 value={formData.extraName}
                 onChange={(e) => setFormData({ ...formData, extraName: e.target.value })}
-              />
+              >
+                <option value="">Selecione o extra</option>
+                {formData.sector && availableExtras.length === 0 && (
+                  <option value="" disabled>Nenhum extra cadastrado para este setor</option>
+                )}
+                {availableExtras.map(extra => (
+                  <option key={extra.id} value={extra.fullName}>{extra.fullName}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Valor Combinado (R$) *</label>
@@ -236,7 +243,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Contato/Doc (Opcional)</label>
+              <label className="text-xs font-bold text-gray-500 uppercase">Contato/Doc</label>
               <input 
                 type="text"
                 placeholder="Telefone ou CPF"
@@ -248,7 +255,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase">Motivo da Contratação *</label>
+            <label className="text-xs font-bold text-gray-500 uppercase">Motivo da Solicitação *</label>
             <select 
               required
               className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -259,25 +266,6 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
               {reasons.length === 0 && <option value="" disabled>Cadastre motivos no painel</option>}
               {reasons.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
             </select>
-          </div>
-
-          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input 
-                type="checkbox"
-                className="w-5 h-5 accent-amber-600 rounded"
-                checked={formData.urgency}
-                onChange={(e) => setFormData({ ...formData, urgency: e.target.checked })}
-              />
-              <div className="flex-1">
-                <span className="font-bold text-amber-900 flex items-center gap-2">
-                  <AlertTriangle size={16} /> Solicitação de Urgência
-                </span>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  Marcando esta opção, a solicitação será aprovada automaticamente.
-                </p>
-              </div>
-            </label>
           </div>
 
           <div className="flex gap-4 pt-4 sticky bottom-0 bg-white">

@@ -98,7 +98,7 @@ const Dashboard: React.FC = () => {
             <div className="relative z-10">
               <h3 className="font-bold text-lg mb-2">Dica de Gestão</h3>
               <p className="text-emerald-100 text-sm opacity-90 leading-relaxed">
-                Solicitações de urgência são aprovadas automaticamente, mas ficam registradas para auditoria posterior pelo RH.
+                Mantenha os cadastros de setores, funções, demandantes e motivos atualizados para agilizar novas solicitações.
               </p>
               <button className="mt-4 flex items-center gap-2 text-sm font-bold bg-white text-emerald-900 px-4 py-2 rounded-lg">
                 Nova Solicitação <ArrowUpRight size={16} />

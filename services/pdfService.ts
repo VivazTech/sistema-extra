@@ -67,15 +67,6 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   addField('Valor (R$)', request.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), col2, y);
   y += 10;
 
-  if (request.urgency) {
-    doc.setTextColor(220, 38, 38); // Red
-    doc.setFont('helvetica', 'bold');
-    doc.text('** SOLICITAÇÃO DE URGÊNCIA **', col1, y);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-    y += 10;
-  }
-
   // Days/Shift Table
   y += 5;
   doc.setFontSize(11);

@@ -11,7 +11,8 @@ import {
   X, 
   PlusCircle,
   ClipboardList,
-  Settings
+  Settings,
+  Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,6 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
     { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', roles: ['ADMIN'] },
+    { icon: Database, label: 'Banco de Extras', path: '/admin/extras', roles: ['ADMIN'] },
     { icon: Users, label: 'Setores & Funções', path: '/admin/setores', roles: ['ADMIN'] },
   ].filter(item => item.roles.includes(user?.role || ''));
 

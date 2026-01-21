@@ -9,8 +9,7 @@ import {
   Check, 
   X, 
   Printer,
-  Ban,
-  AlertTriangle
+  Ban
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -164,7 +163,6 @@ const Requests: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
-                    {req.urgency && <AlertTriangle size={14} className="text-red-500" title="Urgência" />}
                     <span className="text-sm font-semibold">{req.extraName}</span>
                   </div>
                   <span className="text-[10px] text-gray-400">{formatShiftSummary(req.workDays)}</span>

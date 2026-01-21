@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson } from '../types';
 import { INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS } from '../constants';
 
 interface ExtraContextType {
@@ -8,6 +8,7 @@ interface ExtraContextType {
   sectors: Sector[];
   requesters: RequesterItem[];
   reasons: ReasonItem[];
+  extras: ExtraPerson[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
   deleteRequest: (id: string) => void;
@@ -20,6 +21,8 @@ interface ExtraContextType {
   addReason: (reason: ReasonItem) => void;
   updateReason: (id: string, reason: ReasonItem) => void;
   deleteReason: (id: string) => void;
+  addExtra: (extra: ExtraPerson) => void;
+  deleteExtra: (id: string) => void;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -29,6 +32,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [sectors, setSectors] = useState<Sector[]>(INITIAL_SECTORS);
   const [requesters, setRequesters] = useState<RequesterItem[]>(INITIAL_REQUESTERS);
   const [reasons, setReasons] = useState<ReasonItem[]>(INITIAL_REASONS);
+  const [extras, setExtras] = useState<ExtraPerson[]>([]);
 
   // Load from LocalStorage
   useEffect(() => {
@@ -36,6 +40,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedSectors = localStorage.getItem('vivaz_sectors');
     const savedRequesters = localStorage.getItem('vivaz_requesters');
     const savedReasons = localStorage.getItem('vivaz_reasons');
+    const savedExtras = localStorage.getItem('vivaz_extras');
     if (savedRequests) {
       const parsed = JSON.parse(savedRequests);
       const normalized = parsed.map((req: any) => ({
@@ -49,6 +54,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedSectors) setSectors(JSON.parse(savedSectors));
     if (savedRequesters) setRequesters(JSON.parse(savedRequesters));
     if (savedReasons) setReasons(JSON.parse(savedReasons));
+    if (savedExtras) setExtras(JSON.parse(savedExtras));
   }, []);
 
   // Sync to LocalStorage
@@ -68,16 +74,20 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('vivaz_reasons', JSON.stringify(reasons));
   }, [reasons]);
 
+  useEffect(() => {
+    localStorage.setItem('vivaz_extras', JSON.stringify(extras));
+  }, [extras]);
+
   const addRequest = (data: any) => {
     const newRequest: ExtraRequest = {
       ...data,
       id: Math.random().toString(36).substr(2, 9),
       code: `EXT-${new Date().getFullYear()}-${String(requests.length + 1).padStart(4, '0')}`,
-      status: data.urgency ? 'APROVADO' : 'SOLICITADO',
+      status: 'SOLICITADO',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      approvedAt: data.urgency ? new Date().toISOString() : undefined,
-      approvedBy: data.urgency ? 'SISTEMA (URGÊNCIA)' : undefined,
+      approvedAt: undefined,
+      approvedBy: undefined,
     };
     setRequests(prev => [newRequest, ...prev]);
   };
@@ -117,12 +127,16 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setReasons(prev => prev.map(r => r.id === id ? reason : r));
   const deleteReason = (id: string) => setReasons(prev => prev.filter(r => r.id !== id));
 
+  const addExtra = (extra: ExtraPerson) => setExtras(prev => [extra, ...prev]);
+  const deleteExtra = (id: string) => setExtras(prev => prev.filter(e => e.id !== id));
+
   return (
     <ExtraContext.Provider value={{ 
-      requests, sectors, requesters, reasons, addRequest, updateStatus, deleteRequest,
+      requests, sectors, requesters, reasons, extras, addRequest, updateStatus, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
-      addReason, updateReason, deleteReason
+      addReason, updateReason, deleteReason,
+      addExtra, deleteExtra
     }}>
       {children}
     </ExtraContext.Provider>

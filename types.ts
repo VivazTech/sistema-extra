@@ -43,7 +43,6 @@ export interface ExtraRequest {
   extraName: string;
   value: number;
   status: RequestStatus;
-  urgency: boolean;
   observations?: string;
   contact?: string;
   rejectionReason?: string;
@@ -57,4 +56,16 @@ export interface ExtraRequest {
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+}
+
+export interface ExtraPerson {
+  id: string;
+  fullName: string;
+  birthDate: string;
+  cpf: string;
+  contact: string;
+  address: string;
+  emergencyContact: string;
+  sector: string;
+  createdAt: string;
 }
