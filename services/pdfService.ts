@@ -5,6 +5,20 @@ import { ExtraRequest } from '../types';
 
 export const generateIndividualPDF = (request: ExtraRequest) => {
   const doc = new jsPDF();
+
+  const formatWorkDaysSummary = (workDays: ExtraRequest['workDays']) => {
+    if (!workDays.length) return 'N/A';
+    const firstDate = new Date(workDays[0].date).toLocaleDateString('pt-BR');
+    const extraDays = workDays.length - 1;
+    return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
+  };
+
+  const formatShiftSummary = (workDays: ExtraRequest['workDays']) => {
+    if (!workDays.length) return 'N/A';
+    const firstShift = workDays[0].shift;
+    const extraDays = workDays.length - 1;
+    return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
+  };
   
   // Header
   doc.setFontSize(20);
@@ -38,8 +52,8 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   addField('Função', request.role, col2, y);
   y += 10;
   
-  addField('Data', new Date(request.workDate).toLocaleDateString('pt-BR'), col1, y);
-  addField('Turno', request.shift, col2, y);
+  addField('Data', formatWorkDaysSummary(request.workDays), col1, y);
+  addField('Turno', formatShiftSummary(request.workDays), col2, y);
   y += 10;
   
   addField('Líder', request.leaderName, col1, y);
@@ -62,8 +76,26 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
     y += 10;
   }
 
+  // Days/Shift Table
+  y += 5;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DIAS E TURNOS', 105, y, { align: 'center' });
+  y += 5;
+  autoTable(doc, {
+    startY: y,
+    head: [['Data', 'Turno']],
+    body: request.workDays.map(day => [
+      new Date(day.date).toLocaleDateString('pt-BR'),
+      day.shift
+    ]),
+    theme: 'grid',
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+  });
+
   // Portaria Table
-  y += 10;
+  y = (doc as any).lastAutoTable.finalY + 10;
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('CONTROLE DE PONTO (PREENCHIMENTO MANUAL - PORTARIA)', 105, y, { align: 'center' });
@@ -94,6 +126,19 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
 
 export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   const doc = new jsPDF('l', 'mm', 'a4');
+  const formatWorkDaysSummary = (workDays: ExtraRequest['workDays']) => {
+    if (!workDays.length) return '';
+    const firstDate = new Date(workDays[0].date).toLocaleDateString('pt-BR');
+    const extraDays = workDays.length - 1;
+    return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
+  };
+
+  const formatShiftSummary = (workDays: ExtraRequest['workDays']) => {
+    if (!workDays.length) return '';
+    const firstShift = workDays[0].shift;
+    const extraDays = workDays.length - 1;
+    return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
+  };
   doc.setFontSize(16);
   doc.text(`VIVAZ CATARATAS - ${title.toUpperCase()}`, 148, 15, { align: 'center' });
   doc.setFontSize(10);
@@ -104,8 +149,8 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
     head: [['ID', 'Data', 'Turno', 'Setor', 'Função', 'Nome Extra', 'Status', 'Valor']],
     body: requests.map(r => [
       r.code,
-      new Date(r.workDate).toLocaleDateString('pt-BR'),
-      r.shift,
+      formatWorkDaysSummary(r.workDays),
+      formatShiftSummary(r.workDays),
       r.sector,
       r.role,
       r.extraName,

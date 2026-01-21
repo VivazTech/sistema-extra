@@ -27,6 +27,20 @@ const Requests: React.FC = () => {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  const formatWorkDays = (workDays: { date: string; shift: string }[]) => {
+    if (!workDays.length) return '';
+    const firstDate = new Date(workDays[0].date).toLocaleDateString('pt-BR');
+    const extraDays = workDays.length - 1;
+    return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
+  };
+
+  const formatShiftSummary = (workDays: { date: string; shift: string }[]) => {
+    if (!workDays.length) return '';
+    const firstShift = workDays[0].shift;
+    const extraDays = workDays.length - 1;
+    return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
+  };
+
   const filteredRequests = requests.filter(r => {
     const matchesSearch = r.extraName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           r.code.toLowerCase().includes(searchTerm.toLowerCase());
@@ -142,7 +156,7 @@ const Requests: React.FC = () => {
               <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <p className="font-bold text-gray-900 text-sm">{req.code}</p>
-                  <p className="text-xs text-gray-500">{new Date(req.workDate).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-xs text-gray-500">{formatWorkDays(req.workDays)}</p>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <p className="font-medium text-gray-900 text-sm">{req.sector}</p>
@@ -153,7 +167,7 @@ const Requests: React.FC = () => {
                     {req.urgency && <AlertTriangle size={14} className="text-red-500" title="Urgência" />}
                     <span className="text-sm font-semibold">{req.extraName}</span>
                   </div>
-                  <span className="text-[10px] text-gray-400">{req.shift}</span>
+                  <span className="text-[10px] text-gray-400">{formatShiftSummary(req.workDays)}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="text-sm text-gray-600">{req.leaderName}</span>

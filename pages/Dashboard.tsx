@@ -16,7 +16,7 @@ const Dashboard: React.FC = () => {
   const { requests } = useExtras();
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayRequests = requests.filter(r => r.workDate === todayStr);
+  const todayRequests = requests.filter(r => r.workDays.some(d => d.date === todayStr));
 
   const stats = [
     { label: 'Do Dia', value: todayRequests.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },

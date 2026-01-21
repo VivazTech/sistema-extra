@@ -20,7 +20,13 @@ const TVDashboard: React.FC = () => {
   }, []);
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayRequests = requests.filter(r => r.workDate === todayStr && r.status !== 'REPROVADO' && r.status !== 'CANCELADO');
+  const todayRequests = requests.filter(r => 
+    r.workDays.some(d => d.date === todayStr) && r.status !== 'REPROVADO' && r.status !== 'CANCELADO'
+  );
+
+  const getShiftForDate = (workDays: { date: string; shift: string }[], date: string) => {
+    return workDays.find(d => d.date === date)?.shift || workDays[0]?.shift || '';
+  };
 
   // Group by Sector
   const sectors = Array.from(new Set(todayRequests.map(r => r.sector))).sort();
@@ -79,7 +85,7 @@ const TVDashboard: React.FC = () => {
                         <div className="flex items-center justify-between mt-2">
                            <p className="text-emerald-400/70 text-lg font-bold uppercase">{req.role}</p>
                            <p className="text-gray-400 text-lg flex items-center gap-2">
-                             <Clock size={18} /> {req.shift}
+                             <Clock size={18} /> {getShiftForDate(req.workDays, todayStr)}
                            </p>
                         </div>
                         <p className="text-gray-500 text-sm mt-2 font-medium uppercase tracking-tighter">Líder: {req.leaderName}</p>

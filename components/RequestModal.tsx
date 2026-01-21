@@ -17,8 +17,12 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
     sector: '',
     role: '',
-    workDate: new Date().toISOString().split('T')[0],
-    shift: 'Manhã' as any,
+    workDays: [
+      {
+        date: new Date().toISOString().split('T')[0],
+        shift: 'Manhã' as any,
+      },
+    ],
     requester: '',
     reason: '',
     extraName: '',
@@ -30,15 +34,57 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
 
   const availableRoles = sectors.find(s => s.name === formData.sector)?.roles || [];
 
+  const addDays = (dateStr: string, days: number) => {
+    const date = new Date(`${dateStr}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0];
+  };
+
+  const handleAddDay = () => {
+    if (formData.workDays.length >= 7) return;
+    const lastDay = formData.workDays[formData.workDays.length - 1];
+    const nextDate = lastDay?.date ? addDays(lastDay.date, 1) : new Date().toISOString().split('T')[0];
+    const nextShift = lastDay?.shift || 'Manhã';
+    setFormData({
+      ...formData,
+      workDays: [...formData.workDays, { date: nextDate, shift: nextShift }],
+    });
+  };
+
+  const handleRemoveDay = (idx: number) => {
+    if (formData.workDays.length <= 1) return;
+    setFormData({
+      ...formData,
+      workDays: formData.workDays.filter((_, i) => i !== idx),
+    });
+  };
+
+  const handleUpdateDay = (idx: number, field: 'date' | 'shift', value: string) => {
+    const updated = [...formData.workDays];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setFormData({ ...formData, workDays: updated });
+  };
+
   useEffect(() => {
     if (isOpen) {
-      setFormData(prev => ({ ...prev, sector: '', role: '' }));
+      setFormData(prev => ({
+        ...prev,
+        sector: '',
+        role: '',
+        workDays: [
+          {
+            date: new Date().toISOString().split('T')[0],
+            shift: 'Manhã' as any,
+          },
+        ],
+      }));
     }
   }, [isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.sector || !formData.role || !formData.extraName || !formData.value) {
+    const hasInvalidDay = formData.workDays.some(d => !d.date || !d.shift);
+    if (!formData.sector || !formData.role || !formData.extraName || !formData.value || hasInvalidDay) {
       alert('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
@@ -96,27 +142,56 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
               </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Data de Trabalho *</label>
-              <input 
-                required
-                type="date"
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.workDate}
-                onChange={(e) => setFormData({ ...formData, workDate: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Turno *</label>
-              <select 
-                required
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.shift}
-                onChange={(e) => setFormData({ ...formData, shift: e.target.value as any })}
-              >
-                {SHIFTS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+            <div className="md:col-span-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-gray-500 uppercase">Dias de Trabalho *</label>
+                <button
+                  type="button"
+                  onClick={handleAddDay}
+                  disabled={formData.workDays.length >= 7}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:text-gray-300"
+                >
+                  + Adicionar dia
+                </button>
+              </div>
+              <div className="space-y-3">
+                {formData.workDays.map((day, idx) => (
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dia {idx + 1}</label>
+                      <input
+                        required
+                        type="date"
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={day.date}
+                        onChange={(e) => handleUpdateDay(idx, 'date', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Turno</label>
+                      <select
+                        required
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={day.shift}
+                        onChange={(e) => handleUpdateDay(idx, 'shift', e.target.value)}
+                      >
+                        {SHIFTS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDay(idx)}
+                        disabled={formData.workDays.length <= 1}
+                        className="px-3 py-2 text-xs font-bold text-gray-400 hover:text-red-600 disabled:text-gray-200"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400">Máximo de 7 dias por solicitação.</p>
             </div>
           </div>
 

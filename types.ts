@@ -22,8 +22,10 @@ export interface ExtraRequest {
   code: string; // e.g., EXT-2024-0001
   sector: string;
   role: string;
-  workDate: string;
-  shift: 'Manhã' | 'Tarde' | 'Noite' | 'Madrugada';
+  workDays: {
+    date: string;
+    shift: 'Manhã' | 'Tarde' | 'Noite' | 'Madrugada';
+  }[];
   leaderId: string;
   leaderName: string;
   requester: string;

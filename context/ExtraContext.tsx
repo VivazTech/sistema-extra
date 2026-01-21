@@ -24,7 +24,16 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const savedRequests = localStorage.getItem('vivaz_requests');
     const savedSectors = localStorage.getItem('vivaz_sectors');
-    if (savedRequests) setRequests(JSON.parse(savedRequests));
+    if (savedRequests) {
+      const parsed = JSON.parse(savedRequests);
+      const normalized = parsed.map((req: any) => ({
+        ...req,
+        workDays: req.workDays && req.workDays.length
+          ? req.workDays
+          : [{ date: req.workDate || new Date().toISOString().split('T')[0], shift: req.shift || 'Manhã' }],
+      }));
+      setRequests(normalized);
+    }
     if (savedSectors) setSectors(JSON.parse(savedSectors));
   }, []);
 
