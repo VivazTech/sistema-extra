@@ -61,6 +61,7 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   y += 10;
   
   addField('Motivo', request.reason, col1, y);
+  addField('Aprovado por', request.approvedBy || 'N/A', col2, y);
   y += 10;
   
   addField('Nome Extra', request.extraName, col1, y);
@@ -137,7 +138,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
 
   autoTable(doc, {
     startY: 30,
-    head: [['ID', 'Data', 'Turno', 'Setor', 'Função', 'Nome Extra', 'Status', 'Valor']],
+    head: [['ID', 'Data', 'Turno', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body: requests.map(r => [
       r.code,
       formatWorkDaysSummary(r.workDays),
@@ -146,6 +147,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
       r.role,
       r.extraName,
       r.status,
+      r.approvedBy || '',
       r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     ]),
     styles: { fontSize: 8 },

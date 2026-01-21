@@ -43,6 +43,7 @@ export interface ExtraRequest {
   extraName: string;
   value: number;
   status: RequestStatus;
+  needsManagerApproval?: boolean;
   observations?: string;
   contact?: string;
   rejectionReason?: string;
@@ -68,4 +69,38 @@ export interface ExtraPerson {
   emergencyContact: string;
   sector: string;
   createdAt: string;
+}
+
+export interface ExtraSaldoInput {
+  setor: string;
+  periodoInicio: string;
+  periodoFim: string;
+  quadroAprovado: number;
+  quadroEfetivo: number;
+  folgas: number;
+  domingos: number;
+  demanda: number;
+  atestado: number;
+  extrasSolicitados: number;
+}
+
+export interface ExtraSaldoResult {
+  quadroAberto: number;
+  vagasDiarias: number;
+  totalDiarias: number;
+  saldo: number;
+  valorDiaria: number;
+  valor: number;
+  saldoEmReais: number;
+}
+
+export interface ExtraSaldoRecord extends ExtraSaldoInput {
+  id: string;
+  valorDiariaSnapshot: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExtraSaldoSettings {
+  valorDiaria: number;
 }

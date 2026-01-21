@@ -171,15 +171,23 @@ const Requests: React.FC = () => {
                   <span className="text-sm text-gray-600">{req.leaderName}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`
-                    inline-block px-2 py-1 rounded-full text-[10px] font-bold uppercase
-                    ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
-                    ${req.status === 'SOLICITADO' ? 'bg-amber-100 text-amber-700' : ''}
-                    ${req.status === 'REPROVADO' ? 'bg-red-100 text-red-700' : ''}
-                    ${req.status === 'CANCELADO' ? 'bg-gray-100 text-gray-700' : ''}
-                  `}>
-                    {req.status}
-                  </span>
+                  <div className="flex flex-col gap-1 items-start">
+                    <span className={`
+                      inline-block px-2 py-1 rounded-full text-[10px] font-bold uppercase
+                      ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
+                      ${req.status === 'SOLICITADO' ? 'bg-amber-100 text-amber-700' : ''}
+                      ${req.status === 'REPROVADO' ? 'bg-red-100 text-red-700' : ''}
+                      ${req.status === 'CANCELADO' ? 'bg-gray-100 text-gray-700' : ''}
+                    `}>
+                      {req.status}
+                    </span>
+                    {req.status === 'SOLICITADO' && req.needsManagerApproval && (
+                      <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
+                    )}
+                    {req.status === 'APROVADO' && req.approvedBy && (
+                      <span className="text-[10px] text-gray-500">Aprovado por {req.approvedBy}</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="text-sm font-bold text-gray-900">

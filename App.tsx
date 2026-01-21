@@ -12,6 +12,7 @@ import AdminSectors from './pages/AdminSectors';
 import AdminCatalogs from './pages/AdminCatalogs';
 import ExtraBank from './pages/ExtraBank';
 import ExtraBankForm from './pages/ExtraBankForm';
+import ExtraSaldo from './pages/ExtraSaldo';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> = ({ children, roles }) => {
   const { isAuthenticated, user } = useAuth();
@@ -30,6 +31,7 @@ const AppRoutes = () => {
       <Route path="/solicitacoes" element={<PrivateRoute><Requests /></PrivateRoute>} />
       <Route path="/admin/setores" element={<PrivateRoute roles={['ADMIN']}><AdminSectors /></PrivateRoute>} />
       <Route path="/admin/cadastros" element={<PrivateRoute roles={['ADMIN']}><AdminCatalogs /></PrivateRoute>} />
+      <Route path="/admin/saldo-extras" element={<PrivateRoute roles={['ADMIN', 'MANAGER']}><ExtraSaldo /></PrivateRoute>} />
       <Route path="/admin/extras" element={<PrivateRoute roles={['ADMIN']}><ExtraBank /></PrivateRoute>} />
       <Route path="/banco-extras" element={<ExtraBankForm />} />
       <Route path="/tv" element={<TVDashboard />} />
