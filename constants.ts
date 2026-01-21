@@ -1,5 +1,5 @@
 
-import { Sector, User } from './types';
+import { Sector, User, RequesterItem, ReasonItem } from './types';
 
 export const INITIAL_SECTORS: Sector[] = [
   { id: '1', name: 'Restaurante', roles: ['Garçom', 'Cambuzeiro', 'Stuart', 'Cozinheiro', 'Hostess'] },
@@ -17,3 +17,15 @@ export const MOCK_USERS: User[] = [
 ];
 
 export const SHIFTS = ['Manhã', 'Tarde', 'Noite', 'Madrugada'] as const;
+
+export const INITIAL_REQUESTERS: RequesterItem[] = [
+  { id: 'r1', name: 'RH' },
+  { id: 'r2', name: 'Gestão' },
+  { id: 'r3', name: 'Operação' },
+];
+
+export const INITIAL_REASONS: ReasonItem[] = [
+  { id: 'm1', name: 'Reforço de equipe' },
+  { id: 'm2', name: 'Cobertura de folga' },
+  { id: 'm3', name: 'Evento/Alta demanda' },
+];

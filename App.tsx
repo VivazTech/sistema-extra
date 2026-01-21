@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Requests from './pages/Requests';
 import TVDashboard from './pages/TVDashboard';
 import AdminSectors from './pages/AdminSectors';
+import AdminCatalogs from './pages/AdminCatalogs';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> = ({ children, roles }) => {
   const { isAuthenticated, user } = useAuth();
@@ -26,6 +27,7 @@ const AppRoutes = () => {
       <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
       <Route path="/solicitacoes" element={<PrivateRoute><Requests /></PrivateRoute>} />
       <Route path="/admin/setores" element={<PrivateRoute roles={['ADMIN']}><AdminSectors /></PrivateRoute>} />
+      <Route path="/admin/cadastros" element={<PrivateRoute roles={['ADMIN']}><AdminCatalogs /></PrivateRoute>} />
       <Route path="/tv" element={<TVDashboard />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>

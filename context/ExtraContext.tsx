@@ -1,17 +1,25 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ExtraRequest, Sector, RequestStatus } from '../types';
-import { INITIAL_SECTORS } from '../constants';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem } from '../types';
+import { INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS } from '../constants';
 
 interface ExtraContextType {
   requests: ExtraRequest[];
   sectors: Sector[];
+  requesters: RequesterItem[];
+  reasons: ReasonItem[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
   deleteRequest: (id: string) => void;
   addSector: (sector: Sector) => void;
   updateSector: (id: string, sector: Sector) => void;
   deleteSector: (id: string) => void;
+  addRequester: (requester: RequesterItem) => void;
+  updateRequester: (id: string, requester: RequesterItem) => void;
+  deleteRequester: (id: string) => void;
+  addReason: (reason: ReasonItem) => void;
+  updateReason: (id: string, reason: ReasonItem) => void;
+  deleteReason: (id: string) => void;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -19,11 +27,15 @@ const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
 export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [requests, setRequests] = useState<ExtraRequest[]>([]);
   const [sectors, setSectors] = useState<Sector[]>(INITIAL_SECTORS);
+  const [requesters, setRequesters] = useState<RequesterItem[]>(INITIAL_REQUESTERS);
+  const [reasons, setReasons] = useState<ReasonItem[]>(INITIAL_REASONS);
 
   // Load from LocalStorage
   useEffect(() => {
     const savedRequests = localStorage.getItem('vivaz_requests');
     const savedSectors = localStorage.getItem('vivaz_sectors');
+    const savedRequesters = localStorage.getItem('vivaz_requesters');
+    const savedReasons = localStorage.getItem('vivaz_reasons');
     if (savedRequests) {
       const parsed = JSON.parse(savedRequests);
       const normalized = parsed.map((req: any) => ({
@@ -35,6 +47,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setRequests(normalized);
     }
     if (savedSectors) setSectors(JSON.parse(savedSectors));
+    if (savedRequesters) setRequesters(JSON.parse(savedRequesters));
+    if (savedReasons) setReasons(JSON.parse(savedReasons));
   }, []);
 
   // Sync to LocalStorage
@@ -45,6 +59,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem('vivaz_sectors', JSON.stringify(sectors));
   }, [sectors]);
+
+  useEffect(() => {
+    localStorage.setItem('vivaz_requesters', JSON.stringify(requesters));
+  }, [requesters]);
+
+  useEffect(() => {
+    localStorage.setItem('vivaz_reasons', JSON.stringify(reasons));
+  }, [reasons]);
 
   const addRequest = (data: any) => {
     const newRequest: ExtraRequest = {
@@ -85,10 +107,22 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSectors(prev => prev.map(s => s.id === id ? sector : s));
   const deleteSector = (id: string) => setSectors(prev => prev.filter(s => s.id !== id));
 
+  const addRequester = (requester: RequesterItem) => setRequesters(prev => [...prev, requester]);
+  const updateRequester = (id: string, requester: RequesterItem) =>
+    setRequesters(prev => prev.map(r => r.id === id ? requester : r));
+  const deleteRequester = (id: string) => setRequesters(prev => prev.filter(r => r.id !== id));
+
+  const addReason = (reason: ReasonItem) => setReasons(prev => [...prev, reason]);
+  const updateReason = (id: string, reason: ReasonItem) =>
+    setReasons(prev => prev.map(r => r.id === id ? reason : r));
+  const deleteReason = (id: string) => setReasons(prev => prev.filter(r => r.id !== id));
+
   return (
     <ExtraContext.Provider value={{ 
-      requests, sectors, addRequest, updateStatus, deleteRequest,
-      addSector, updateSector, deleteSector
+      requests, sectors, requesters, reasons, addRequest, updateStatus, deleteRequest,
+      addSector, updateSector, deleteSector,
+      addRequester, updateRequester, deleteRequester,
+      addReason, updateReason, deleteReason
     }}>
       {children}
     </ExtraContext.Provider>

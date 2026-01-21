@@ -15,6 +15,16 @@ export interface Sector {
   roles: string[];
 }
 
+export interface RequesterItem {
+  id: string;
+  name: string;
+}
+
+export interface ReasonItem {
+  id: string;
+  name: string;
+}
+
 export type RequestStatus = 'SOLICITADO' | 'APROVADO' | 'REPROVADO' | 'CANCELADO';
 
 export interface ExtraRequest {

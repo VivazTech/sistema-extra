@@ -11,7 +11,7 @@ interface RequestModalProps {
 }
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
-  const { sectors, addRequest } = useExtras();
+  const { sectors, requesters, reasons, addRequest } = useExtras();
   const { user } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -224,14 +224,16 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Demandante *</label>
-              <input 
+              <select 
                 required
-                type="text"
-                placeholder="Quem solicitou o extra?"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.requester}
                 onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
-              />
+              >
+                <option value="">Selecione o demandante</option>
+                {requesters.length === 0 && <option value="" disabled>Cadastre demandantes no painel</option>}
+                {requesters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Contato/Doc (Opcional)</label>
@@ -247,14 +249,16 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-gray-500 uppercase">Motivo da Contratação *</label>
-            <textarea 
+            <select 
               required
-              rows={2}
               className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Ex: Reforço para evento corporativo, Substituição de colaborador afastado..."
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-            />
+            >
+              <option value="">Selecione o motivo</option>
+              {reasons.length === 0 && <option value="" disabled>Cadastre motivos no painel</option>}
+              {reasons.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+            </select>
           </div>
 
           <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
