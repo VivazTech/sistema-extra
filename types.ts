@@ -56,6 +56,7 @@ export interface ExtraRequest {
   value: number;
   status: RequestStatus;
   needsManagerApproval?: boolean;
+  urgency?: boolean;
   observations?: string;
   contact?: string;
   rejectionReason?: string;

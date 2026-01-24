@@ -352,10 +352,197 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const addSector = (sector: Sector) => setSectors(prev => [...prev, sector]);
-  const updateSector = (id: string, sector: Sector) => 
-    setSectors(prev => prev.map(s => s.id === id ? sector : s));
-  const deleteSector = (id: string) => setSectors(prev => prev.filter(s => s.id !== id));
+  const addSector = async (sector: Sector) => {
+    try {
+      // Criar setor no Supabase
+      const { data: newSector, error: sectorError } = await supabase
+        .from('sectors')
+        .insert({
+          name: sector.name,
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (sectorError || !newSector) {
+        console.error('Erro ao criar setor:', sectorError);
+        return;
+      }
+
+      // Criar funções do setor
+      if (sector.roles && sector.roles.length > 0) {
+        const rolesData = sector.roles.map(roleName => ({
+          sector_id: newSector.id,
+          role_name: roleName,
+          active: true,
+        }));
+
+        const { error: rolesError } = await supabase
+          .from('sector_roles')
+          .insert(rolesData);
+
+        if (rolesError) {
+          console.error('Erro ao criar funções:', rolesError);
+        }
+      }
+
+      // Buscar setor completo para atualizar estado
+      const { data: fullSector } = await supabase
+        .from('sectors')
+        .select('*, sector_roles(*)')
+        .eq('id', newSector.id)
+        .single();
+
+      if (fullSector) {
+        const mappedSector = mapSector(fullSector, fullSector.sector_roles);
+        setSectors(prev => [...prev, mappedSector]);
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar setor:', error);
+    }
+  };
+
+  const updateSector = async (id: string, sector: Sector) => {
+    try {
+      // O ID pode ser UUID do banco ou ID local, tentar ambos
+      let sectorId = id;
+      
+      // Tentar buscar por ID primeiro
+      const { data: existingSector } = await supabase
+        .from('sectors')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (!existingSector) {
+        // Se não encontrou, buscar pelo nome do setor atual
+        const currentSector = sectors.find(s => s.id === id);
+        if (currentSector) {
+          const { data: byName } = await supabase
+            .from('sectors')
+            .select('id')
+            .eq('name', currentSector.name)
+            .single();
+          
+          if (byName) {
+            sectorId = byName.id;
+          } else {
+            console.error('Setor não encontrado no banco');
+            return;
+          }
+        } else {
+          console.error('Setor não encontrado no estado local');
+          return;
+        }
+      } else {
+        sectorId = existingSector.id;
+      }
+
+      // Atualizar setor
+      const { error: updateError } = await supabase
+        .from('sectors')
+        .update({ name: sector.name })
+        .eq('id', sectorId);
+
+      if (updateError) {
+        console.error('Erro ao atualizar setor:', updateError);
+        return;
+      }
+
+      // Deletar funções antigas
+      await supabase
+        .from('sector_roles')
+        .delete()
+        .eq('sector_id', sectorId);
+
+      // Criar novas funções
+      if (sector.roles && sector.roles.length > 0) {
+        const rolesData = sector.roles
+          .filter(role => role.trim() !== '') // Remover funções vazias
+          .map(roleName => ({
+            sector_id: sectorId,
+            role_name: roleName.trim(),
+            active: true,
+          }));
+
+        if (rolesData.length > 0) {
+          const { error: rolesError } = await supabase
+            .from('sector_roles')
+            .insert(rolesData);
+
+          if (rolesError) {
+            console.error('Erro ao criar funções:', rolesError);
+          }
+        }
+      }
+
+      // Buscar setor completo para atualizar estado
+      const { data: fullSector } = await supabase
+        .from('sectors')
+        .select('*, sector_roles(*)')
+        .eq('id', sectorId)
+        .single();
+
+      if (fullSector) {
+        const mappedSector = mapSector(fullSector, fullSector.sector_roles);
+        setSectors(prev => prev.map(s => s.id === id ? mappedSector : s));
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar setor:', error);
+    }
+  };
+
+  const deleteSector = async (id: string) => {
+    try {
+      // Buscar setor no banco
+      const { data: existingSector } = await supabase
+        .from('sectors')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (!existingSector) {
+        // Tentar por nome
+        const { data: byName } = await supabase
+          .from('sectors')
+          .select('id')
+          .eq('name', id)
+          .single();
+
+        if (!byName) {
+          console.error('Setor não encontrado');
+          return;
+        }
+
+        // Deletar (cascade vai deletar as funções)
+        const { error } = await supabase
+          .from('sectors')
+          .delete()
+          .eq('id', byName.id);
+
+        if (error) {
+          console.error('Erro ao deletar setor:', error);
+          return;
+        }
+
+        setSectors(prev => prev.filter(s => s.id !== id && s.name !== id));
+      } else {
+        const { error } = await supabase
+          .from('sectors')
+          .delete()
+          .eq('id', existingSector.id);
+
+        if (error) {
+          console.error('Erro ao deletar setor:', error);
+          return;
+        }
+
+        setSectors(prev => prev.filter(s => s.id !== id));
+      }
+    } catch (error) {
+      console.error('Erro ao deletar setor:', error);
+    }
+  };
 
   const addRequester = (requester: RequesterItem) => setRequesters(prev => [...prev, requester]);
   const updateRequester = (id: string, requester: RequesterItem) =>
@@ -367,8 +554,69 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setReasons(prev => prev.map(r => r.id === id ? reason : r));
   const deleteReason = (id: string) => setReasons(prev => prev.filter(r => r.id !== id));
 
-  const addExtra = (extra: ExtraPerson) => setExtras(prev => [extra, ...prev]);
-  const deleteExtra = (id: string) => setExtras(prev => prev.filter(e => e.id !== id));
+  const addExtra = async (extra: ExtraPerson) => {
+    try {
+      // Buscar ID do setor
+      const { data: sectorData } = await supabase
+        .from('sectors')
+        .select('id')
+        .eq('name', extra.sector)
+        .single();
+
+      // Criar extra no Supabase
+      const { data: newExtra, error: extraError } = await supabase
+        .from('extra_persons')
+        .insert({
+          full_name: extra.fullName,
+          birth_date: extra.birthDate || null,
+          cpf: extra.cpf || null,
+          contact: extra.contact || null,
+          address: extra.address || null,
+          emergency_contact: extra.emergencyContact || null,
+          sector_id: sectorData?.id || null,
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (extraError || !newExtra) {
+        console.error('Erro ao criar extra:', extraError);
+        return;
+      }
+
+      // Buscar extra completo para atualizar estado
+      const { data: fullExtra } = await supabase
+        .from('extra_persons')
+        .select('*, sectors(name)')
+        .eq('id', newExtra.id)
+        .single();
+
+      if (fullExtra) {
+        const mappedExtra = mapExtraPerson(fullExtra);
+        setExtras(prev => [mappedExtra, ...prev]);
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar extra:', error);
+    }
+  };
+
+  const deleteExtra = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('extra_persons')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao deletar extra:', error);
+        return;
+      }
+
+      setExtras(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar extra:', error);
+    }
+  };
 
   const addExtraSaldoRecord = (record: ExtraSaldoRecord) => setExtraSaldoRecords(prev => [record, ...prev]);
   const updateExtraSaldoRecord = (id: string, record: ExtraSaldoRecord) =>

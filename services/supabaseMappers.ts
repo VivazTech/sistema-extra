@@ -16,11 +16,17 @@ import {
 } from '../types';
 
 // Converter Sector do Supabase para Type
-export const mapSector = (dbSector: any, roles?: any[]): Sector => ({
-  id: dbSector.id,
-  name: dbSector.name,
-  roles: roles?.map((r: any) => r.role_name) || [],
-});
+export const mapSector = (dbSector: any, roles?: any[]): Sector => {
+  const sectorRoles = Array.isArray(roles) 
+    ? roles.map((r: any) => typeof r === 'string' ? r : r.role_name).filter(Boolean)
+    : [];
+  
+  return {
+    id: dbSector.id,
+    name: dbSector.name,
+    roles: sectorRoles,
+  };
+};
 
 // Converter RequesterItem do Supabase
 export const mapRequester = (dbRequester: any): RequesterItem => ({
