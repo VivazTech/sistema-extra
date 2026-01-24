@@ -12,7 +12,8 @@ import {
   ClipboardList,
   Database,
   Calculator,
-  Clock
+  Clock,
+  TestTube
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -31,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
     { icon: Clock, label: 'Portaria', path: '/portaria', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
+    { icon: TestTube, label: 'Teste Supabase', path: '/test-supabase', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
     { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', roles: ['ADMIN'] },
     { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', roles: ['ADMIN', 'MANAGER'] },
     { icon: Database, label: 'Banco de Extras', path: '/admin/extras', roles: ['ADMIN'] },
