@@ -687,6 +687,29 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateExtraSaldoSettings = (settings: ExtraSaldoSettings) => setExtraSaldoSettings(settings);
 
   const updateTimeRecord = async (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => {
+    // Atualizar estado local imediatamente (otimistic update)
+    setRequests(prev => prev.map(req => {
+      if (req.id !== requestId) return req;
+      
+      return {
+        ...req,
+        workDays: req.workDays.map(day => 
+          day.date === workDate 
+            ? { 
+                ...day, 
+                timeRecord: { 
+                  ...day.timeRecord,
+                  ...timeRecord,
+                  registeredBy: registeredBy || day.timeRecord?.registeredBy, 
+                  registeredAt: day.timeRecord?.registeredAt || new Date().toISOString() 
+                } 
+              }
+            : day
+        ),
+        updatedAt: new Date().toISOString()
+      };
+    }));
+
     try {
       // Buscar work_day_id
       const { data: workDay } = await supabase
@@ -735,6 +758,21 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (error) {
           console.error('Erro ao atualizar registro de ponto:', error);
+          // Reverter estado local em caso de erro
+          setRequests(prev => prev.map(req => {
+            if (req.id !== requestId) return req;
+            return {
+              ...req,
+              workDays: req.workDays.map(day => 
+                day.date === workDate 
+                  ? { 
+                      ...day, 
+                      timeRecord: day.timeRecord || {} 
+                    }
+                  : day
+              )
+            };
+          }));
           return;
         }
       } else {
@@ -745,11 +783,26 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (error) {
           console.error('Erro ao criar registro de ponto:', error);
+          // Reverter estado local em caso de erro
+          setRequests(prev => prev.map(req => {
+            if (req.id !== requestId) return req;
+            return {
+              ...req,
+              workDays: req.workDays.map(day => 
+                day.date === workDate 
+                  ? { 
+                      ...day, 
+                      timeRecord: day.timeRecord || {} 
+                    }
+                  : day
+              )
+            };
+          }));
           return;
         }
       }
 
-      // Atualizar estado local
+      // Atualizar estado local novamente com dados confirmados do servidor
       setRequests(prev => prev.map(req => {
         if (req.id !== requestId) return req;
         
@@ -772,6 +825,21 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
     } catch (error) {
       console.error('Erro ao atualizar registro de ponto:', error);
+      // Reverter estado local em caso de erro
+      setRequests(prev => prev.map(req => {
+        if (req.id !== requestId) return req;
+        return {
+          ...req,
+          workDays: req.workDays.map(day => 
+            day.date === workDate 
+              ? { 
+                  ...day, 
+                  timeRecord: day.timeRecord || {} 
+                }
+              : day
+          )
+        };
+      }));
     }
   };
 

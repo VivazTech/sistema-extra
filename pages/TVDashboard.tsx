@@ -3,7 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   Clock, 
   ChevronLeft,
-  LayoutDashboard
+  LayoutDashboard,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
@@ -14,11 +16,25 @@ const TVDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedSector, setSelectedSector] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Carregar preferência de tema do localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('tv-dashboard-theme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    }
+  }, []);
+
+  // Salvar preferência de tema
+  useEffect(() => {
+    localStorage.setItem('tv-dashboard-theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRequests = requests.filter(r => 
@@ -92,37 +108,50 @@ const TVDashboard: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-8 flex flex-col font-sans overflow-hidden">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#050505]' : 'bg-gray-50'} ${isDarkMode ? 'text-white' : 'text-gray-900'} p-8 flex flex-col font-sans overflow-hidden transition-colors duration-300`}>
       {/* Header */}
-      <header className="flex justify-between items-center mb-12 border-b border-gray-800 pb-8">
+      <header className={`flex justify-between items-center mb-12 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} pb-8`}>
         <div className="flex items-center gap-6">
           <button 
             onClick={() => navigate('/')} 
-            className="p-3 bg-gray-900 rounded-full hover:bg-gray-800 transition-colors no-print"
+            className={`p-3 ${isDarkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-200 hover:bg-gray-300'} rounded-full transition-colors no-print`}
           >
             <ChevronLeft size={32} />
           </button>
-          <div className="w-16 h-16 bg-emerald-600 rounded-2xl flex items-center justify-center font-bold text-3xl shadow-lg shadow-emerald-900/40">V</div>
+          <div className={`w-16 h-16 ${isDarkMode ? 'bg-emerald-600 shadow-emerald-900/40' : 'bg-emerald-500 shadow-emerald-200/40'} rounded-2xl flex items-center justify-center font-bold text-3xl shadow-lg`}>V</div>
           <div>
-            <h1 className="text-4xl font-black tracking-tighter uppercase">Painel de Extras 24h</h1>
-            <p className="text-emerald-400 text-xl font-bold tracking-widest uppercase">Vivaz Cataratas Resort</p>
+            <h1 className={`text-4xl font-black tracking-tighter uppercase ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Painel de Extras 24h</h1>
+            <p className={`${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} text-xl font-bold tracking-widest uppercase`}>Vivaz Cataratas Resort</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-5xl font-mono font-black tabular-nums">{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-          <p className="text-xl text-gray-400 font-bold uppercase mt-1">
-            {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
-          </p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className={`p-3 rounded-xl transition-all ${
+              isDarkMode 
+                ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' 
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+            }`}
+            title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+          >
+            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <div className="text-right">
+            <p className={`text-5xl font-mono font-black tabular-nums ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+            <p className={`text-xl ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} font-bold uppercase mt-1`}>
+              {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+            </p>
+          </div>
         </div>
       </header>
 
       {/* Sector selector + balance */}
-      <div className="bg-gray-900/60 border border-gray-800 rounded-3xl p-6 mb-8">
+      <div className={`${isDarkMode ? 'bg-gray-900/60 border-gray-800' : 'bg-white border-gray-200'} border rounded-3xl p-6 mb-8`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-col gap-2">
             <span className="text-xs font-bold uppercase text-gray-400">Setor selecionado</span>
             <select
-              className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-lg font-bold text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              className={`${isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-900'} border rounded-xl px-4 py-3 text-lg font-bold focus:ring-2 focus:ring-emerald-500 outline-none`}
               value={selectedSector}
               onChange={(e) => setSelectedSector(e.target.value)}
             >
@@ -133,33 +162,33 @@ const TVDashboard: React.FC = () => {
           </div>
           <div className="text-right">
             <p className="text-xs font-bold uppercase text-gray-400">Saldo semanal</p>
-            <p className="text-3xl font-black text-emerald-400">
+            <p className={`text-3xl font-black ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
               {saldoInfo ? `${saldoInfo.saldo} diárias` : 'Indisponível'}
             </p>
             {saldoInfo && (
-              <p className="text-xs text-gray-400">Saldo R$: {saldoInfo.saldoEmReais.toFixed(2)}</p>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Saldo R$: {saldoInfo.saldoEmReais.toFixed(2)}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Working now */}
-      <div className="bg-gray-900/40 border border-gray-800 rounded-3xl p-8 mb-8">
+      <div className={`${isDarkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-white border-gray-200'} border rounded-3xl p-8 mb-8`}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-black text-emerald-500 uppercase tracking-tighter">
+          <h2 className={`text-2xl font-black ${isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} uppercase tracking-tighter`}>
             Extras em serviço agora • {currentShift}
           </h2>
-          <span className="text-xs font-bold uppercase text-gray-400">Hoje</span>
+          <span className={`text-xs font-bold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Hoje</span>
         </div>
         {workingNow.length === 0 ? (
-          <p className="text-gray-500 text-sm uppercase tracking-widest">Nenhum extra no turno atual</p>
+          <p className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'} text-sm uppercase tracking-widest`}>Nenhum extra no turno atual</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {workingNow.map(req => (
-              <div key={req.id} className="border border-gray-800 rounded-2xl p-4">
-                <p className="text-xl font-bold text-white">{req.extraName}</p>
-                <p className="text-sm text-emerald-400/70 font-bold uppercase">{req.role}</p>
-                <p className="text-xs text-gray-500 mt-2 uppercase">Líder: {req.leaderName}</p>
+              <div key={req.id} className={`border ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} rounded-2xl p-4`}>
+                <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
+                <p className={`text-sm ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} font-bold uppercase`}>{req.role}</p>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'} mt-2 uppercase`}>Líder: {req.leaderName}</p>
               </div>
             ))}
           </div>
@@ -178,13 +207,13 @@ const TVDashboard: React.FC = () => {
             {sectors.map(sectorName => {
               const sectorReqs = todayRequests.filter(r => r.sector === sectorName);
               return (
-                <div key={sectorName} className="bg-gray-900/40 border border-gray-800 rounded-3xl p-8 backdrop-blur-md">
-                  <h2 className="text-3xl font-black text-emerald-500 mb-6 uppercase tracking-tighter border-b border-gray-800 pb-4">{sectorName}</h2>
+                <div key={sectorName} className={`${isDarkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-white border-gray-200'} border rounded-3xl p-8 backdrop-blur-md`}>
+                  <h2 className={`text-3xl font-black ${isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} mb-6 uppercase tracking-tighter border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} pb-4`}>{sectorName}</h2>
                   <div className="space-y-6">
                     {sectorReqs.map(req => (
-                      <div key={req.id} className="flex flex-col gap-1 border-b border-gray-800/50 pb-4 last:border-0">
+                      <div key={req.id} className={`flex flex-col gap-1 border-b ${isDarkMode ? 'border-gray-800/50' : 'border-gray-200'} pb-4 last:border-0`}>
                         <div className="flex justify-between items-start">
-                          <p className="text-2xl font-bold leading-tight">{req.extraName}</p>
+                          <p className={`text-2xl font-bold leading-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
                           <span className={`
                             px-3 py-1 rounded-lg text-sm font-black uppercase
                             ${req.status === 'APROVADO' ? 'bg-emerald-500 text-emerald-950' : 'bg-amber-500 text-amber-950'}
@@ -193,12 +222,12 @@ const TVDashboard: React.FC = () => {
                           </span>
                         </div>
                         <div className="flex items-center justify-between mt-2">
-                           <p className="text-emerald-400/70 text-lg font-bold uppercase">{req.role}</p>
-                           <p className="text-gray-400 text-lg flex items-center gap-2">
+                           <p className={`${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} text-lg font-bold uppercase`}>{req.role}</p>
+                           <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-lg flex items-center gap-2`}>
                              <Clock size={18} /> {getShiftForDate(req.workDays, todayStr)}
                            </p>
                         </div>
-                        <p className="text-gray-500 text-sm mt-2 font-medium uppercase tracking-tighter">Líder: {req.leaderName}</p>
+                        <p className={`${isDarkMode ? 'text-gray-500' : 'text-gray-600'} text-sm mt-2 font-medium uppercase tracking-tighter`}>Líder: {req.leaderName}</p>
                       </div>
                     ))}
                   </div>
@@ -209,7 +238,7 @@ const TVDashboard: React.FC = () => {
         )}
       </div>
 
-      <footer className="mt-8 pt-8 border-t border-gray-800 flex justify-between items-center text-gray-600 font-bold uppercase text-xs tracking-[0.2em]">
+      <footer className={`mt-8 pt-8 border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} flex justify-between items-center ${isDarkMode ? 'text-gray-600' : 'text-gray-500'} font-bold uppercase text-xs tracking-[0.2em]`}>
         <p>Sistema de Gestão Vivaz v1.0 • Atualização Automática Ativada</p>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
