@@ -32,7 +32,10 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   });
 
   const availableRoles = sectors.find(s => s.name === formData.sector)?.roles || [];
-  const availableExtras = extras.filter(e => e.sector === formData.sector);
+  // Mostrar todos os extras do banco, mas priorizar os do setor selecionado
+  const availableExtras = formData.sector 
+    ? extras.filter(e => e.sector === formData.sector)
+    : extras;
 
   const addDays = (dateStr: string, days: number) => {
     const date = new Date(`${dateStr}T00:00:00`);
@@ -200,19 +203,52 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
               <label className="text-xs font-bold text-gray-500 uppercase">Nome do Extra *</label>
               <select 
                 required
-                disabled={!formData.sector}
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-gray-50"
+                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.extraName}
-                onChange={(e) => setFormData({ ...formData, extraName: e.target.value })}
+                onChange={(e) => {
+                  const selectedExtra = extras.find(ex => ex.fullName === e.target.value);
+                  setFormData({ 
+                    ...formData, 
+                    extraName: e.target.value,
+                    contact: selectedExtra?.contact || formData.contact
+                  });
+                }}
               >
                 <option value="">Selecione o extra</option>
-                {formData.sector && availableExtras.length === 0 && (
+                {extras.length === 0 && (
+                  <option value="" disabled>Nenhum extra cadastrado no banco</option>
+                )}
+                {formData.sector && availableExtras.length === 0 && extras.length > 0 && (
                   <option value="" disabled>Nenhum extra cadastrado para este setor</option>
                 )}
-                {availableExtras.map(extra => (
-                  <option key={extra.id} value={extra.fullName}>{extra.fullName}</option>
-                ))}
+                {formData.sector ? (
+                  // Se tem setor selecionado, mostrar primeiro os do setor, depois os outros
+                  <>
+                    {availableExtras.map(extra => (
+                      <option key={extra.id} value={extra.fullName}>
+                        {extra.fullName} {extra.sector !== formData.sector ? `(${extra.sector})` : ''}
+                      </option>
+                    ))}
+                    {extras.filter(e => e.sector !== formData.sector).map(extra => (
+                      <option key={extra.id} value={extra.fullName}>
+                        {extra.fullName} ({extra.sector})
+                      </option>
+                    ))}
+                  </>
+                ) : (
+                  // Se não tem setor, mostrar todos agrupados
+                  extras.map(extra => (
+                    <option key={extra.id} value={extra.fullName}>
+                      {extra.fullName} {extra.sector ? `(${extra.sector})` : ''}
+                    </option>
+                  ))
+                )}
               </select>
+              {extras.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  ⚠️ Nenhum extra cadastrado. Cadastre extras no "Banco de Extras" primeiro.
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Valor Combinado (R$) *</label>
