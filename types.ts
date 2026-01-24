@@ -27,15 +27,27 @@ export interface ReasonItem {
 
 export type RequestStatus = 'SOLICITADO' | 'APROVADO' | 'REPROVADO' | 'CANCELADO';
 
+export interface TimeRecord {
+  arrival?: string;
+  breakStart?: string;
+  breakEnd?: string;
+  departure?: string;
+  registeredBy?: string;
+  registeredAt?: string;
+}
+
+export interface WorkDay {
+  date: string;
+  shift: 'Manhã' | 'Tarde' | 'Noite' | 'Madrugada';
+  timeRecord?: TimeRecord;
+}
+
 export interface ExtraRequest {
   id: string;
   code: string; // e.g., EXT-2024-0001
   sector: string;
   role: string;
-  workDays: {
-    date: string;
-    shift: 'Manhã' | 'Tarde' | 'Noite' | 'Madrugada';
-  }[];
+  workDays: WorkDay[];
   leaderId: string;
   leaderName: string;
   requester: string;

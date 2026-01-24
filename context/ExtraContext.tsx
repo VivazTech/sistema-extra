@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord } from '../types';
 import { INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS } from '../constants';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 
@@ -30,6 +30,7 @@ interface ExtraContextType {
   updateExtraSaldoRecord: (id: string, record: ExtraSaldoRecord) => void;
   deleteExtraSaldoRecord: (id: string) => void;
   updateExtraSaldoSettings: (settings: ExtraSaldoSettings) => void;
+  updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -199,6 +200,29 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteExtraSaldoRecord = (id: string) => setExtraSaldoRecords(prev => prev.filter(r => r.id !== id));
   const updateExtraSaldoSettings = (settings: ExtraSaldoSettings) => setExtraSaldoSettings(settings);
 
+  const updateTimeRecord = (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => {
+    setRequests(prev => prev.map(req => {
+      if (req.id !== requestId) return req;
+      
+      return {
+        ...req,
+        workDays: req.workDays.map(day => 
+          day.date === workDate 
+            ? { 
+                ...day, 
+                timeRecord: { 
+                  ...timeRecord, 
+                  registeredBy, 
+                  registeredAt: new Date().toISOString() 
+                } 
+              }
+            : day
+        ),
+        updatedAt: new Date().toISOString()
+      };
+    }));
+  };
+
   return (
     <ExtraContext.Provider value={{ 
       requests, sectors, requesters, reasons, extras, extraSaldoRecords, extraSaldoSettings,
@@ -208,7 +232,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addReason, updateReason, deleteReason,
       addExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
-      updateExtraSaldoSettings
+      updateExtraSaldoSettings,
+      updateTimeRecord
     }}>
       {children}
     </ExtraContext.Provider>

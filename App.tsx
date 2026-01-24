@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Requests from './pages/Requests';
 import TVDashboard from './pages/TVDashboard';
 import AdminSectors from './pages/AdminSectors';
+import Portaria from './pages/Portaria';
 import AdminCatalogs from './pages/AdminCatalogs';
 import ExtraBank from './pages/ExtraBank';
 import ExtraBankForm from './pages/ExtraBankForm';
@@ -29,6 +30,7 @@ const AppRoutes = () => {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
       <Route path="/solicitacoes" element={<PrivateRoute><Requests /></PrivateRoute>} />
+      <Route path="/portaria" element={<PrivateRoute><Portaria /></PrivateRoute>} />
       <Route path="/admin/setores" element={<PrivateRoute roles={['ADMIN']}><AdminSectors /></PrivateRoute>} />
       <Route path="/admin/cadastros" element={<PrivateRoute roles={['ADMIN']}><AdminCatalogs /></PrivateRoute>} />
       <Route path="/admin/saldo-extras" element={<PrivateRoute roles={['ADMIN', 'MANAGER']}><ExtraSaldo /></PrivateRoute>} />
