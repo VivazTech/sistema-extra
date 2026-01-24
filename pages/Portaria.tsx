@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Clock, 
   Filter, 
@@ -9,11 +9,15 @@ import {
   ChevronUp,
   LogIn,
   LogOut,
-  Coffee
+  Coffee,
+  Camera,
+  X,
+  Check
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { ExtraRequest } from '../types';
+import { supabase } from '../services/supabase';
 
 const Portaria: React.FC = () => {
   const { requests, sectors, updateTimeRecord } = useExtras();
@@ -71,7 +75,137 @@ const Portaria: React.FC = () => {
 
   const isComplete = (request: ExtraRequest, date: string) => {
     const timeRecord = getTimeRecord(request, date);
-    return !!(timeRecord.arrival && timeRecord.departure);
+    return !!(timeRecord.arrival && timeRecord.departure && timeRecord.photoUrl);
+  };
+
+  const hasAllTimes = (request: ExtraRequest, date: string) => {
+    const timeRecord = getTimeRecord(request, date);
+    return !!(timeRecord.arrival && timeRecord.breakStart && timeRecord.breakEnd && timeRecord.departure);
+  };
+
+  const [capturingPhoto, setCapturingPhoto] = useState<string | null>(null);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startCamera = async (requestId: string, workDate: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' } 
+      });
+      streamRef.current = stream;
+      setCapturingPhoto(`${requestId}-${workDate}`);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error('Erro ao acessar câmera:', error);
+      alert('Erro ao acessar a câmera. Verifique as permissões.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setCapturingPhoto(null);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    if (!context) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0);
+
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    setPhotoPreview(photoDataUrl);
+    stopCamera();
+  };
+
+  const uploadPhoto = async (requestId: string, workDate: string) => {
+    if (!photoPreview) return;
+
+    try {
+      // Converter base64 para blob
+      const response = await fetch(photoPreview);
+      const blob = await response.blob();
+
+      // Criar nome único para o arquivo
+      const fileName = `time-record-${requestId}-${workDate}-${Date.now()}.jpg`;
+      const filePath = `time-records/${fileName}`;
+
+      // Upload para Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('time-records')
+        .upload(filePath, blob, {
+          contentType: 'image/jpeg',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Erro ao fazer upload da foto:', uploadError);
+        // Se o bucket não existir, criar e tentar novamente
+        if (uploadError.message.includes('Bucket not found')) {
+          alert('Bucket de storage não configurado. A foto será salva apenas localmente.');
+          // Salvar como base64 no banco (temporário)
+          const timeRecord = getTimeRecord(
+            requests.find(r => r.id === requestId)!, 
+            workDate
+          );
+          const updatedTimeRecord = {
+            ...timeRecord,
+            photoUrl: photoPreview, // Base64 temporário
+          };
+          await updateTimeRecord(requestId, workDate, updatedTimeRecord, user?.name || 'Portaria');
+          setPhotoPreview(null);
+          return;
+        }
+        throw uploadError;
+      }
+
+      // Obter URL pública da foto
+      const { data: urlData } = supabase.storage
+        .from('time-records')
+        .getPublicUrl(filePath);
+
+      const photoUrl = urlData.publicUrl;
+
+      // Atualizar time_record com a URL da foto
+      const timeRecord = getTimeRecord(
+        requests.find(r => r.id === requestId)!, 
+        workDate
+      );
+      const updatedTimeRecord = {
+        ...timeRecord,
+        photoUrl,
+      };
+
+      await updateTimeRecord(requestId, workDate, updatedTimeRecord, user?.name || 'Portaria');
+      
+      setPhotoPreview(null);
+      setCapturedPhoto(`${requestId}-${workDate}`);
+    } catch (error) {
+      console.error('Erro ao salvar foto:', error);
+      alert('Erro ao salvar foto. Tente novamente.');
+    }
+  };
+
+  const cancelPhoto = () => {
+    stopCamera();
+    setPhotoPreview(null);
   };
 
   return (
@@ -147,6 +281,10 @@ const Portaria: React.FC = () => {
             const isExpanded = expandedRequest === request.id;
             const timeRecord = getTimeRecord(request, todayStr);
             const completed = isComplete(request, todayStr);
+            const allTimesFilled = hasAllTimes(request, todayStr);
+            const photoKey = `${request.id}-${todayStr}`;
+            const isCapturing = capturingPhoto === photoKey;
+            const hasPhoto = timeRecord.photoUrl || capturedPhoto === photoKey;
 
             return (
               <div 
@@ -283,6 +421,121 @@ const Portaria: React.FC = () => {
                           />
                         </div>
                       </div>
+
+                      {/* Captura de Foto - Aparece quando os 4 campos estão preenchidos */}
+                      {allTimesFilled && !hasPhoto && (
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                              <Camera className="text-emerald-600" size={24} />
+                              <div>
+                                <h3 className="font-bold text-emerald-900">Assinatura com Foto</h3>
+                                <p className="text-sm text-emerald-700">
+                                  Tire uma foto do funcionário como comprovação de presença
+                                </p>
+                              </div>
+                            </div>
+
+                            {!isCapturing && !photoPreview && (
+                              <button
+                                onClick={() => startCamera(request.id, todayStr)}
+                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                              >
+                                <Camera size={20} />
+                                Tirar Foto
+                              </button>
+                            )}
+
+                            {/* Preview da Câmera */}
+                            {isCapturing && (
+                              <div className="space-y-4">
+                                <div className="relative bg-black rounded-xl overflow-hidden">
+                                  <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    className="w-full h-auto max-h-96"
+                                  />
+                                </div>
+                                <div className="flex gap-3">
+                                  <button
+                                    onClick={capturePhoto}
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2"
+                                  >
+                                    <Camera size={20} />
+                                    Capturar
+                                  </button>
+                                  <button
+                                    onClick={stopCamera}
+                                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                                <canvas ref={canvasRef} className="hidden" />
+                              </div>
+                            )}
+
+                            {/* Preview da Foto Capturada */}
+                            {photoPreview && (
+                              <div className="space-y-4">
+                                <div className="relative bg-gray-900 rounded-xl overflow-hidden">
+                                  <img
+                                    src={photoPreview}
+                                    alt="Preview"
+                                    className="w-full h-auto max-h-96 object-contain"
+                                  />
+                                </div>
+                                <div className="flex gap-3">
+                                  <button
+                                    onClick={() => uploadPhoto(request.id, todayStr)}
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2"
+                                  >
+                                    <Check size={20} />
+                                    Confirmar Foto
+                                  </button>
+                                  <button
+                                    onClick={cancelPhoto}
+                                    className="px-6 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl flex items-center gap-2"
+                                  >
+                                    <X size={20} />
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Foto Confirmada */}
+                      {hasPhoto && timeRecord.photoUrl && (
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                              <CheckCircle className="text-emerald-600" size={20} />
+                              <span className="font-bold text-emerald-900">Foto Confirmada</span>
+                            </div>
+                            <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+                              <img
+                                src={timeRecord.photoUrl}
+                                alt="Foto do extra"
+                                className="w-full h-auto max-h-64 object-contain"
+                                onError={(e) => {
+                                  // Se a URL falhar, pode ser base64
+                                  const target = e.target as HTMLImageElement;
+                                  if (timeRecord.photoUrl?.startsWith('data:')) {
+                                    target.src = timeRecord.photoUrl;
+                                  }
+                                }}
+                              />
+                            </div>
+                            <p className="text-xs text-emerald-700 mt-2">
+                              Foto registrada como comprovação de presença
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Informações adicionais */}
                       {timeRecord.registeredBy && (

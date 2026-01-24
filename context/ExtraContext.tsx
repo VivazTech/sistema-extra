@@ -720,6 +720,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         break_start: timeRecord.breakStart || null,
         break_end: timeRecord.breakEnd || null,
         departure: timeRecord.departure || null,
+        photo_url: timeRecord.photoUrl || null,
         registered_by: userData?.id || null,
         updated_at: new Date().toISOString(),
       };

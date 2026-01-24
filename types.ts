@@ -32,6 +32,7 @@ export interface TimeRecord {
   breakStart?: string;
   breakEnd?: string;
   departure?: string;
+  photoUrl?: string;
   registeredBy?: string;
   registeredAt?: string;
 }

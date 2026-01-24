@@ -68,6 +68,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
         breakStart: timeRecord.break_start,
         breakEnd: timeRecord.break_end,
         departure: timeRecord.departure,
+        photoUrl: timeRecord.photo_url,
         registeredBy: timeRecord.registered_by,
         registeredAt: timeRecord.registered_at,
       } : undefined,

@@ -140,6 +140,7 @@ CREATE TABLE time_records (
   break_start TIME,
   break_end TIME,
   departure TIME,
+  photo_url TEXT,
   registered_by UUID REFERENCES users(id),
   registered_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
