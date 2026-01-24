@@ -283,9 +283,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (fullRequest) {
         const mappedRequest = mapExtraRequest(fullRequest, fullRequest.work_days);
         setRequests(prev => [mappedRequest, ...prev]);
+      } else {
+        throw new Error('Solicitação criada mas não foi possível buscar os dados completos');
       }
+      return true; // Sucesso
     } catch (error) {
       console.error('Erro ao adicionar solicitação:', error);
+      throw error; // Re-throw para que o componente possa tratar
     }
   };
 
@@ -296,8 +300,31 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updated_at: new Date().toISOString(),
       };
 
-      if (status === 'APROVADO') {
-        updateData.approved_by = approvedBy;
+      let approvedByName = approvedBy;
+
+      if (status === 'APROVADO' && approvedBy) {
+        // Se approvedBy é um UUID, buscar o nome do usuário
+        // Se já é um nome, usar diretamente
+        try {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id, name')
+            .eq('id', approvedBy)
+            .single();
+
+          if (userData) {
+            updateData.approved_by = userData.id;
+            approvedByName = userData.name;
+          } else {
+            // Se não encontrou por ID, pode ser que seja o nome mesmo
+            updateData.approved_by = approvedBy;
+            approvedByName = approvedBy;
+          }
+        } catch (e) {
+          // Se falhar, usar o valor passado
+          updateData.approved_by = approvedBy;
+          approvedByName = approvedBy;
+        }
         updateData.approved_at = new Date().toISOString();
       } else if (status === 'REPROVADO') {
         updateData.rejection_reason = reason;
@@ -312,25 +339,49 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (error) {
         console.error('Erro ao atualizar status:', error);
-        return;
+        throw error;
       }
 
-      // Atualizar estado local
-      setRequests(prev => prev.map(req => 
-        req.id === id 
-          ? { 
-              ...req, 
-              status, 
-              updatedAt: new Date().toISOString(),
-              rejectionReason: status === 'REPROVADO' ? reason : req.rejectionReason,
-              cancellationReason: status === 'CANCELADO' ? reason : req.cancellationReason,
-              approvedBy: status === 'APROVADO' ? approvedBy : req.approvedBy,
-              approvedAt: status === 'APROVADO' ? new Date().toISOString() : req.approvedAt
-            } 
-          : req
-      ));
+      // Buscar solicitação atualizada para garantir dados corretos
+      const { data: updatedRequest } = await supabase
+        .from('extra_requests')
+        .select(`
+          *,
+          sectors(name),
+          users!extra_requests_approved_by_fkey(name),
+          work_days(
+            *,
+            time_records(*)
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (updatedRequest) {
+        const mappedRequest = mapExtraRequest(updatedRequest, updatedRequest.work_days);
+        // Atualizar estado local com dados do banco
+        setRequests(prev => prev.map(req => 
+          req.id === id ? mappedRequest : req
+        ));
+      } else {
+        // Fallback: atualizar estado local manualmente
+        setRequests(prev => prev.map(req => 
+          req.id === id 
+            ? { 
+                ...req, 
+                status, 
+                updatedAt: new Date().toISOString(),
+                rejectionReason: status === 'REPROVADO' ? reason : req.rejectionReason,
+                cancellationReason: status === 'CANCELADO' ? reason : req.cancellationReason,
+                approvedBy: status === 'APROVADO' ? approvedByName : req.approvedBy,
+                approvedAt: status === 'APROVADO' ? new Date().toISOString() : req.approvedAt
+              } 
+            : req
+        ));
+      }
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      throw error; // Re-throw para que o componente possa tratar
     }
   };
 

@@ -84,7 +84,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const hasInvalidDay = formData.workDays.some(d => !d.date || !d.shift);
     if (!formData.sector || !formData.role || !formData.extraName || !formData.value || hasInvalidDay) {
@@ -92,13 +92,34 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
       return;
     }
     
-    addRequest({
-      ...formData,
-      leaderId: user?.id || 'unknown',
-      leaderName: user?.name || 'unknown'
-    });
-    
-    onClose();
+    try {
+      await addRequest({
+        ...formData,
+        leaderId: user?.id || 'unknown',
+        leaderName: user?.name || 'unknown'
+      });
+      
+      // Limpar formulário
+      setFormData({
+        sector: '',
+        role: '',
+        workDays: [{
+          date: new Date().toISOString().split('T')[0],
+          shift: 'Manhã' as any,
+        }],
+        requester: '',
+        reason: '',
+        extraName: '',
+        value: 0,
+        observations: '',
+        contact: ''
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar solicitação:', error);
+      alert('Erro ao salvar solicitação. Verifique o console para mais detalhes.');
+    }
   };
 
   if (!isOpen) return null;

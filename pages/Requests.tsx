@@ -51,9 +51,14 @@ const Requests: React.FC = () => {
     return matchesSearch && matchesStatus && isManagerAuthorized;
   });
 
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string) => {
     if (confirm('Deseja realmente aprovar esta solicitação?')) {
-      updateStatus(id, 'APROVADO', undefined, user?.name);
+      try {
+        await updateStatus(id, 'APROVADO', undefined, user?.id);
+      } catch (error) {
+        console.error('Erro ao aprovar solicitação:', error);
+        alert('Erro ao aprovar solicitação. Verifique o console para mais detalhes.');
+      }
     }
   };
 
@@ -62,19 +67,29 @@ const Requests: React.FC = () => {
     setRejectModalOpen(true);
   };
 
-  const submitReject = () => {
+  const submitReject = async () => {
     if (!rejectionReason) return alert('O motivo da reprovação é obrigatório.');
     if (selectedRequestId) {
-      updateStatus(selectedRequestId, 'REPROVADO', rejectionReason, user?.name);
-      setRejectModalOpen(false);
-      setRejectionReason('');
+      try {
+        await updateStatus(selectedRequestId, 'REPROVADO', rejectionReason, user?.id);
+        setRejectModalOpen(false);
+        setRejectionReason('');
+      } catch (error) {
+        console.error('Erro ao reprovar solicitação:', error);
+        alert('Erro ao reprovar solicitação. Verifique o console para mais detalhes.');
+      }
     }
   };
 
-  const handleCancel = (id: string) => {
+  const handleCancel = async (id: string) => {
     const reason = prompt('Motivo do cancelamento (opcional):');
     if (reason !== null) {
-      updateStatus(id, 'CANCELADO', reason || 'Sem motivo informado');
+      try {
+        await updateStatus(id, 'CANCELADO', reason || 'Sem motivo informado');
+      } catch (error) {
+        console.error('Erro ao cancelar solicitação:', error);
+        alert('Erro ao cancelar solicitação. Verifique o console para mais detalhes.');
+      }
     }
   };
 
