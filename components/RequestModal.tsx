@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { SHIFTS } from '../constants';
@@ -11,7 +11,7 @@ interface RequestModalProps {
 }
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
-  const { sectors, requesters, reasons, extras, addRequest } = useExtras();
+  const { sectors, requesters, reasons, extras, addRequest, getSaldoForWeek } = useExtras();
   const { user } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -36,6 +36,14 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   const availableExtras = formData.sector 
     ? extras.filter(e => e.sector === formData.sector)
     : extras;
+
+  // Calcular saldo disponível para a semana da primeira data selecionada
+  const saldoDisponivel = useMemo(() => {
+    if (!formData.sector || !formData.workDays.length || !formData.workDays[0].date) {
+      return null;
+    }
+    return getSaldoForWeek(formData.sector, formData.workDays[0].date);
+  }, [formData.sector, formData.workDays, getSaldoForWeek]);
 
   const addDays = (dateStr: string, days: number) => {
     const date = new Date(`${dateStr}T00:00:00`);
@@ -144,6 +152,61 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          {/* Saldo de Extras Disponível */}
+          {formData.sector && formData.workDays.length > 0 && formData.workDays[0].date && saldoDisponivel !== null && (
+            <div className={`rounded-xl p-4 border-2 ${
+              saldoDisponivel === 'no-record'
+                ? 'bg-gray-50 border-gray-200'
+                : saldoDisponivel > 0 
+                  ? 'bg-emerald-50 border-emerald-200' 
+                  : saldoDisponivel === 0
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-red-50 border-red-200'
+            }`}>
+              <div className="flex items-start gap-3">
+                {saldoDisponivel === 'no-record' ? (
+                  <AlertCircle className="text-gray-500 mt-0.5" size={20} />
+                ) : saldoDisponivel > 0 ? (
+                  <CheckCircle className="text-emerald-600 mt-0.5" size={20} />
+                ) : (
+                  <AlertCircle className={saldoDisponivel === 0 ? 'text-amber-600' : 'text-red-600'} size={20} />
+                )}
+                <div className="flex-1">
+                  <h3 className={`font-bold text-sm mb-1 ${
+                    saldoDisponivel === 'no-record'
+                      ? 'text-gray-900'
+                      : saldoDisponivel > 0 
+                        ? 'text-emerald-900' 
+                        : saldoDisponivel === 0
+                          ? 'text-amber-900'
+                          : 'text-red-900'
+                  }`}>
+                    Saldo de Extras Disponível
+                  </h3>
+                  <p className={`text-sm ${
+                    saldoDisponivel === 'no-record'
+                      ? 'text-gray-700'
+                      : saldoDisponivel > 0 
+                        ? 'text-emerald-700' 
+                        : saldoDisponivel === 0
+                          ? 'text-amber-700'
+                          : 'text-red-700'
+                  }`}>
+                    {saldoDisponivel === 'no-record' ? (
+                      <>Não há registro de saldo cadastrado para o setor <strong>{formData.sector}</strong> nesta semana. Cadastre um registro em "Saldo de Extras" para acompanhar a disponibilidade.</>
+                    ) : saldoDisponivel > 0 ? (
+                      <>Você pode contratar <strong>{saldoDisponivel}</strong> {saldoDisponivel === 1 ? 'extra' : 'extras'} nesta semana para o setor <strong>{formData.sector}</strong>.</>
+                    ) : saldoDisponivel === 0 ? (
+                      <>O saldo de extras está zerado para o setor <strong>{formData.sector}</strong> nesta semana. A solicitação ainda pode ser feita, mas será necessário revisar o saldo.</>
+                    ) : (
+                      <>O saldo de extras está negativo (<strong>{saldoDisponivel}</strong>) para o setor <strong>{formData.sector}</strong> nesta semana. A solicitação ainda pode ser feita, mas será necessário revisar o saldo.</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Setor *</label>

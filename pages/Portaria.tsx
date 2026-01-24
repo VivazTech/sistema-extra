@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Clock, 
   Filter, 
@@ -12,7 +12,9 @@ import {
   Coffee,
   Camera,
   X,
-  Check
+  Check,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,8 +26,29 @@ const Portaria: React.FC = () => {
   const { user } = useAuth();
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const todayStr = new Date().toISOString().split('T')[0];
+
+  // Atualizar horário atual a cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Carregar preferência de tema do localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('portaria-theme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    }
+  }, []);
+
+  // Salvar preferência de tema
+  useEffect(() => {
+    localStorage.setItem('portaria-theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   // Filtrar solicitações aprovadas do dia
   const todayExtras = useMemo(() => {
@@ -40,6 +63,25 @@ const Portaria: React.FC = () => {
     if (selectedSector === 'TODOS') return todayExtras;
     return todayExtras.filter(req => req.sector === selectedSector);
   }, [todayExtras, selectedSector]);
+
+  // Função para calcular horas trabalhadas
+  const calculateWorkHours = (timeRecord: { arrival?: string; departure?: string; breakStart?: string; breakEnd?: string }) => {
+    if (!timeRecord.arrival || !timeRecord.departure) return null;
+    
+    const arrival = new Date(`2000-01-01T${timeRecord.arrival}:00`);
+    const departure = new Date(`2000-01-01T${timeRecord.departure}:00`);
+    
+    let totalMinutes = (departure.getTime() - arrival.getTime()) / (1000 * 60);
+    
+    if (timeRecord.breakStart && timeRecord.breakEnd) {
+      const breakStart = new Date(`2000-01-01T${timeRecord.breakStart}:00`);
+      const breakEnd = new Date(`2000-01-01T${timeRecord.breakEnd}:00`);
+      const breakMinutes = (breakEnd.getTime() - breakStart.getTime()) / (1000 * 60);
+      totalMinutes -= breakMinutes;
+    }
+    
+    return (totalMinutes / 60).toFixed(2);
+  };
 
   const getCurrentTime = () => {
     const now = new Date();
@@ -209,38 +251,54 @@ const Portaria: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Clock className="text-emerald-600" size={28} />
-            Portaria - Registro de Ponto
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Controle de entrada e saída dos funcionários extras do dia
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-black text-emerald-600">
-            {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#050505]' : 'bg-gray-50'} transition-colors duration-300`}>
+      <div className={`${isDarkMode ? 'text-white' : 'text-gray-900'} space-y-6 p-6`}>
+        <header className="flex justify-between items-center">
+          <div>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} flex items-center gap-2`}>
+              <Clock className="text-emerald-600" size={28} />
+              Portaria - Registro de Ponto
+            </h1>
+            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
+              Controle de entrada e saída dos funcionários extras do dia
+            </p>
           </div>
-          <div className="text-xs text-gray-500 uppercase font-bold">
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`p-3 rounded-xl transition-all ${
+                isDarkMode 
+                  ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+              }`}
+              title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <div className="text-right">
+              <div className={`text-3xl font-black ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+              </div>
+              <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-bold`}>
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}
+              </div>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       {/* Filtros */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className={`${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-2xl p-4 shadow-sm border`}>
         <div className="flex items-center gap-4">
-          <Filter size={20} className="text-gray-400" />
+          <Filter size={20} className={isDarkMode ? 'text-gray-500' : 'text-gray-400'} />
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setSelectedSector('TODOS')}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                 selectedSector === 'TODOS'
                   ? 'bg-emerald-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : isDarkMode
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               Todos ({todayExtras.length})
@@ -255,7 +313,9 @@ const Portaria: React.FC = () => {
                   className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                     selectedSector === sector.name
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : isDarkMode
+                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
                   {sector.name} ({count})
@@ -269,9 +329,9 @@ const Portaria: React.FC = () => {
       {/* Lista de Extras */}
       <div className="space-y-3">
         {filteredExtras.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
-            <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-400 font-medium">
+          <div className={`${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-2xl p-12 text-center border`}>
+            <Calendar size={48} className={`mx-auto ${isDarkMode ? 'text-gray-700' : 'text-gray-300'} mb-4`} />
+            <p className={isDarkMode ? 'text-gray-400' : 'text-gray-400'} style={{fontWeight: 500}}>
               Nenhum funcionário extra aprovado para hoje
               {selectedSector !== 'TODOS' && ` no setor ${selectedSector}`}
             </p>
@@ -285,65 +345,125 @@ const Portaria: React.FC = () => {
             const photoKey = `${request.id}-${todayStr}`;
             const isCapturing = capturingPhoto === photoKey;
             const hasPhoto = timeRecord.photoUrl || capturedPhoto === photoKey;
+            const workHours = calculateWorkHours(timeRecord);
 
             return (
               <div 
                 key={request.id} 
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                className={`${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-2xl shadow-sm border overflow-hidden`}
               >
                 {/* Header - Clicável */}
                 <button
                   onClick={() => setExpandedRequest(isExpanded ? null : request.id)}
-                  className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  className={`w-full p-5 flex items-center justify-between ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} transition-colors`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center font-black text-emerald-700 text-lg">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className={`w-12 h-12 rounded-full ${isDarkMode ? 'bg-emerald-900' : 'bg-emerald-100'} flex items-center justify-center font-black ${isDarkMode ? 'text-emerald-300' : 'text-emerald-700'} text-lg`}>
                       {request.extraName.charAt(0).toUpperCase()}
                     </div>
-                    <div className="text-left">
-                      <h3 className="font-bold text-gray-900 text-lg">{request.extraName}</h3>
-                      <p className="text-sm text-gray-500">
+                    <div className="text-left flex-1">
+                      <h3 className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} text-lg`}>{request.extraName}</h3>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                         <span className="font-bold">{request.sector}</span> • {request.role}
                       </p>
+                      {/* Horários em tempo real */}
+                      <div className="flex items-center gap-4 mt-2 text-xs">
+                        {timeRecord.arrival ? (
+                          <div className="flex items-center gap-1">
+                            <LogIn size={12} className={isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} />
+                            <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.arrival}</span>
+                          </div>
+                        ) : (
+                          <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                            <LogIn size={12} />
+                            <span>--:--</span>
+                          </div>
+                        )}
+                        {timeRecord.breakStart ? (
+                          <div className="flex items-center gap-1">
+                            <Coffee size={12} className={isDarkMode ? 'text-amber-400' : 'text-amber-600'} />
+                            <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.breakStart}</span>
+                          </div>
+                        ) : (
+                          <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                            <Coffee size={12} />
+                            <span>--:--</span>
+                          </div>
+                        )}
+                        {timeRecord.breakEnd ? (
+                          <div className="flex items-center gap-1">
+                            <Coffee size={12} className={isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} />
+                            <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.breakEnd}</span>
+                          </div>
+                        ) : (
+                          <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                            <Coffee size={12} />
+                            <span>--:--</span>
+                          </div>
+                        )}
+                        {timeRecord.departure ? (
+                          <div className="flex items-center gap-1">
+                            <LogOut size={12} className={isDarkMode ? 'text-red-400' : 'text-red-600'} />
+                            <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.departure}</span>
+                          </div>
+                        ) : (
+                          <div className={`flex items-center gap-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                            <LogOut size={12} />
+                            <span>--:--</span>
+                          </div>
+                        )}
+                        {workHours && (
+                          <div className={`ml-2 px-2 py-1 rounded ${isDarkMode ? 'bg-emerald-900 text-emerald-300' : 'bg-emerald-100 text-emerald-700'} text-xs font-bold`}>
+                            {workHours}h
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
+                    {/* Valor Combinado */}
+                    <div className={`text-right ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      <div className="text-xs font-bold uppercase mb-1">Valor</div>
+                      <div className="text-lg font-black">
+                        R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
                     {completed ? (
-                      <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full">
+                      <div className={`flex items-center gap-2 ${isDarkMode ? 'bg-emerald-900 text-emerald-300' : 'bg-emerald-100 text-emerald-700'} px-3 py-1 rounded-full`}>
                         <CheckCircle size={16} />
                         <span className="text-xs font-bold uppercase">Completo</span>
                       </div>
                     ) : timeRecord.arrival ? (
-                      <div className="flex items-center gap-2 bg-amber-100 text-amber-700 px-3 py-1 rounded-full">
+                      <div className={`flex items-center gap-2 ${isDarkMode ? 'bg-amber-900 text-amber-300' : 'bg-amber-100 text-amber-700'} px-3 py-1 rounded-full`}>
                         <Clock size={16} />
                         <span className="text-xs font-bold uppercase">Em andamento</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+                      <div className={`flex items-center gap-2 ${isDarkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'} px-3 py-1 rounded-full`}>
                         <Clock size={16} />
                         <span className="text-xs font-bold uppercase">Pendente</span>
                       </div>
                     )}
                     {isExpanded ? (
-                      <ChevronUp className="text-gray-400" size={20} />
+                      <ChevronUp className={isDarkMode ? 'text-gray-500' : 'text-gray-400'} size={20} />
                     ) : (
-                      <ChevronDown className="text-gray-400" size={20} />
+                      <ChevronDown className={isDarkMode ? 'text-gray-500' : 'text-gray-400'} size={20} />
                     )}
                   </div>
                 </button>
 
                 {/* Detalhes - Expansível */}
                 {isExpanded && (
-                  <div className="p-6 border-t border-gray-100 bg-gray-50">
+                  <div className={`p-6 border-t ${isDarkMode ? 'border-gray-800 bg-gray-800' : 'border-gray-100 bg-gray-50'}`}>
                     <div className="space-y-4">
-                      <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-4">
+                      <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-bold uppercase tracking-wider mb-4`}>
                         Registro de Horários
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Chegada */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <div className={`${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} p-4 rounded-xl border`}>
+                          <label className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                             <LogIn size={16} className="text-emerald-600" />
                             Chegada
                           </label>
@@ -357,13 +477,13 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, todayStr, 'arrival', getCurrentTime());
                               }
                             }}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                            className={`w-full px-4 py-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'} font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none`}
                           />
                         </div>
 
                         {/* Saída para Intervalo */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <div className={`${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} p-4 rounded-xl border`}>
+                          <label className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                             <Coffee size={16} className="text-amber-600" />
                             Saída p/ Intervalo
                           </label>
@@ -377,13 +497,13 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, todayStr, 'breakStart', getCurrentTime());
                               }
                             }}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                            className={`w-full px-4 py-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'} font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none`}
                           />
                         </div>
 
                         {/* Volta do Intervalo */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <div className={`${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} p-4 rounded-xl border`}>
+                          <label className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                             <Coffee size={16} className="text-emerald-600" />
                             Volta do Intervalo
                           </label>
@@ -397,13 +517,13 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, todayStr, 'breakEnd', getCurrentTime());
                               }
                             }}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                            className={`w-full px-4 py-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'} font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none`}
                           />
                         </div>
 
                         {/* Saída Final */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <div className={`${isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} p-4 rounded-xl border`}>
+                          <label className={`flex items-center gap-2 text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                             <LogOut size={16} className="text-red-600" />
                             Saída Final
                           </label>
@@ -417,20 +537,20 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, todayStr, 'departure', getCurrentTime());
                               }
                             }}
-                            className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                            className={`w-full px-4 py-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'} font-bold text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none`}
                           />
                         </div>
                       </div>
 
                       {/* Captura de Foto - Aparece quando os 4 campos estão preenchidos */}
                       {allTimesFilled && !hasPhoto && (
-                        <div className="mt-6 pt-6 border-t border-gray-200">
-                          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6">
+                        <div className={`mt-6 pt-6 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <div className={`${isDarkMode ? 'bg-emerald-900 border-emerald-700' : 'bg-emerald-50 border-emerald-200'} border-2 rounded-xl p-6`}>
                             <div className="flex items-center gap-3 mb-4">
                               <Camera className="text-emerald-600" size={24} />
                               <div>
-                                <h3 className="font-bold text-emerald-900">Assinatura com Foto</h3>
-                                <p className="text-sm text-emerald-700">
+                                <h3 className={`font-bold ${isDarkMode ? 'text-emerald-300' : 'text-emerald-900'}`}>Assinatura com Foto</h3>
+                                <p className={`text-sm ${isDarkMode ? 'text-emerald-200' : 'text-emerald-700'}`}>
                                   Tire uma foto do funcionário como comprovação de presença
                                 </p>
                               </div>
@@ -467,7 +587,7 @@ const Portaria: React.FC = () => {
                                   </button>
                                   <button
                                     onClick={stopCamera}
-                                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl"
+                                    className={`px-6 py-3 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} font-bold rounded-xl`}
                                   >
                                     Cancelar
                                   </button>
@@ -496,7 +616,7 @@ const Portaria: React.FC = () => {
                                   </button>
                                   <button
                                     onClick={cancelPhoto}
-                                    className="px-6 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl flex items-center gap-2"
+                                    className={`px-6 py-3 ${isDarkMode ? 'bg-red-900 hover:bg-red-800 text-red-200' : 'bg-red-100 hover:bg-red-200 text-red-700'} font-bold rounded-xl flex items-center gap-2`}
                                   >
                                     <X size={20} />
                                     Cancelar
@@ -510,11 +630,11 @@ const Portaria: React.FC = () => {
 
                       {/* Foto Confirmada */}
                       {hasPhoto && timeRecord.photoUrl && (
-                        <div className="mt-6 pt-6 border-t border-gray-200">
-                          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                        <div className={`mt-6 pt-6 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <div className={`${isDarkMode ? 'bg-emerald-900 border-emerald-700' : 'bg-emerald-50 border-emerald-200'} border-2 rounded-xl p-4`}>
                             <div className="flex items-center gap-3 mb-3">
                               <CheckCircle className="text-emerald-600" size={20} />
-                              <span className="font-bold text-emerald-900">Foto Confirmada</span>
+                              <span className={`font-bold ${isDarkMode ? 'text-emerald-300' : 'text-emerald-900'}`}>Foto Confirmada</span>
                             </div>
                             <div className="relative bg-gray-900 rounded-lg overflow-hidden">
                               <img
@@ -530,7 +650,7 @@ const Portaria: React.FC = () => {
                                 }}
                               />
                             </div>
-                            <p className="text-xs text-emerald-700 mt-2">
+                            <p className={`text-xs ${isDarkMode ? 'text-emerald-200' : 'text-emerald-700'} mt-2`}>
                               Foto registrada como comprovação de presença
                             </p>
                           </div>
@@ -539,8 +659,8 @@ const Portaria: React.FC = () => {
 
                       {/* Informações adicionais */}
                       {timeRecord.registeredBy && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <p className="text-xs text-gray-500">
+                        <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                             <span className="font-bold">Registrado por:</span> {timeRecord.registeredBy}
                             {timeRecord.registeredAt && (
                               <> • {new Date(timeRecord.registeredAt).toLocaleString('pt-BR')}</>
@@ -550,24 +670,24 @@ const Portaria: React.FC = () => {
                       )}
 
                       {/* Informações da solicitação */}
-                      <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} grid grid-cols-2 md:grid-cols-4 gap-4 text-xs`}>
                         <div>
-                          <span className="text-gray-500 font-bold block mb-1">Código</span>
-                          <span className="text-gray-900 font-mono">{request.code}</span>
+                          <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-bold block mb-1`}>Código</span>
+                          <span className={isDarkMode ? 'text-gray-200' : 'text-gray-900'} style={{fontFamily: 'monospace'}}>{request.code}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500 font-bold block mb-1">Turno</span>
-                          <span className="text-gray-900">
+                          <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-bold block mb-1`}>Turno</span>
+                          <span className={isDarkMode ? 'text-gray-200' : 'text-gray-900'}>
                             {request.workDays.find(d => d.date === todayStr)?.shift || '-'}
                           </span>
                         </div>
                         <div>
-                          <span className="text-gray-500 font-bold block mb-1">Líder</span>
-                          <span className="text-gray-900">{request.leaderName}</span>
+                          <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-bold block mb-1`}>Líder</span>
+                          <span className={isDarkMode ? 'text-gray-200' : 'text-gray-900'}>{request.leaderName}</span>
                         </div>
                         <div>
-                          <span className="text-gray-500 font-bold block mb-1">Contato</span>
-                          <span className="text-gray-900">{request.contact || '-'}</span>
+                          <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-bold block mb-1`}>Contato</span>
+                          <span className={isDarkMode ? 'text-gray-200' : 'text-gray-900'}>{request.contact || '-'}</span>
                         </div>
                       </div>
                     </div>
@@ -577,6 +697,7 @@ const Portaria: React.FC = () => {
             );
           })
         )}
+      </div>
       </div>
     </div>
   );

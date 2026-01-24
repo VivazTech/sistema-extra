@@ -41,6 +41,7 @@ interface ExtraContextType {
   deleteExtraSaldoRecord: (id: string) => void;
   updateExtraSaldoSettings: (settings: ExtraSaldoSettings) => void;
   updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
+  getSaldoForWeek: (sector: string, dateStr: string) => number | null | 'no-record';
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -774,6 +775,23 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Função pública para obter saldo disponível para uma semana
+  // Retorna: null se não há setor/data, número se há registro, ou 'no-record' se não há registro cadastrado
+  const getSaldoForWeek = (sector: string, dateStr: string): number | null | 'no-record' => {
+    if (!sector || !dateStr) return null;
+    const { start, end } = getWeekRange(dateStr);
+    const weekStartStr = start.toISOString().split('T')[0];
+    const weekEndStr = end.toISOString().split('T')[0];
+    const record = extraSaldoRecords.find(r =>
+      r.setor === sector &&
+      r.periodoInicio <= weekStartStr &&
+      r.periodoFim >= weekEndStr
+    );
+    if (!record) return 'no-record';
+    const saldo = getRemainingSaldoForWeek(sector, start, end);
+    return saldo;
+  };
+
   return (
     <ExtraContext.Provider value={{ 
       requests, sectors, requesters, reasons, extras, extraSaldoRecords, extraSaldoSettings,
@@ -784,7 +802,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,
-      updateTimeRecord
+      updateTimeRecord,
+      getSaldoForWeek
     }}>
       {children}
     </ExtraContext.Provider>
