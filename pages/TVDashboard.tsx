@@ -1,11 +1,14 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Clock, 
   ChevronLeft,
   LayoutDashboard,
   Moon,
-  Sun
+  Sun,
+  LogIn,
+  LogOut,
+  Coffee
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
@@ -45,8 +48,20 @@ const TVDashboard: React.FC = () => {
     return workDays.find(d => d.date === date)?.shift || workDays[0]?.shift || '';
   };
 
+  // Função para obter timeRecord de um request
+  const getTimeRecord = (request: any, date: string) => {
+    const workDay = request.workDays.find((d: any) => d.date === date);
+    return workDay?.timeRecord || {};
+  };
+
   // Group by Sector
   const sectors = Array.from(new Set(todayRequests.map(r => r.sector))).sort();
+
+  // Filtrar requests por setor selecionado
+  const filteredRequests = useMemo(() => {
+    if (!selectedSector) return todayRequests;
+    return todayRequests.filter(r => r.sector === selectedSector);
+  }, [todayRequests, selectedSector]);
 
   useEffect(() => {
     if (!selectedSector && sectors.length > 0) {
@@ -102,8 +117,7 @@ const TVDashboard: React.FC = () => {
 
   const currentShift = getCurrentShift();
   const saldoInfo = getSaldoForSectorWeek(selectedSector);
-  const sectorTodayRequests = todayRequests.filter(r => r.sector === selectedSector);
-  const workingNow = sectorTodayRequests.filter(r =>
+  const workingNow = filteredRequests.filter(r =>
     r.status === 'APROVADO' && getShiftForDate(r.workDays, todayStr) === currentShift
   );
 
@@ -149,16 +163,39 @@ const TVDashboard: React.FC = () => {
       <div className={`${isDarkMode ? 'bg-gray-900/60 border-gray-800' : 'bg-white border-gray-200'} border rounded-3xl p-6 mb-8`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase text-gray-400">Setor selecionado</span>
-            <select
-              className={`${isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-900'} border rounded-xl px-4 py-3 text-lg font-bold focus:ring-2 focus:ring-emerald-500 outline-none`}
-              value={selectedSector}
-              onChange={(e) => setSelectedSector(e.target.value)}
-            >
-              {sectors.map(sector => (
-                <option key={sector} value={sector}>{sector}</option>
-              ))}
-            </select>
+            <span className={`text-xs font-bold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Filtrar por Setor</span>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setSelectedSector('')}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                  !selectedSector
+                    ? 'bg-emerald-600 text-white'
+                    : isDarkMode
+                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Todos ({todayRequests.length})
+              </button>
+              {sectors.map(sector => {
+                const count = todayRequests.filter(r => r.sector === sector).length;
+                return (
+                  <button
+                    key={sector}
+                    onClick={() => setSelectedSector(sector)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                      selectedSector === sector
+                        ? 'bg-emerald-600 text-white'
+                        : isDarkMode
+                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {sector} ({count})
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="text-right">
             <p className="text-xs font-bold uppercase text-gray-400">Saldo semanal</p>
@@ -184,52 +221,129 @@ const TVDashboard: React.FC = () => {
           <p className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'} text-sm uppercase tracking-widest`}>Nenhum extra no turno atual</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {workingNow.map(req => (
-              <div key={req.id} className={`border ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} rounded-2xl p-4`}>
-                <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
-                <p className={`text-sm ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} font-bold uppercase`}>{req.role}</p>
-                <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'} mt-2 uppercase`}>Líder: {req.leaderName}</p>
-              </div>
-            ))}
+            {workingNow.map(req => {
+              const timeRecord = getTimeRecord(req, todayStr);
+              return (
+                <div key={req.id} className={`border ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} rounded-2xl p-4`}>
+                  <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} font-bold uppercase`}>{req.role}</p>
+                  {/* Horários em tempo real */}
+                  {timeRecord.arrival || timeRecord.departure ? (
+                    <div className="flex items-center gap-3 mt-3 text-xs">
+                      {timeRecord.arrival && (
+                        <div className="flex items-center gap-1">
+                          <LogIn size={12} className={isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} />
+                          <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.arrival}</span>
+                        </div>
+                      )}
+                      {timeRecord.breakStart && (
+                        <div className="flex items-center gap-1">
+                          <Coffee size={12} className={isDarkMode ? 'text-amber-400' : 'text-amber-600'} />
+                          <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.breakStart}</span>
+                        </div>
+                      )}
+                      {timeRecord.breakEnd && (
+                        <div className="flex items-center gap-1">
+                          <Coffee size={12} className={isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} />
+                          <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.breakEnd}</span>
+                        </div>
+                      )}
+                      {timeRecord.departure && (
+                        <div className="flex items-center gap-1">
+                          <LogOut size={12} className={isDarkMode ? 'text-red-400' : 'text-red-600'} />
+                          <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.departure}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between mt-2">
+                    <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'} uppercase`}>Líder: {req.leaderName}</p>
+                    <p className={`text-sm font-bold ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Grid of Sectors */}
       <div className="flex-1 overflow-y-auto">
-        {todayRequests.length === 0 ? (
+        {filteredRequests.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-30 gap-6">
             <LayoutDashboard size={120} />
-            <p className="text-4xl font-bold uppercase tracking-widest">Nenhuma solicitação para hoje</p>
+            <p className="text-4xl font-bold uppercase tracking-widest">
+              {selectedSector ? `Nenhuma solicitação para ${selectedSector} hoje` : 'Nenhuma solicitação para hoje'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {sectors.map(sectorName => {
-              const sectorReqs = todayRequests.filter(r => r.sector === sectorName);
+            {(selectedSector ? [selectedSector] : sectors).map(sectorName => {
+              const sectorReqs = filteredRequests.filter(r => r.sector === sectorName);
+              if (sectorReqs.length === 0) return null;
               return (
                 <div key={sectorName} className={`${isDarkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-white border-gray-200'} border rounded-3xl p-8 backdrop-blur-md`}>
                   <h2 className={`text-3xl font-black ${isDarkMode ? 'text-emerald-500' : 'text-emerald-600'} mb-6 uppercase tracking-tighter border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} pb-4`}>{sectorName}</h2>
                   <div className="space-y-6">
-                    {sectorReqs.map(req => (
-                      <div key={req.id} className={`flex flex-col gap-1 border-b ${isDarkMode ? 'border-gray-800/50' : 'border-gray-200'} pb-4 last:border-0`}>
-                        <div className="flex justify-between items-start">
-                          <p className={`text-2xl font-bold leading-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
-                          <span className={`
-                            px-3 py-1 rounded-lg text-sm font-black uppercase
-                            ${req.status === 'APROVADO' ? 'bg-emerald-500 text-emerald-950' : 'bg-amber-500 text-amber-950'}
-                          `}>
-                            {req.status}
-                          </span>
+                    {sectorReqs.map(req => {
+                      const timeRecord = getTimeRecord(req, todayStr);
+                      return (
+                        <div key={req.id} className={`flex flex-col gap-1 border-b ${isDarkMode ? 'border-gray-800/50' : 'border-gray-200'} pb-4 last:border-0`}>
+                          <div className="flex justify-between items-start">
+                            <p className={`text-2xl font-bold leading-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
+                            <span className={`
+                              px-3 py-1 rounded-lg text-sm font-black uppercase
+                              ${req.status === 'APROVADO' ? 'bg-emerald-500 text-emerald-950' : 'bg-amber-500 text-amber-950'}
+                            `}>
+                              {req.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                             <p className={`${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} text-lg font-bold uppercase`}>{req.role}</p>
+                             <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-lg flex items-center gap-2`}>
+                               <Clock size={18} /> {getShiftForDate(req.workDays, todayStr)}
+                             </p>
+                          </div>
+                          {/* Horários em tempo real */}
+                          {timeRecord.arrival || timeRecord.departure ? (
+                            <div className="flex items-center gap-3 mt-2 text-xs">
+                              {timeRecord.arrival && (
+                                <div className="flex items-center gap-1">
+                                  <LogIn size={12} className={isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} />
+                                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.arrival}</span>
+                                </div>
+                              )}
+                              {timeRecord.breakStart && (
+                                <div className="flex items-center gap-1">
+                                  <Coffee size={12} className={isDarkMode ? 'text-amber-400' : 'text-amber-600'} />
+                                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.breakStart}</span>
+                                </div>
+                              )}
+                              {timeRecord.breakEnd && (
+                                <div className="flex items-center gap-1">
+                                  <Coffee size={12} className={isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} />
+                                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.breakEnd}</span>
+                                </div>
+                              )}
+                              {timeRecord.departure && (
+                                <div className="flex items-center gap-1">
+                                  <LogOut size={12} className={isDarkMode ? 'text-red-400' : 'text-red-600'} />
+                                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>{timeRecord.departure}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                          <div className="flex items-center justify-between mt-2">
+                            <p className={`${isDarkMode ? 'text-gray-500' : 'text-gray-600'} text-sm font-medium uppercase tracking-tighter`}>Líder: {req.leaderName}</p>
+                            <p className={`text-sm font-bold ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                              R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between mt-2">
-                           <p className={`${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} text-lg font-bold uppercase`}>{req.role}</p>
-                           <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-lg flex items-center gap-2`}>
-                             <Clock size={18} /> {getShiftForDate(req.workDays, todayStr)}
-                           </p>
-                        </div>
-                        <p className={`${isDarkMode ? 'text-gray-500' : 'text-gray-600'} text-sm mt-2 font-medium uppercase tracking-tighter`}>Líder: {req.leaderName}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
