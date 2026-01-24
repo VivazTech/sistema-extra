@@ -54,7 +54,12 @@ const Requests: React.FC = () => {
   const handleApprove = async (id: string) => {
     if (confirm('Deseja realmente aprovar esta solicitação?')) {
       try {
-        await updateStatus(id, 'APROVADO', undefined, user?.id);
+        // Validar se user.id é UUID válido
+        if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
+          alert('Erro: Usuário não autenticado corretamente. Por favor, faça login novamente.');
+          return;
+        }
+        await updateStatus(id, 'APROVADO', undefined, user.id);
       } catch (error) {
         console.error('Erro ao aprovar solicitação:', error);
         alert('Erro ao aprovar solicitação. Verifique o console para mais detalhes.');
@@ -71,7 +76,11 @@ const Requests: React.FC = () => {
     if (!rejectionReason) return alert('O motivo da reprovação é obrigatório.');
     if (selectedRequestId) {
       try {
-        await updateStatus(selectedRequestId, 'REPROVADO', rejectionReason, user?.id);
+        // Validar se user.id é UUID válido (não obrigatório para reprovação, mas melhor validar)
+        const userId = user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) 
+          ? user.id 
+          : undefined;
+        await updateStatus(selectedRequestId, 'REPROVADO', rejectionReason, userId);
         setRejectModalOpen(false);
         setRejectionReason('');
       } catch (error) {

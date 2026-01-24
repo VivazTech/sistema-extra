@@ -220,6 +220,12 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const remainingSaldo = getRemainingSaldoForWeek(data.sector, weekStart, weekEnd);
       const canAutoApprove = remainingSaldo > 0 && remainingSaldo >= requestedDiarias;
 
+      // Validar se leaderId é UUID válido
+      if (!data.leaderId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.leaderId)) {
+        console.error('Erro: leaderId não é um UUID válido:', data.leaderId);
+        throw new Error('ID do líder inválido. Por favor, faça login novamente.');
+      }
+
       // Criar solicitação no Supabase
       const { data: newRequest, error: requestError } = await supabase
         .from('extra_requests')
@@ -239,13 +245,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           needs_manager_approval: !canAutoApprove,
           approved_at: canAutoApprove ? new Date().toISOString() : null,
           approved_by: canAutoApprove ? data.leaderId : null,
+          created_by: data.leaderId,
         })
         .select()
         .single();
 
       if (requestError || !newRequest) {
         console.error('Erro ao criar solicitação:', requestError);
-        return;
+        throw requestError || new Error('Erro desconhecido ao criar solicitação');
       }
 
       // Criar dias de trabalho
@@ -303,27 +310,30 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let approvedByName = approvedBy;
 
       if (status === 'APROVADO' && approvedBy) {
-        // Se approvedBy é um UUID, buscar o nome do usuário
-        // Se já é um nome, usar diretamente
+        // Validar se approvedBy é UUID válido
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(approvedBy)) {
+          console.error('Erro: approvedBy não é um UUID válido:', approvedBy);
+          throw new Error('ID do aprovador inválido. Por favor, faça login novamente.');
+        }
+
+        // Buscar o nome do usuário pelo UUID
         try {
-          const { data: userData } = await supabase
+          const { data: userData, error: userError } = await supabase
             .from('users')
             .select('id, name')
             .eq('id', approvedBy)
             .single();
 
-          if (userData) {
-            updateData.approved_by = userData.id;
-            approvedByName = userData.name;
-          } else {
-            // Se não encontrou por ID, pode ser que seja o nome mesmo
-            updateData.approved_by = approvedBy;
-            approvedByName = approvedBy;
+          if (userError || !userData) {
+            console.error('Erro ao buscar usuário:', userError);
+            throw new Error('Usuário não encontrado no banco de dados');
           }
-        } catch (e) {
-          // Se falhar, usar o valor passado
-          updateData.approved_by = approvedBy;
-          approvedByName = approvedBy;
+
+          updateData.approved_by = userData.id;
+          approvedByName = userData.name;
+        } catch (e: any) {
+          console.error('Erro ao buscar nome do usuário:', e);
+          throw e;
         }
         updateData.approved_at = new Date().toISOString();
       } else if (status === 'REPROVADO') {

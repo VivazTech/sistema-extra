@@ -93,10 +93,16 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     }
     
     try {
+      // Validar se user.id é UUID válido
+      if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
+        alert('Erro: Usuário não autenticado corretamente. Por favor, faça login novamente.');
+        return;
+      }
+
       await addRequest({
         ...formData,
-        leaderId: user?.id || 'unknown',
-        leaderName: user?.name || 'unknown'
+        leaderId: user.id,
+        leaderName: user.name || 'Usuário'
       });
       
       // Limpar formulário

@@ -17,14 +17,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    // Tentar carregar do localStorage primeiro (fallback)
+    // Tentar carregar do localStorage, mas validar se o ID é UUID válido
     const saved = localStorage.getItem('vivaz_auth');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setState(parsed);
+        // Validar se o ID é um UUID válido (não é ID mock antigo)
+        const isValidUUID = parsed.user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parsed.user.id);
+        if (isValidUUID) {
+          setState(parsed);
+        } else {
+          // Se for ID mock antigo, limpar e forçar novo login
+          localStorage.removeItem('vivaz_auth');
+        }
       } catch (e) {
         console.error('Erro ao carregar auth do localStorage:', e);
+        localStorage.removeItem('vivaz_auth');
       }
     }
   }, []);
