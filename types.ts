@@ -7,6 +7,11 @@ export interface User {
   username: string;
   role: UserRole;
   sectors?: string[]; // Relevant for Managers
+  email?: string;
+  ramal?: string;
+  whatsapp?: string;
+  isRequester?: boolean;
+  password?: string; // Only for creation/editing, not stored in state
 }
 
 export interface Sector {

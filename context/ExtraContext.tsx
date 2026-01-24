@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
 import { INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS } from '../constants';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -22,18 +22,19 @@ interface ExtraContextType {
   extras: ExtraPerson[];
   extraSaldoRecords: ExtraSaldoRecord[];
   extraSaldoSettings: ExtraSaldoSettings;
+  users: User[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
   deleteRequest: (id: string) => void;
   addSector: (sector: Sector) => void;
   updateSector: (id: string, sector: Sector) => void;
   deleteSector: (id: string) => void;
-  addRequester: (requester: RequesterItem) => void;
-  updateRequester: (id: string, requester: RequesterItem) => void;
-  deleteRequester: (id: string) => void;
-  addReason: (reason: ReasonItem) => void;
-  updateReason: (id: string, reason: ReasonItem) => void;
-  deleteReason: (id: string) => void;
+  addRequester: (requester: RequesterItem) => Promise<RequesterItem | null>;
+  updateRequester: (id: string, requester: RequesterItem) => Promise<void>;
+  deleteRequester: (id: string) => Promise<void>;
+  addReason: (reason: ReasonItem) => Promise<ReasonItem | null>;
+  updateReason: (id: string, reason: ReasonItem) => Promise<void>;
+  deleteReason: (id: string) => Promise<void>;
   addExtra: (extra: ExtraPerson) => void;
   deleteExtra: (id: string) => void;
   addExtraSaldoRecord: (record: ExtraSaldoRecord) => void;
@@ -42,6 +43,9 @@ interface ExtraContextType {
   updateExtraSaldoSettings: (settings: ExtraSaldoSettings) => void;
   updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
   getSaldoForWeek: (sector: string, dateStr: string) => number | null | 'no-record';
+  addUser: (user: Partial<User>) => Promise<void>;
+  updateUser: (id: string, user: Partial<User>) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -54,6 +58,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [extras, setExtras] = useState<ExtraPerson[]>([]);
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
+  const [users, setUsers] = useState<User[]>([]);
 
   // Load from Supabase
   useEffect(() => {
@@ -143,21 +148,48 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!settingsError && settingsData) {
           setExtraSaldoSettings(mapExtraSaldoSettings(settingsData));
         }
+
+        // Carregar Usuários
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select(`
+            *,
+            user_sectors(
+              sectors(name)
+            )
+          `)
+          .eq('active', true)
+          .order('name');
+
+        if (!usersError && usersData) {
+          const mappedUsers = usersData.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            username: u.username,
+            role: u.role,
+            email: u.email,
+            ramal: u.ramal,
+            whatsapp: u.whatsapp,
+            isRequester: u.is_requester || false,
+            sectors: u.user_sectors?.map((us: any) => us.sectors?.name).filter(Boolean) || [],
+          }));
+          setUsers(mappedUsers);
+        }
       } catch (error) {
         console.error('Erro ao carregar dados do Supabase:', error);
         // Fallback para LocalStorage em caso de erro
-        const savedRequests = localStorage.getItem('vivaz_requests');
-        if (savedRequests) {
-          const parsed = JSON.parse(savedRequests);
-          const normalized = parsed.map((req: any) => ({
-            ...req,
-            needsManagerApproval: req.needsManagerApproval ?? false,
-            workDays: req.workDays && req.workDays.length
-              ? req.workDays
-              : [{ date: req.workDate || new Date().toISOString().split('T')[0], shift: req.shift || 'Manhã' }],
-          }));
-          setRequests(normalized);
-        }
+    const savedRequests = localStorage.getItem('vivaz_requests');
+    if (savedRequests) {
+      const parsed = JSON.parse(savedRequests);
+      const normalized = parsed.map((req: any) => ({
+        ...req,
+        needsManagerApproval: req.needsManagerApproval ?? false,
+        workDays: req.workDays && req.workDays.length
+          ? req.workDays
+          : [{ date: req.workDate || new Date().toISOString().split('T')[0], shift: req.shift || 'Manhã' }],
+      }));
+      setRequests(normalized);
+    }
       }
     };
 
@@ -215,11 +247,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      const firstDay = data.workDays?.[0]?.date || new Date().toISOString().split('T')[0];
-      const { start: weekStart, end: weekEnd } = getWeekRange(firstDay);
-      const requestedDiarias = countWorkDaysInWeek(data.workDays || [], weekStart, weekEnd);
-      const remainingSaldo = getRemainingSaldoForWeek(data.sector, weekStart, weekEnd);
-      const canAutoApprove = remainingSaldo > 0 && remainingSaldo >= requestedDiarias;
+    const firstDay = data.workDays?.[0]?.date || new Date().toISOString().split('T')[0];
+    const { start: weekStart, end: weekEnd } = getWeekRange(firstDay);
+    const requestedDiarias = countWorkDaysInWeek(data.workDays || [], weekStart, weekEnd);
+    const remainingSaldo = getRemainingSaldoForWeek(data.sector, weekStart, weekEnd);
+    const canAutoApprove = remainingSaldo > 0 && remainingSaldo >= requestedDiarias;
 
       // Validar se leaderId é UUID válido
       if (!data.leaderId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.leaderId)) {
@@ -239,7 +271,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           reason_name: data.reason,
           extra_name: data.extraName,
           value: data.value,
-          status: canAutoApprove ? 'APROVADO' : 'SOLICITADO',
+      status: canAutoApprove ? 'APROVADO' : 'SOLICITADO',
           urgency: data.urgency || false,
           observations: data.observations,
           contact: data.contact,
@@ -376,19 +408,19 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ));
       } else {
         // Fallback: atualizar estado local manualmente
-        setRequests(prev => prev.map(req => 
-          req.id === id 
-            ? { 
-                ...req, 
-                status, 
-                updatedAt: new Date().toISOString(),
-                rejectionReason: status === 'REPROVADO' ? reason : req.rejectionReason,
-                cancellationReason: status === 'CANCELADO' ? reason : req.cancellationReason,
+    setRequests(prev => prev.map(req => 
+      req.id === id 
+        ? { 
+            ...req, 
+            status, 
+            updatedAt: new Date().toISOString(),
+            rejectionReason: status === 'REPROVADO' ? reason : req.rejectionReason,
+            cancellationReason: status === 'CANCELADO' ? reason : req.cancellationReason,
                 approvedBy: status === 'APROVADO' ? approvedByName : req.approvedBy,
-                approvedAt: status === 'APROVADO' ? new Date().toISOString() : req.approvedAt
-              } 
-            : req
-        ));
+            approvedAt: status === 'APROVADO' ? new Date().toISOString() : req.approvedAt
+          } 
+        : req
+    ));
       }
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
@@ -408,7 +440,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      setRequests(prev => prev.filter(req => req.id !== id));
+    setRequests(prev => prev.filter(req => req.id !== id));
     } catch (error) {
       console.error('Erro ao deletar solicitação:', error);
     }
@@ -606,15 +638,275 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const addRequester = (requester: RequesterItem) => setRequesters(prev => [...prev, requester]);
-  const updateRequester = (id: string, requester: RequesterItem) =>
-    setRequesters(prev => prev.map(r => r.id === id ? requester : r));
-  const deleteRequester = (id: string) => setRequesters(prev => prev.filter(r => r.id !== id));
+  const addRequester = async (requester: RequesterItem): Promise<RequesterItem | null> => {
+    try {
+      // Criar no Supabase
+      const { data: newRequester, error } = await supabase
+        .from('requesters')
+        .insert({
+          name: requester.name,
+          active: true,
+        })
+        .select()
+        .single();
 
-  const addReason = (reason: ReasonItem) => setReasons(prev => [...prev, reason]);
-  const updateReason = (id: string, reason: ReasonItem) =>
-    setReasons(prev => prev.map(r => r.id === id ? reason : r));
-  const deleteReason = (id: string) => setReasons(prev => prev.filter(r => r.id !== id));
+      if (error || !newRequester) {
+        console.error('Erro ao criar demandante:', error);
+        return null;
+      }
+
+      // Atualizar estado local
+      const mappedRequester = mapRequester(newRequester);
+      setRequesters(prev => [...prev, mappedRequester]);
+      return mappedRequester;
+    } catch (error) {
+      console.error('Erro ao adicionar demandante:', error);
+      return null;
+    }
+  };
+
+  const updateRequester = async (id: string, requester: RequesterItem) => {
+    try {
+      // Buscar ID no banco (pode ser UUID ou ID local)
+      let requesterId = id;
+      
+      const { data: existingRequester } = await supabase
+        .from('requesters')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (!existingRequester) {
+        // Tentar buscar pelo nome do requester atual
+        const currentRequester = requesters.find(r => r.id === id);
+        if (currentRequester) {
+          const { data: byName } = await supabase
+            .from('requesters')
+            .select('id')
+            .eq('name', currentRequester.name)
+            .single();
+          
+          if (byName) {
+            requesterId = byName.id;
+          } else {
+            console.error('Demandante não encontrado no banco');
+            return;
+          }
+        } else {
+          console.error('Demandante não encontrado no estado local');
+          return;
+        }
+      } else {
+        requesterId = existingRequester.id;
+      }
+
+      // Atualizar no Supabase
+      const { error } = await supabase
+        .from('requesters')
+        .update({ name: requester.name })
+        .eq('id', requesterId);
+
+      if (error) {
+        console.error('Erro ao atualizar demandante:', error);
+        return;
+      }
+
+      // Atualizar estado local
+      setRequesters(prev => prev.map(r => r.id === id ? { ...requester, id: requesterId } : r));
+    } catch (error) {
+      console.error('Erro ao atualizar demandante:', error);
+    }
+  };
+
+  const deleteRequester = async (id: string) => {
+    try {
+      // Buscar no banco
+      const { data: existingRequester } = await supabase
+        .from('requesters')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (!existingRequester) {
+        // Tentar por nome
+        const currentRequester = requesters.find(r => r.id === id);
+        if (currentRequester) {
+          const { data: byName } = await supabase
+            .from('requesters')
+            .select('id')
+            .eq('name', currentRequester.name)
+            .single();
+
+          if (byName) {
+            const { error } = await supabase
+              .from('requesters')
+              .update({ active: false })
+              .eq('id', byName.id);
+
+            if (error) {
+              console.error('Erro ao deletar demandante:', error);
+              return;
+            }
+
+            setRequesters(prev => prev.filter(r => r.id !== id));
+            return;
+          }
+        }
+        console.error('Demandante não encontrado');
+        return;
+      }
+
+      // Soft delete (marcar como inativo)
+      const { error } = await supabase
+        .from('requesters')
+        .update({ active: false })
+        .eq('id', existingRequester.id);
+
+      if (error) {
+        console.error('Erro ao deletar demandante:', error);
+        return;
+      }
+
+      setRequesters(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar demandante:', error);
+    }
+  };
+
+  const addReason = async (reason: ReasonItem): Promise<ReasonItem | null> => {
+    try {
+      // Criar no Supabase
+      const { data: newReason, error } = await supabase
+        .from('reasons')
+        .insert({
+          name: reason.name,
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (error || !newReason) {
+        console.error('Erro ao criar motivo:', error);
+        return null;
+      }
+
+      // Atualizar estado local
+      const mappedReason = mapReason(newReason);
+      setReasons(prev => [...prev, mappedReason]);
+      return mappedReason;
+    } catch (error) {
+      console.error('Erro ao adicionar motivo:', error);
+      return null;
+    }
+  };
+
+  const updateReason = async (id: string, reason: ReasonItem) => {
+    try {
+      // Buscar ID no banco (pode ser UUID ou ID local)
+      let reasonId = id;
+      
+      const { data: existingReason } = await supabase
+        .from('reasons')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (!existingReason) {
+        // Tentar buscar pelo nome do reason atual
+        const currentReason = reasons.find(r => r.id === id);
+        if (currentReason) {
+          const { data: byName } = await supabase
+            .from('reasons')
+            .select('id')
+            .eq('name', currentReason.name)
+            .single();
+          
+          if (byName) {
+            reasonId = byName.id;
+          } else {
+            console.error('Motivo não encontrado no banco');
+            return;
+          }
+        } else {
+          console.error('Motivo não encontrado no estado local');
+          return;
+        }
+      } else {
+        reasonId = existingReason.id;
+      }
+
+      // Atualizar no Supabase
+      const { error } = await supabase
+        .from('reasons')
+        .update({ name: reason.name })
+        .eq('id', reasonId);
+
+      if (error) {
+        console.error('Erro ao atualizar motivo:', error);
+        return;
+      }
+
+      // Atualizar estado local
+      setReasons(prev => prev.map(r => r.id === id ? { ...reason, id: reasonId } : r));
+    } catch (error) {
+      console.error('Erro ao atualizar motivo:', error);
+    }
+  };
+
+  const deleteReason = async (id: string) => {
+    try {
+      // Buscar no banco
+      const { data: existingReason } = await supabase
+        .from('reasons')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (!existingReason) {
+        // Tentar por nome
+        const currentReason = reasons.find(r => r.id === id);
+        if (currentReason) {
+          const { data: byName } = await supabase
+            .from('reasons')
+            .select('id')
+            .eq('name', currentReason.name)
+            .single();
+
+          if (byName) {
+            const { error } = await supabase
+              .from('reasons')
+              .update({ active: false })
+              .eq('id', byName.id);
+
+            if (error) {
+              console.error('Erro ao deletar motivo:', error);
+              return;
+            }
+
+            setReasons(prev => prev.filter(r => r.id !== id));
+            return;
+          }
+        }
+        console.error('Motivo não encontrado');
+        return;
+      }
+
+      // Soft delete (marcar como inativo)
+      const { error } = await supabase
+        .from('reasons')
+        .update({ active: false })
+        .eq('id', existingReason.id);
+
+      if (error) {
+        console.error('Erro ao deletar motivo:', error);
+        return;
+      }
+
+      setReasons(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar motivo:', error);
+    }
+  };
 
   const addExtra = async (extra: ExtraPerson) => {
     try {
@@ -860,9 +1152,264 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saldo;
   };
 
+  const addUser = async (userData: Partial<User>) => {
+    try {
+      if (!userData.name || !userData.username) {
+        throw new Error('Nome e usuário são obrigatórios');
+      }
+
+      // Criar hash simples da senha (em produção, usar bcrypt ou similar)
+      const passwordHash = userData.password ? btoa(userData.password) : null;
+
+      // Criar usuário no Supabase
+      const { data: newUser, error: userError } = await supabase
+        .from('users')
+        .insert({
+          name: userData.name,
+          username: userData.username.toLowerCase(),
+          email: userData.email || null,
+          ramal: userData.ramal || null,
+          whatsapp: userData.whatsapp || null,
+          password_hash: passwordHash,
+          role: userData.role || 'VIEWER',
+          is_requester: userData.isRequester || false,
+        })
+        .select()
+        .single();
+
+      if (userError || !newUser) {
+        console.error('Erro ao criar usuário:', userError);
+        throw userError;
+      }
+
+      // Se o usuário é demandante, criar também na tabela requesters
+      if (userData.isRequester) {
+        const { error: requesterError } = await supabase
+          .from('requesters')
+          .insert({
+            name: userData.name,
+            active: true,
+          })
+          .select()
+          .single();
+
+        if (requesterError) {
+          console.error('Erro ao criar demandante:', requesterError);
+        } else {
+          // Recarregar requesters
+          const { data: requestersData } = await supabase
+            .from('requesters')
+            .select('*')
+            .eq('active', true)
+            .order('name');
+          if (requestersData) {
+            setRequesters(requestersData.map(mapRequester));
+          }
+        }
+      }
+
+      // Adicionar setor se fornecido
+      if (userData.sectors && userData.sectors.length > 0) {
+        const sector = sectors.find(s => s.name === userData.sectors![0]);
+        if (sector) {
+          await supabase
+            .from('user_sectors')
+            .insert({
+              user_id: newUser.id,
+              sector_id: sector.id,
+            });
+        }
+      }
+
+      // Recarregar usuários
+      const { data: usersData } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_sectors(
+            sectors(name)
+          )
+        `)
+        .eq('active', true)
+        .order('name');
+
+      if (usersData) {
+        const mappedUsers = usersData.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          role: u.role,
+          email: u.email,
+          ramal: u.ramal,
+          whatsapp: u.whatsapp,
+          isRequester: u.is_requester || false,
+          sectors: u.user_sectors?.map((us: any) => us.sectors?.name).filter(Boolean) || [],
+        }));
+        setUsers(mappedUsers);
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar usuário:', error);
+      throw error;
+    }
+  };
+
+  const updateUser = async (id: string, userData: Partial<User>) => {
+    try {
+      // Atualizar usuário no Supabase
+      const updateData: any = {
+        name: userData.name,
+        username: userData.username?.toLowerCase(),
+        email: userData.email || null,
+        ramal: userData.ramal || null,
+        whatsapp: userData.whatsapp || null,
+        role: userData.role,
+        is_requester: userData.isRequester || false,
+      };
+
+      if (userData.password) {
+        updateData.password_hash = btoa(userData.password);
+      }
+
+      const { error: userError } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', id);
+
+      if (userError) {
+        console.error('Erro ao atualizar usuário:', userError);
+        throw userError;
+      }
+
+      // Gerenciar demandante
+      const existingUser = users.find(u => u.id === id);
+      if (userData.isRequester && !existingUser?.isRequester) {
+        // Criar como demandante
+        await supabase
+          .from('requesters')
+          .insert({
+            name: userData.name!,
+            active: true,
+          });
+      } else if (!userData.isRequester && existingUser?.isRequester) {
+        // Remover como demandante (soft delete)
+        await supabase
+          .from('requesters')
+          .update({ active: false })
+          .eq('name', existingUser.name);
+      } else if (userData.isRequester && existingUser?.isRequester && userData.name !== existingUser.name) {
+        // Atualizar nome do demandante
+        await supabase
+          .from('requesters')
+          .update({ name: userData.name })
+          .eq('name', existingUser.name);
+      }
+
+      // Atualizar setores
+      if (userData.sectors !== undefined) {
+        // Remover setores antigos
+        await supabase
+          .from('user_sectors')
+          .delete()
+          .eq('user_id', id);
+
+        // Adicionar novo setor
+        if (userData.sectors.length > 0) {
+          const sector = sectors.find(s => s.name === userData.sectors![0]);
+          if (sector) {
+            await supabase
+              .from('user_sectors')
+              .insert({
+                user_id: id,
+                sector_id: sector.id,
+              });
+          }
+        }
+      }
+
+      // Recarregar usuários e requesters
+      const { data: usersData } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_sectors(
+            sectors(name)
+          )
+        `)
+        .eq('active', true)
+        .order('name');
+
+      if (usersData) {
+        const mappedUsers = usersData.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          role: u.role,
+          email: u.email,
+          ramal: u.ramal,
+          whatsapp: u.whatsapp,
+          isRequester: u.is_requester || false,
+          sectors: u.user_sectors?.map((us: any) => us.sectors?.name).filter(Boolean) || [],
+        }));
+        setUsers(mappedUsers);
+      }
+
+      // Recarregar requesters se necessário
+      if (userData.isRequester !== undefined) {
+        const { data: requestersData } = await supabase
+          .from('requesters')
+          .select('*')
+          .eq('active', true)
+          .order('name');
+        if (requestersData) {
+          setRequesters(requestersData.map(mapRequester));
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar usuário:', error);
+      throw error;
+    }
+  };
+
+  const deleteUser = async (id: string) => {
+    try {
+      const user = users.find(u => u.id === id);
+      if (!user) return;
+
+      // Soft delete do usuário
+      const { error } = await supabase
+        .from('users')
+        .update({ active: false })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao deletar usuário:', error);
+        throw error;
+      }
+
+      // Se for demandante, fazer soft delete também
+      if (user.isRequester) {
+        await supabase
+          .from('requesters')
+          .update({ active: false })
+          .eq('name', user.name);
+      }
+
+      // Remover setores
+      await supabase
+        .from('user_sectors')
+        .delete()
+        .eq('user_id', id);
+
+      setUsers(prev => prev.filter(u => u.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar usuário:', error);
+      throw error;
+    }
+  };
+
   return (
     <ExtraContext.Provider value={{ 
-      requests, sectors, requesters, reasons, extras, extraSaldoRecords, extraSaldoSettings,
+      requests, sectors, requesters, reasons, extras, extraSaldoRecords, extraSaldoSettings, users,
       addRequest, updateStatus, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
@@ -871,7 +1418,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,
       updateTimeRecord,
-      getSaldoForWeek
+      getSaldoForWeek,
+      addUser, updateUser, deleteUser
     }}>
       {children}
     </ExtraContext.Provider>

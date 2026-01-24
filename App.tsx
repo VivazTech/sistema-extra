@@ -10,6 +10,7 @@ import Requests from './pages/Requests';
 import TVDashboard from './pages/TVDashboard';
 import Portaria from './pages/Portaria';
 import AdminCatalogs from './pages/AdminCatalogs';
+import AdminUsers from './pages/AdminUsers';
 import TestSupabase from './pages/TestSupabase';
 import ExtraBank from './pages/ExtraBank';
 import ExtraBankForm from './pages/ExtraBankForm';
@@ -33,6 +34,7 @@ const AppRoutes = () => {
       <Route path="/portaria" element={<PrivateRoute><Portaria /></PrivateRoute>} />
       <Route path="/test-supabase" element={<PrivateRoute><TestSupabase /></PrivateRoute>} />
       <Route path="/admin/cadastros" element={<PrivateRoute roles={['ADMIN']}><AdminCatalogs /></PrivateRoute>} />
+      <Route path="/admin/usuarios" element={<PrivateRoute roles={['ADMIN']}><AdminUsers /></PrivateRoute>} />
       <Route path="/admin/saldo-extras" element={<PrivateRoute roles={['ADMIN', 'MANAGER']}><ExtraSaldo /></PrivateRoute>} />
       <Route path="/admin/extras" element={<PrivateRoute roles={['ADMIN']}><ExtraBank /></PrivateRoute>} />
       <Route path="/banco-extras" element={<ExtraBankForm />} />

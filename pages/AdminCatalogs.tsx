@@ -8,9 +8,9 @@ type ListItem = RequesterItem | ReasonItem;
 interface EditableListProps {
   title: string;
   items: ListItem[];
-  onAdd: (item: ListItem) => void;
-  onUpdate: (id: string, item: ListItem) => void;
-  onDelete: (id: string) => void;
+  onAdd: (item: ListItem) => Promise<ListItem | null>;
+  onUpdate: (id: string, item: ListItem) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   addLabel: string;
 }
 
@@ -23,20 +23,22 @@ const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpda
     setEditValue(item.name);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingId) return;
     const trimmed = editValue.trim();
     if (!trimmed) return;
-    onUpdate(editingId, { id: editingId, name: trimmed });
+    await onUpdate(editingId, { id: editingId, name: trimmed });
     setEditingId(null);
     setEditValue('');
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const newId = Math.random().toString(36).substr(2, 9);
-    onAdd({ id: newId, name: addLabel });
-    setEditingId(newId);
-    setEditValue(addLabel);
+    const created = await onAdd({ id: newId, name: addLabel });
+    if (created) {
+      setEditingId(created.id);
+      setEditValue(created.name);
+    }
   };
 
   const handleCancel = () => {
@@ -83,7 +85,7 @@ const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpda
                 <button onClick={() => handleStartEdit(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
                   <Edit2 size={16} />
                 </button>
-                <button onClick={() => onDelete(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                <button onClick={async () => await onDelete(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
                   <Trash2 size={16} />
                 </button>
               </>
@@ -121,9 +123,9 @@ const AdminCatalogs: React.FC = () => {
     setEditSector({ ...sector });
   };
 
-  const handleSaveSector = () => {
+  const handleSaveSector = async () => {
     if (editSector) {
-      updateSector(editSector.id, editSector);
+      await updateSector(editSector.id, editSector);
       setIsEditingSector(null);
       setEditSector(null);
     }
@@ -313,9 +315,9 @@ const AdminCatalogs: React.FC = () => {
                             <Edit2 size={16} />
                           </button>
                           <button 
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              deleteSector(sector.id);
+                              await deleteSector(sector.id);
                             }} 
                             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                           >

@@ -26,8 +26,7 @@ const ExtraSaldo: React.FC = () => {
     folgas: '',
     domingos: '',
     demanda: '',
-    atestado: '',
-    extrasSolicitados: ''
+    atestado: ''
   });
 
   const toNumber = (value: string) => {
@@ -51,7 +50,7 @@ const ExtraSaldo: React.FC = () => {
       domingos: toNumber(formData.domingos),
       demanda: toNumber(formData.demanda),
       atestado: toNumber(formData.atestado),
-      extrasSolicitados: toNumber(formData.extrasSolicitados)
+      extrasSolicitados: 0
     };
 
     try {
@@ -86,8 +85,7 @@ const ExtraSaldo: React.FC = () => {
       folgas: '',
       domingos: '',
       demanda: '',
-      atestado: '',
-      extrasSolicitados: ''
+      atestado: ''
     });
   };
 
@@ -104,8 +102,7 @@ const ExtraSaldo: React.FC = () => {
       folgas: String(record.folgas),
       domingos: String(record.domingos),
       demanda: String(record.demanda),
-      atestado: String(record.atestado),
-      extrasSolicitados: String(record.extrasSolicitados)
+      atestado: String(record.atestado)
     });
   };
 
@@ -122,13 +119,12 @@ const ExtraSaldo: React.FC = () => {
     return filteredRecords.reduce(
       (acc, record) => {
         const result = calculateExtraSaldo(record, record.valorDiariaSnapshot);
-        acc.extrasSolicitados += record.extrasSolicitados;
         acc.valor += result.valor;
         acc.saldo += result.saldo;
         acc.saldoEmReais += result.saldoEmReais;
         return acc;
       },
-      { extrasSolicitados: 0, valor: 0, saldo: 0, saldoEmReais: 0 }
+      { valor: 0, saldo: 0, saldoEmReais: 0 }
     );
   }, [filteredRecords]);
 
@@ -180,8 +176,7 @@ const ExtraSaldo: React.FC = () => {
               ['Folgas', 'folgas'],
               ['Domingos', 'domingos'],
               ['Demanda', 'demanda'],
-              ['Atestado', 'atestado'],
-              ['Extras solicitados', 'extrasSolicitados']
+              ['Atestado', 'atestado']
             ].map(([label, key]) => (
               <div key={key}>
                 <label className="text-[10px] font-bold text-gray-500 uppercase">{label}</label>
@@ -260,7 +255,6 @@ const ExtraSaldo: React.FC = () => {
               <th className="px-4 py-3">Domingos</th>
               <th className="px-4 py-3">Demanda</th>
               <th className="px-4 py-3">Atestado</th>
-              <th className="px-4 py-3">Extras</th>
               <th className="px-4 py-3">Aberto</th>
               <th className="px-4 py-3">Vagas/dia</th>
               <th className="px-4 py-3">Total diárias</th>
@@ -284,7 +278,6 @@ const ExtraSaldo: React.FC = () => {
                   <td className="px-4 py-3">{record.domingos}</td>
                   <td className="px-4 py-3">{record.demanda}</td>
                   <td className="px-4 py-3">{record.atestado}</td>
-                  <td className="px-4 py-3">{record.extrasSolicitados}</td>
                   <td className="px-4 py-3">{result.quadroAberto}</td>
                   <td className="px-4 py-3">{result.vagasDiarias}</td>
                   <td className="px-4 py-3">{result.totalDiarias}</td>
@@ -306,7 +299,7 @@ const ExtraSaldo: React.FC = () => {
             })}
             {filteredRecords.length === 0 && (
               <tr>
-                <td className="px-4 py-6 text-center text-gray-400" colSpan={16}>
+                <td className="px-4 py-6 text-center text-gray-400" colSpan={15}>
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -316,7 +309,6 @@ const ExtraSaldo: React.FC = () => {
             <tfoot className="bg-gray-50 text-gray-700 font-bold">
               <tr>
                 <td className="px-4 py-3" colSpan={8}>Totais</td>
-                <td className="px-4 py-3">{totals.extrasSolicitados}</td>
                 <td className="px-4 py-3" colSpan={3}></td>
                 <td className="px-4 py-3">{totals.saldo}</td>
                 <td className="px-4 py-3">{totals.valor.toFixed(2)}</td>

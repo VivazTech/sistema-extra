@@ -111,7 +111,7 @@ const TVDashboard: React.FC = () => {
       .filter(r => r.sector === sector && r.status === 'APROVADO')
       .reduce((acc, r) => acc + countWorkDaysInWeek(r.workDays, start, end), 0);
     const saldo = result.saldo - usedDiarias;
-    const saldoEmReais = Number((saldo * record.valorDiariaSnapshot * -1).toFixed(2));
+    const saldoEmReais = Number(Math.abs(saldo * record.valorDiariaSnapshot).toFixed(2));
     return { saldo, saldoEmReais };
   };
 

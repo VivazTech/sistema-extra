@@ -12,7 +12,11 @@ import {
   Coffee,
   Camera,
   X,
-  Check
+  Check,
+  Search,
+  ArrowUpDown,
+  ArrowUpAZ,
+  ArrowDownAZ
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +29,10 @@ const Portaria: React.FC = () => {
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
+  const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -34,19 +42,56 @@ const Portaria: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Filtrar solicitações aprovadas do dia
-  const todayExtras = useMemo(() => {
-    return requests.filter(req => 
-      req.status === 'APROVADO' && 
-      req.workDays.some(day => day.date === todayStr)
-    );
-  }, [requests, todayStr]);
+  // Filtrar solicitações aprovadas por período
+  const periodExtras = useMemo(() => {
+    const startDate = dateStart || todayStr;
+    const endDate = dateEnd || todayStr;
+    
+    return requests.filter(req => {
+      if (req.status !== 'APROVADO') return false;
+      
+      // Verificar se algum dia de trabalho está no período
+      return req.workDays.some(day => {
+        const dayDate = day.date;
+        return dayDate >= startDate && dayDate <= endDate;
+      });
+    });
+  }, [requests, dateStart, dateEnd, todayStr]);
 
-  // Aplicar filtro por setor
+  // Aplicar todos os filtros (setor, pesquisa, período) e ordenação
   const filteredExtras = useMemo(() => {
-    if (selectedSector === 'TODOS') return todayExtras;
-    return todayExtras.filter(req => req.sector === selectedSector);
-  }, [todayExtras, selectedSector]);
+    let filtered = periodExtras;
+
+    // Filtro por setor
+    if (selectedSector !== 'TODOS') {
+      filtered = filtered.filter(req => req.sector === selectedSector);
+    }
+
+    // Filtro por pesquisa (nome do extra)
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(req => 
+        req.extraName.toLowerCase().includes(searchLower) ||
+        req.sector.toLowerCase().includes(searchLower) ||
+        req.role.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Ordenação
+    const sorted = [...filtered];
+    if (sortOrder === 'alphabetical') {
+      sorted.sort((a, b) => a.extraName.localeCompare(b.extraName));
+    } else {
+      // Mais recentes primeiro (por data de criação)
+      sorted.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+    }
+
+    return sorted;
+  }, [periodExtras, selectedSector, searchTerm, sortOrder]);
 
   // Função para calcular horas trabalhadas
   const calculateWorkHours = (timeRecord: { arrival?: string; departure?: string; breakStart?: string; breakEnd?: string }) => {
@@ -258,9 +303,85 @@ const Portaria: React.FC = () => {
         </header>
 
       {/* Filtros */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+        {/* Primeira linha: Pesquisa e Ordenação */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Pesquisar por nome, setor ou função..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown size={18} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-600">Ordenar:</span>
+            <button
+              onClick={() => setSortOrder('alphabetical')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                sortOrder === 'alphabetical'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <ArrowUpAZ size={16} />
+              Alfabética
+            </button>
+            <button
+              onClick={() => setSortOrder('recent')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
+                sortOrder === 'recent'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <ArrowDownAZ size={16} />
+              Mais Recentes
+            </button>
+          </div>
+        </div>
+
+        {/* Segunda linha: Período */}
         <div className="flex items-center gap-4">
+          <Calendar size={20} className="text-gray-400" />
+          <span className="text-sm font-medium text-gray-600">Período:</span>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+              value={dateStart}
+              onChange={(e) => setDateStart(e.target.value)}
+              placeholder="Data início"
+            />
+            <span className="text-gray-400">até</span>
+            <input
+              type="date"
+              className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+              value={dateEnd}
+              onChange={(e) => setDateEnd(e.target.value)}
+              placeholder="Data fim"
+            />
+            {(dateStart || dateEnd) && (
+              <button
+                onClick={() => {
+                  setDateStart('');
+                  setDateEnd('');
+                }}
+                className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Terceira linha: Filtro por Setor */}
+        <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
           <Filter size={20} className="text-gray-400" />
+          <span className="text-sm font-medium text-gray-600">Setor:</span>
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setSelectedSector('TODOS')}
@@ -270,10 +391,10 @@ const Portaria: React.FC = () => {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Todos ({todayExtras.length})
+              Todos ({periodExtras.length})
             </button>
             {sectors.map(sector => {
-              const count = todayExtras.filter(r => r.sector === sector.name).length;
+              const count = periodExtras.filter(r => r.sector === sector.name).length;
               if (count === 0) return null;
               return (
                 <button
@@ -299,17 +420,27 @@ const Portaria: React.FC = () => {
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-400 font-medium">
-              Nenhum funcionário extra aprovado para hoje
+              {searchTerm || dateStart || dateEnd || selectedSector !== 'TODOS'
+                ? 'Nenhum resultado encontrado com os filtros aplicados'
+                : 'Nenhum funcionário extra aprovado para hoje'}
               {selectedSector !== 'TODOS' && ` no setor ${selectedSector}`}
             </p>
           </div>
         ) : (
           filteredExtras.map(request => {
             const isExpanded = expandedRequest === request.id;
-            const timeRecord = getTimeRecord(request, todayStr);
-            const completed = isComplete(request, todayStr);
-            const allTimesFilled = hasAllTimes(request, todayStr);
-            const photoKey = `${request.id}-${todayStr}`;
+            // Determinar qual data usar: se há filtro de período, usar o primeiro workDay no período, senão usar todayStr
+            const workDayDate = (dateStart || dateEnd) 
+              ? request.workDays.find(day => {
+                  const startDate = dateStart || todayStr;
+                  const endDate = dateEnd || todayStr;
+                  return day.date >= startDate && day.date <= endDate;
+                })?.date || todayStr
+              : todayStr;
+            const timeRecord = getTimeRecord(request, workDayDate);
+            const completed = isComplete(request, workDayDate);
+            const allTimesFilled = hasAllTimes(request, workDayDate);
+            const photoKey = `${request.id}-${workDayDate}`;
             const isCapturing = capturingPhoto === photoKey;
             const hasPhoto = timeRecord.photoUrl || capturedPhoto === photoKey;
             const workHours = calculateWorkHours(timeRecord);
@@ -440,20 +571,20 @@ const Portaria: React.FC = () => {
                             onChange={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'arrival', value);
+                                handleTimeChange(request.id, workDayDate, 'arrival', value);
                               }
                             }}
                             onBlur={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'arrival', value);
+                                handleTimeChange(request.id, workDayDate, 'arrival', value);
                               }
                             }}
                             onFocus={(e) => {
                               if (!e.target.value) {
                                 const currentTime = getCurrentTime();
                                 e.target.value = currentTime;
-                                handleTimeChange(request.id, todayStr, 'arrival', currentTime);
+                                handleTimeChange(request.id, workDayDate, 'arrival', currentTime);
                               }
                             }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
@@ -472,20 +603,20 @@ const Portaria: React.FC = () => {
                             onChange={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'breakStart', value);
+                                handleTimeChange(request.id, workDayDate, 'breakStart', value);
                               }
                             }}
                             onBlur={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'breakStart', value);
+                                handleTimeChange(request.id, workDayDate, 'breakStart', value);
                               }
                             }}
                             onFocus={(e) => {
                               if (!e.target.value) {
                                 const currentTime = getCurrentTime();
                                 e.target.value = currentTime;
-                                handleTimeChange(request.id, todayStr, 'breakStart', currentTime);
+                                handleTimeChange(request.id, workDayDate, 'breakStart', currentTime);
                               }
                             }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
@@ -504,20 +635,20 @@ const Portaria: React.FC = () => {
                             onChange={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'breakEnd', value);
+                                handleTimeChange(request.id, workDayDate, 'breakEnd', value);
                               }
                             }}
                             onBlur={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'breakEnd', value);
+                                handleTimeChange(request.id, workDayDate, 'breakEnd', value);
                               }
                             }}
                             onFocus={(e) => {
                               if (!e.target.value) {
                                 const currentTime = getCurrentTime();
                                 e.target.value = currentTime;
-                                handleTimeChange(request.id, todayStr, 'breakEnd', currentTime);
+                                handleTimeChange(request.id, workDayDate, 'breakEnd', currentTime);
                               }
                             }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
@@ -536,20 +667,20 @@ const Portaria: React.FC = () => {
                             onChange={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'departure', value);
+                                handleTimeChange(request.id, workDayDate, 'departure', value);
                               }
                             }}
                             onBlur={(e) => {
                               const value = e.target.value;
                               if (value) {
-                                handleTimeChange(request.id, todayStr, 'departure', value);
+                                handleTimeChange(request.id, workDayDate, 'departure', value);
                               }
                             }}
                             onFocus={(e) => {
                               if (!e.target.value) {
                                 const currentTime = getCurrentTime();
                                 e.target.value = currentTime;
-                                handleTimeChange(request.id, todayStr, 'departure', currentTime);
+                                handleTimeChange(request.id, workDayDate, 'departure', currentTime);
                               }
                             }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
@@ -573,7 +704,7 @@ const Portaria: React.FC = () => {
 
                             {!isCapturing && !photoPreview && (
                               <button
-                                onClick={() => startCamera(request.id, todayStr)}
+                                onClick={() => startCamera(request.id, workDayDate)}
                                 className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
                               >
                                 <Camera size={20} />
@@ -623,7 +754,7 @@ const Portaria: React.FC = () => {
                                 </div>
                                 <div className="flex gap-3">
                                   <button
-                                    onClick={() => uploadPhoto(request.id, todayStr)}
+                                    onClick={() => uploadPhoto(request.id, workDayDate)}
                                     className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2"
                                   >
                                     <Check size={20} />

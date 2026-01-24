@@ -35,7 +35,7 @@ export const calculateExtraSaldo = (input: ExtraSaldoInput, valorDiaria: number)
   const totalDiarias = quadroAberto + folgas + domingos + vagasDiarias + demanda + atestado;
   const saldo = totalDiarias - extrasSolicitados;
   const valor = roundMoney(extrasSolicitados * valorDiaria);
-  const saldoEmReais = roundMoney(saldo * valorDiaria * -1);
+  const saldoEmReais = roundMoney(Math.abs(saldo * valorDiaria));
 
   return {
     quadroAberto,

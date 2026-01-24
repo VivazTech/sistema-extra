@@ -32,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Clock, label: 'Portaria', path: '/portaria', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
     { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', roles: ['ADMIN'] },
+    { icon: Users, label: 'Usuários', path: '/admin/usuarios', roles: ['ADMIN'] },
     { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', roles: ['ADMIN', 'MANAGER'] },
     { icon: Database, label: 'Banco de Extras', path: '/admin/extras', roles: ['ADMIN'] },
   ].filter(item => item.roles.includes(user?.role || ''));

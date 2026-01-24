@@ -27,8 +27,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     reason: '',
     extraName: '',
     value: 0,
-    observations: '',
-    contact: ''
+    observations: ''
   });
 
   const availableRoles = sectors.find(s => s.name === formData.sector)?.roles || [];
@@ -52,7 +51,20 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleAddDay = () => {
-    if (formData.workDays.length >= 7) return;
+    // Verificar limite baseado no saldo disponível
+    const maxDays = saldoDisponivel !== null && saldoDisponivel !== 'no-record' 
+      ? Math.min(saldoDisponivel, 7) 
+      : 7;
+    
+    if (formData.workDays.length >= maxDays) {
+      if (saldoDisponivel !== null && saldoDisponivel !== 'no-record' && saldoDisponivel <= formData.workDays.length) {
+        alert(`Você não pode adicionar mais dias. O saldo disponível é de ${saldoDisponivel} ${saldoDisponivel === 1 ? 'dia' : 'dias'}.`);
+      } else {
+        alert('Máximo de 7 dias por solicitação.');
+      }
+      return;
+    }
+    
     const lastDay = formData.workDays[formData.workDays.length - 1];
     const nextDate = lastDay?.date ? addDays(lastDay.date, 1) : new Date().toISOString().split('T')[0];
     const nextShift = lastDay?.shift || 'Manhã';
@@ -125,8 +137,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         reason: '',
         extraName: '',
         value: 0,
-        observations: '',
-        contact: ''
+        observations: ''
       });
       
       onClose();
@@ -241,7 +252,11 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   onClick={handleAddDay}
-                  disabled={formData.workDays.length >= 7}
+                  disabled={
+                    saldoDisponivel !== null && saldoDisponivel !== 'no-record'
+                      ? formData.workDays.length >= Math.min(saldoDisponivel, 7)
+                      : formData.workDays.length >= 7
+                  }
                   className="text-xs font-bold text-emerald-600 hover:text-emerald-700 disabled:text-gray-300"
                 >
                   + Adicionar dia
@@ -284,7 +299,13 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-gray-400">Máximo de 7 dias por solicitação.</p>
+              <p className="text-[10px] text-gray-400">
+                {saldoDisponivel !== null && saldoDisponivel !== 'no-record' ? (
+                  <>Você pode adicionar até <strong>{Math.min(saldoDisponivel, 7)}</strong> {Math.min(saldoDisponivel, 7) === 1 ? 'dia' : 'dias'} (saldo disponível: {saldoDisponivel}). Máximo de 7 dias por solicitação.</>
+                ) : (
+                  <>Máximo de 7 dias por solicitação.</>
+                )}
+              </p>
             </div>
           </div>
 
@@ -296,11 +317,9 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.extraName}
                 onChange={(e) => {
-                  const selectedExtra = extras.find(ex => ex.fullName === e.target.value);
                   setFormData({ 
                     ...formData, 
-                    extraName: e.target.value,
-                    contact: selectedExtra?.contact || formData.contact
+                    extraName: e.target.value
                   });
                 }}
               >
@@ -354,30 +373,18 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Demandante *</label>
-              <select 
-                required
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.requester}
-                onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
-              >
-                <option value="">Selecione o demandante</option>
-                {requesters.length === 0 && <option value="" disabled>Cadastre demandantes no painel</option>}
-                {requesters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Contato/Doc</label>
-              <input 
-                type="text"
-                placeholder="Telefone ou CPF"
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.contact}
-                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-              />
-            </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 uppercase">Demandante *</label>
+            <select 
+              required
+              className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+              value={formData.requester}
+              onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
+            >
+              <option value="">Selecione o demandante</option>
+              {requesters.length === 0 && <option value="" disabled>Cadastre demandantes no painel</option>}
+              {requesters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+            </select>
           </div>
 
           <div className="space-y-1">
