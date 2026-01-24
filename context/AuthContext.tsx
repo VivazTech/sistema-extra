@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthState, User } from '../types';
-import { MOCK_USERS } from '../constants';
+import { supabase } from '../services/supabase';
 
 interface AuthContextType extends AuthState {
   login: (username: string) => Promise<boolean>;
@@ -17,22 +17,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
+    // Tentar carregar do localStorage primeiro (fallback)
     const saved = localStorage.getItem('vivaz_auth');
     if (saved) {
-      setState(JSON.parse(saved));
+      try {
+        const parsed = JSON.parse(saved);
+        setState(parsed);
+      } catch (e) {
+        console.error('Erro ao carregar auth do localStorage:', e);
+      }
     }
   }, []);
 
   const login = async (username: string): Promise<boolean> => {
-    // Simulating API call
-    const user = MOCK_USERS.find(u => u.username === username.toLowerCase());
-    if (user) {
+    try {
+      // Buscar usuário no Supabase
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username.toLowerCase())
+        .eq('active', true)
+        .single();
+
+      if (error || !userData) {
+        console.error('Erro ao buscar usuário:', error);
+        return false;
+      }
+
+      // Buscar setores do usuário (se for manager)
+      let sectors: string[] = [];
+      if (userData.role === 'MANAGER') {
+        const { data: userSectors } = await supabase
+          .from('user_sectors')
+          .select('sectors(name)')
+          .eq('user_id', userData.id);
+
+        sectors = userSectors?.map((us: any) => us.sectors?.name).filter(Boolean) || [];
+      }
+
+      // Converter para formato User
+      const user: User = {
+        id: userData.id,
+        name: userData.name,
+        username: userData.username,
+        role: userData.role as User['role'],
+        sectors: sectors.length > 0 ? sectors : undefined,
+      };
+
       const newState = { user, isAuthenticated: true };
       setState(newState);
+      
+      // Salvar no localStorage como fallback
       localStorage.setItem('vivaz_auth', JSON.stringify(newState));
+      
       return true;
+    } catch (error) {
+      console.error('Erro no login:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
