@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { RequesterItem, ReasonItem, Sector } from '../types';
 
@@ -113,6 +113,8 @@ const AdminCatalogs: React.FC = () => {
 
   const [isEditingSector, setIsEditingSector] = useState<string | null>(null);
   const [editSector, setEditSector] = useState<Sector | null>(null);
+  const [searchSector, setSearchSector] = useState('');
+  const [expandedSectors, setExpandedSectors] = useState<Set<string>>(new Set());
 
   const handleStartEditSector = (sector: Sector) => {
     setIsEditingSector(sector.id);
@@ -154,6 +156,28 @@ const AdminCatalogs: React.FC = () => {
     }
   };
 
+  const toggleSectorExpansion = (sectorId: string) => {
+    setExpandedSectors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectorId)) {
+        newSet.delete(sectorId);
+      } else {
+        newSet.add(sectorId);
+      }
+      return newSet;
+    });
+  };
+
+  // Filtrar setores por pesquisa
+  const filteredSectors = useMemo(() => {
+    if (!searchSector.trim()) return sectors;
+    const searchLower = searchSector.toLowerCase();
+    return sectors.filter(sector => 
+      sector.name.toLowerCase().includes(searchLower) ||
+      sector.roles.some(role => role.toLowerCase().includes(searchLower))
+    );
+  }, [sectors, searchSector]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -179,82 +203,148 @@ const AdminCatalogs: React.FC = () => {
         />
       </div>
 
-      <div className="flex items-center justify-between pt-2">
-        <h2 className="text-xl font-bold text-gray-900">Setores e Funções</h2>
-        <button 
-          onClick={handleAddSector}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-md"
-        >
-          <Plus size={18} /> Novo Setor
-        </button>
-      </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Setores e Funções</h2>
+          <button 
+            onClick={handleAddSector}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-md"
+          >
+            <Plus size={18} /> Novo Setor
+          </button>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sectors.map(sector => (
-          <div key={sector.id} className={`bg-white rounded-2xl shadow-sm border p-6 transition-all ${isEditingSector === sector.id ? 'ring-2 ring-emerald-500 border-emerald-500' : 'border-gray-100'}`}>
-            {isEditingSector === sector.id ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Setor</label>
-                  <input 
-                    type="text"
-                    className="w-full text-lg font-bold border-b-2 border-emerald-500 outline-none p-1"
-                    value={editSector?.name}
-                    onChange={(e) => setEditSector({ ...editSector!, name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Funções</label>
-                  <div className="space-y-2">
-                    {editSector?.roles.map((role, idx) => (
-                      <div key={idx} className="flex gap-2">
+        {/* Barra de Pesquisa */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Pesquisar setor ou função..."
+            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            value={searchSector}
+            onChange={(e) => setSearchSector(e.target.value)}
+          />
+        </div>
+
+        {/* Lista de Setores */}
+        <div className="space-y-2">
+          {filteredSectors.length === 0 ? (
+            <p className="text-sm text-gray-400 italic text-center py-8">
+              {searchSector ? 'Nenhum setor encontrado com essa pesquisa.' : 'Nenhum setor cadastrado.'}
+            </p>
+          ) : (
+            filteredSectors.map(sector => {
+              const isExpanded = expandedSectors.has(sector.id);
+              const isEditing = isEditingSector === sector.id;
+
+              return (
+                <div key={sector.id} className={`bg-white border rounded-xl transition-all ${isEditing ? 'ring-2 ring-emerald-500 border-emerald-500' : 'border-gray-200'}`}>
+                  {isEditing ? (
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Nome do Setor</label>
                         <input 
                           type="text"
-                          className="flex-1 border rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-emerald-500"
-                          value={role}
-                          onChange={(e) => handleUpdateRole(idx, e.target.value)}
+                          className="w-full text-lg font-bold border-b-2 border-emerald-500 outline-none p-2"
+                          value={editSector?.name}
+                          onChange={(e) => setEditSector({ ...editSector!, name: e.target.value })}
                         />
-                        <button onClick={() => handleRemoveRole(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                       </div>
-                    ))}
-                    <button 
-                      onClick={handleAddRole}
-                      className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-xs font-bold text-gray-400 hover:border-emerald-300 hover:text-emerald-500 transition-all"
-                    >
-                      + Adicionar Função
-                    </button>
-                  </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Funções</label>
+                        <div className="space-y-2">
+                          {editSector?.roles.map((role, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <input 
+                                type="text"
+                                className="flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500"
+                                value={role}
+                                onChange={(e) => handleUpdateRole(idx, e.target.value)}
+                              />
+                              <button onClick={() => handleRemoveRole(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+                          <button 
+                            onClick={handleAddRole}
+                            className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-xs font-bold text-gray-400 hover:border-emerald-300 hover:text-emerald-500 transition-all"
+                          >
+                            + Adicionar Função
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <button onClick={handleSaveSector} className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                          <Save size={16} /> Salvar
+                        </button>
+                        <button onClick={() => setIsEditingSector(null)} className="flex-1 bg-gray-100 text-gray-500 py-2 rounded-xl text-sm font-bold">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div 
+                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => toggleSectorExpansion(sector.id)}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          {isExpanded ? (
+                            <ChevronUp className="text-gray-400" size={20} />
+                          ) : (
+                            <ChevronDown className="text-gray-400" size={20} />
+                          )}
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-gray-900">{sector.name}</h3>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {sector.roles.length} {sector.roles.length === 1 ? 'função' : 'funções'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEditSector(sector);
+                            }} 
+                            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSector(sector.id);
+                            }} 
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="px-4 pb-4 border-t border-gray-100 pt-4">
+                          <div className="flex flex-wrap gap-2">
+                            {sector.roles.length > 0 ? (
+                              sector.roles.map((role, i) => (
+                                <span key={i} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold">
+                                  {role}
+                                </span>
+                              ))
+                            ) : (
+                              <p className="text-xs text-gray-400 italic">Sem funções cadastradas.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-                <div className="flex gap-2 pt-4">
-                  <button onClick={handleSaveSector} className="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                    <Save size={16} /> Salvar
-                  </button>
-                  <button onClick={() => setIsEditingSector(null)} className="flex-1 bg-gray-100 text-gray-500 py-2 rounded-xl text-sm font-bold">
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col h-full">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-xl font-bold text-gray-900">{sector.name}</h3>
-                  <div className="flex gap-1">
-                    <button onClick={() => handleStartEditSector(sector)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"><Edit2 size={16} /></button>
-                    <button onClick={() => deleteSector(sector.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-auto">
-                  {sector.roles.map((role, i) => (
-                    <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold uppercase">
-                      {role}
-                    </span>
-                  ))}
-                  {sector.roles.length === 0 && <p className="text-xs text-gray-400 italic">Sem funções cadastradas.</p>}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );
