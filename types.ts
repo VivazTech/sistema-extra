@@ -1,6 +1,32 @@
 
 export type UserRole = 'ADMIN' | 'MANAGER' | 'LEADER' | 'VIEWER' | 'PORTARIA';
 
+export type AccessPageKey =
+  | 'dashboard'
+  | 'requests'
+  | 'portaria'
+  | 'reports'
+  | 'catalogs'
+  | 'users'
+  | 'saldo'
+  | 'extras'
+  | 'tv'
+  | 'test';
+
+export type AccessActionKey =
+  | 'manage_users'
+  | 'manage_catalogs'
+  | 'manage_extras'
+  | 'manage_saldo'
+  | 'approve_requests'
+  | 'create_requests'
+  | 'register_time'
+  | 'view_reports'
+  | 'view_dashboard'
+  | 'view_only';
+
+export type RoleAccess = Record<UserRole, { pages: AccessPageKey[]; actions: AccessActionKey[] }>;
+
 export interface User {
   id: string;
   name: string;

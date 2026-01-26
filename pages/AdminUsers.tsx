@@ -2,44 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Save, Edit2, Trash2, X, UserPlus } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
+import { useAccess } from '../context/AccessContext';
+import { ACCESS_ACTIONS, ACCESS_PAGES, ROLE_LABELS } from '../constants';
 import { User, UserRole } from '../types';
 
-const ROLE_ACCESS = [
-  {
-    role: 'ADMIN',
-    label: 'Administrador',
-    access: ['Dashboard', 'Solicitações', 'Portaria', 'Relatórios', 'Cadastros', 'Usuários', 'Saldo de Extras', 'Banco de Extras', 'Painel 24h'],
-    actions: ['Gerencia usuários e cadastros', 'Aprova/reprova solicitações', 'Acompanha saldos e relatórios'],
-  },
-  {
-    role: 'MANAGER',
-    label: 'Gerente',
-    access: ['Dashboard', 'Solicitações', 'Portaria', 'Relatórios', 'Saldo de Extras', 'Painel 24h'],
-    actions: ['Aprova solicitações do setor', 'Consulta relatórios e saldos'],
-  },
-  {
-    role: 'LEADER',
-    label: 'Líder',
-    access: ['Dashboard', 'Solicitações', 'Portaria', 'Relatórios', 'Painel 24h'],
-    actions: ['Cria e acompanha solicitações', 'Cancela solicitações próprias'],
-  },
-  {
-    role: 'VIEWER',
-    label: 'Visualizador',
-    access: ['Portaria', 'Painel 24h'],
-    actions: ['Acesso somente para consulta'],
-  },
-  {
-    role: 'PORTARIA',
-    label: 'Portaria',
-    access: ['Portaria'],
-    actions: ['Registra horários e ocorrências do dia'],
-  },
-] as const;
+const ROLE_ORDER: UserRole[] = ['ADMIN', 'MANAGER', 'LEADER', 'PORTARIA', 'VIEWER'];
 
 const AdminUsers: React.FC = () => {
   const { sectors, users, addUser, updateUser, deleteUser } = useExtras();
   const { user: currentUser } = useAuth();
+  const { roleAccess, toggleRolePage, toggleRoleAction } = useAccess();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -176,35 +148,54 @@ const AdminUsers: React.FC = () => {
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {ROLE_ACCESS.map((item) => (
-            <div key={item.role} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
+          {ROLE_ORDER.map((role) => {
+            const access = roleAccess[role];
+            return (
+            <div key={role} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-500 uppercase">Perfil</span>
                 <span className="text-[10px] font-bold uppercase bg-white border border-gray-200 text-gray-700 px-2 py-1 rounded-full">
-                  {item.label}
+                  {ROLE_LABELS[role]}
                 </span>
               </div>
               <div className="mt-3">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Acesso</p>
-                <div className="flex flex-wrap gap-2">
-                  {item.access.map((access) => (
-                    <span key={access} className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
-                      {access}
-                    </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {ACCESS_PAGES.map((page) => (
+                    <label key={page.key} className="flex items-center gap-2 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                        checked={access.pages.includes(page.key)}
+                        onChange={() => toggleRolePage(role, page.key)}
+                      />
+                      <span>{page.label}</span>
+                    </label>
                   ))}
                 </div>
               </div>
               <div className="mt-3">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Pode fazer</p>
-                <ul className="text-xs text-gray-600 space-y-1">
-                  {item.actions.map((action) => (
-                    <li key={action}>• {action}</li>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {ACCESS_ACTIONS.map((action) => (
+                    <label key={action.key} className="flex items-center gap-2 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                        checked={access.actions.includes(action.key)}
+                        onChange={() => toggleRoleAction(role, action.key)}
+                      />
+                      <span>{action.label}</span>
+                    </label>
                   ))}
-                </ul>
+                </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
+        <p className="text-xs text-gray-400">
+          Alterações são aplicadas imediatamente e salvas neste navegador.
+        </p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

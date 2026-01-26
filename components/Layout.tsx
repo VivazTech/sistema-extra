@@ -16,6 +16,7 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useAccess } from '../context/AccessContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,20 +25,21 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setSidebarOpen] = React.useState(false);
   const { user, logout } = useAuth();
+  const { hasPageAccess } = useAccess();
   const navigate = useNavigate();
   const location = useLocation();
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
-    { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
-    { icon: Clock, label: 'Portaria', path: '/portaria', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER', 'PORTARIA'] },
-    { icon: Monitor, label: 'Painel 24h', path: '/tv', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
-    { icon: FileText, label: 'Relatórios', path: '/relatorios', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
-    { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', roles: ['ADMIN'] },
-    { icon: Users, label: 'Usuários', path: '/admin/usuarios', roles: ['ADMIN'] },
-    { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', roles: ['ADMIN', 'MANAGER'] },
-    { icon: Database, label: 'Banco de Extras', path: '/admin/extras', roles: ['ADMIN'] },
-  ].filter(item => item.roles.includes(user?.role || ''));
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/', page: 'dashboard' },
+    { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', page: 'requests' },
+    { icon: Clock, label: 'Portaria', path: '/portaria', page: 'portaria' },
+    { icon: Monitor, label: 'Painel 24h', path: '/tv', page: 'tv' },
+    { icon: FileText, label: 'Relatórios', path: '/relatorios', page: 'reports' },
+    { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', page: 'catalogs' },
+    { icon: Users, label: 'Usuários', path: '/admin/usuarios', page: 'users' },
+    { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', page: 'saldo' },
+    { icon: Database, label: 'Banco de Extras', path: '/admin/extras', page: 'extras' },
+  ].filter(item => (user ? hasPageAccess(user.role, item.page) : false));
 
   const activeItem = menuItems.find(item => item.path === location.pathname) || menuItems[0];
 

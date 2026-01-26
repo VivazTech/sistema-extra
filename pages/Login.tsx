@@ -2,20 +2,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useAccess } from '../context/AccessContext';
 import { MOCK_USERS } from '../constants';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState(false);
   const { login, isAuthenticated, user } = useAuth();
+  const { getFirstAccessiblePath } = useAccess();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isAuthenticated) {
-      const isPortariaProfile = user?.role === 'PORTARIA' || user?.role === 'VIEWER';
-      navigate(isPortariaProfile ? '/portaria' : '/');
+      const target = user ? getFirstAccessiblePath(user.role) : '/';
+      navigate(target);
     }
-  }, [isAuthenticated, navigate, user]);
+  }, [getFirstAccessiblePath, isAuthenticated, navigate, user]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
