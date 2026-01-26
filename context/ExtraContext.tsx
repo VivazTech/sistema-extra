@@ -1,9 +1,10 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
 import { INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS } from '../constants';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
+import { useAuth } from './AuthContext';
 import { 
   mapSector, 
   mapRequester, 
@@ -53,6 +54,7 @@ interface ExtraContextType {
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
 
 export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [requests, setRequests] = useState<ExtraRequest[]>([]);
   const [sectors, setSectors] = useState<Sector[]>(INITIAL_SECTORS);
   const [requesters, setRequesters] = useState<RequesterItem[]>(INITIAL_REQUESTERS);
@@ -61,6 +63,40 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
   const [users, setUsers] = useState<User[]>([]);
+
+  const managerSectorSet = useMemo(() => {
+    if (user?.role !== 'MANAGER') return null;
+    const sectorsList = user.sectors || [];
+    return new Set(sectorsList);
+  }, [user?.role, user?.sectors]);
+
+  const filterByManagerSector = useMemo(() => {
+    return <T,>(items: T[], sectorSelector: (item: T) => string) => {
+      if (!managerSectorSet) return items;
+      if (managerSectorSet.size === 0) return [];
+      return items.filter(item => managerSectorSet.has(sectorSelector(item)));
+    };
+  }, [managerSectorSet]);
+
+  const visibleSectors = useMemo(
+    () => filterByManagerSector(sectors, sector => sector.name),
+    [filterByManagerSector, sectors]
+  );
+
+  const visibleRequests = useMemo(
+    () => filterByManagerSector(requests, request => request.sector),
+    [filterByManagerSector, requests]
+  );
+
+  const visibleExtras = useMemo(
+    () => filterByManagerSector(extras, extra => extra.sector),
+    [filterByManagerSector, extras]
+  );
+
+  const visibleExtraSaldoRecords = useMemo(
+    () => filterByManagerSector(extraSaldoRecords, record => record.setor),
+    [filterByManagerSector, extraSaldoRecords]
+  );
 
   // Load from Supabase
   useEffect(() => {
@@ -1545,7 +1581,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ExtraContext.Provider value={{ 
-      requests, sectors, requesters, reasons, extras, extraSaldoRecords, extraSaldoSettings, users,
+      requests: visibleRequests,
+      sectors: visibleSectors,
+      requesters,
+      reasons,
+      extras: visibleExtras,
+      extraSaldoRecords: visibleExtraSaldoRecords,
+      extraSaldoSettings,
+      users,
       addRequest, updateStatus, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,

@@ -8,6 +8,17 @@ import { User, UserRole } from '../types';
 
 const ROLE_ORDER: UserRole[] = ['ADMIN', 'MANAGER', 'LEADER', 'PORTARIA', 'VIEWER'];
 
+const formatPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
+
 const AdminUsers: React.FC = () => {
   const { sectors, users, addUser, updateUser, deleteUser } = useExtras();
   const { user: currentUser } = useAuth();
@@ -339,7 +350,7 @@ const AdminUsers: React.FC = () => {
                     placeholder="(45) 99999-9999"
                     className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                     value={formData.whatsapp}
-                    onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })}
                   />
                 </div>
 

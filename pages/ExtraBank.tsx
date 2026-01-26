@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Copy, Trash2, Users, Plus, X, Save } from 'lucide-react';
+import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 
 const ExtraBank: React.FC = () => {
   const { extras, sectors, deleteExtra, addExtra } = useExtras();
   const link = useMemo(() => `${window.location.origin}/#/banco-extras`, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
+  const [selectedSector, setSelectedSector] = useState('TODOS');
   const [formData, setFormData] = useState({
     fullName: '',
     birthDate: '',
@@ -176,12 +179,38 @@ const ExtraBank: React.FC = () => {
     }
   };
 
+  const filteredExtras = useMemo(() => {
+    let filtered = extras;
+
+    if (selectedSector !== 'TODOS') {
+      filtered = filtered.filter(extra => extra.sector === selectedSector);
+    }
+
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+      filtered = filtered.filter(extra =>
+        extra.fullName.toLowerCase().includes(query) ||
+        extra.cpf.toLowerCase().includes(query) ||
+        extra.contact.toLowerCase().includes(query)
+      );
+    }
+
+    const sorted = [...filtered];
+    if (sortOrder === 'alphabetical') {
+      sorted.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    } else {
+      sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    return sorted;
+  }, [extras, searchTerm, selectedSector, sortOrder]);
+
   const grouped = useMemo(() => {
     return sectors.map(sector => ({
       sector: sector.name,
-      extras: extras.filter(e => e.sector === sector.name)
+      extras: filteredExtras.filter(e => e.sector === sector.name)
     })).filter(g => g.extras.length > 0);
-  }, [extras, sectors]);
+  }, [filteredExtras, sectors]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,12 +327,49 @@ const ExtraBank: React.FC = () => {
             <Copy size={16} /> Copiar link
           </button>
         </div>
+        <div className="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Pesquisar por nome, CPF ou contato..."
+                className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <ArrowUpDown size={18} className="text-gray-400" />
+              <select
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as 'alphabetical' | 'recent')}
+              >
+                <option value="alphabetical">Ordem alfabética</option>
+                <option value="recent">Mais recentes</option>
+              </select>
+            </div>
+            <div>
+              <select
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                value={selectedSector}
+                onChange={(e) => setSelectedSector(e.target.value)}
+              >
+                <option value="TODOS">Todos os setores</option>
+                {sectors.map(sector => (
+                  <option key={sector.id} value={sector.name}>{sector.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
       </header>
 
-      {extras.length === 0 ? (
+      {filteredExtras.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center text-gray-400">
           <Users size={40} className="mx-auto mb-3 opacity-30" />
-          Nenhum extra cadastrado ainda.
+          {extras.length === 0 ? 'Nenhum extra cadastrado ainda.' : 'Nenhum extra encontrado com os filtros atuais.'}
         </div>
       ) : (
         <div className="space-y-6">

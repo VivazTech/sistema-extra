@@ -27,6 +27,7 @@ import { supabase } from '../services/supabase';
 const Portaria: React.FC = () => {
   const { requests, sectors, updateTimeRecord, appendRequestObservation, removeWorkDay } = useExtras();
   const { user } = useAuth();
+  const canViewValues = user?.role !== 'PORTARIA' && user?.role !== 'VIEWER';
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -545,12 +546,14 @@ const Portaria: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     {/* Valor Combinado */}
-                    <div className="text-right text-emerald-600">
-                      <div className="text-xs font-bold uppercase mb-1">Valor</div>
-                      <div className="text-lg font-black">
-                        R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {canViewValues && (
+                      <div className="text-right text-emerald-600">
+                        <div className="text-xs font-bold uppercase mb-1">Valor</div>
+                        <div className="text-lg font-black">
+                          R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {completed ? (
                       <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full">
                         <CheckCircle size={16} />
@@ -574,11 +577,10 @@ const Portaria: React.FC = () => {
                           removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
                         }
                       }}
-                      className="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors"
+                      className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-md"
                       title="Marcar como faltou"
                     >
-                      <UserX size={16} />
-                      <span className="text-xs font-bold uppercase">Faltou</span>
+                      FALTOU
                     </button>
                     {isExpanded ? (
                       <ChevronUp className="text-gray-400" size={20} />
