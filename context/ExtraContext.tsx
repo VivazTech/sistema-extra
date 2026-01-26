@@ -42,6 +42,7 @@ interface ExtraContextType {
   deleteExtraSaldoRecord: (id: string) => void;
   updateExtraSaldoSettings: (settings: ExtraSaldoSettings) => void;
   updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
+  appendRequestObservation: (requestId: string, note: string) => Promise<void>;
   getSaldoForWeek: (sector: string, dateStr: string) => number | null | 'no-record';
   addUser: (user: Partial<User>) => Promise<void>;
   updateUser: (id: string, user: Partial<User>) => Promise<void>;
@@ -978,6 +979,40 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteExtraSaldoRecord = (id: string) => setExtraSaldoRecords(prev => prev.filter(r => r.id !== id));
   const updateExtraSaldoSettings = (settings: ExtraSaldoSettings) => setExtraSaldoSettings(settings);
 
+  const appendRequestObservation = async (requestId: string, note: string) => {
+    const request = requests.find(r => r.id === requestId);
+    if (!request || !note.trim()) return;
+
+    const existing = request.observations?.trim() || '';
+    if (existing.includes(note)) return;
+
+    const updatedObservations = existing ? `${existing}\n${note}` : note;
+    const updatedAt = new Date().toISOString();
+
+    // Atualizar estado local imediatamente
+    setRequests(prev => prev.map(req =>
+      req.id === requestId
+        ? { ...req, observations: updatedObservations, updatedAt }
+        : req
+    ));
+
+    try {
+      const { error } = await supabase
+        .from('extra_requests')
+        .update({
+          observations: updatedObservations,
+          updated_at: updatedAt,
+        })
+        .eq('id', requestId);
+
+      if (error) {
+        console.error('Erro ao atualizar observações:', error);
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar observações:', error);
+    }
+  };
+
   const updateTimeRecord = async (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => {
     // Atualizar estado local imediatamente (otimistic update)
     setRequests(prev => prev.map(req => {
@@ -1418,6 +1453,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,
       updateTimeRecord,
+      appendRequestObservation,
       getSaldoForWeek,
       addUser, updateUser, deleteUser
     }}>

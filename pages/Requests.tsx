@@ -208,6 +208,9 @@ const Requests: React.FC = () => {
                               {req.status === 'APROVADO' && req.approvedBy && (
                                 <span className="text-[10px] text-gray-500">Aprovado por {req.approvedBy}</span>
                               )}
+                              {req.observations?.includes('PORTARIA - Horário não informado') && (
+                                <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>

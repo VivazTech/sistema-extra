@@ -24,7 +24,7 @@ import { ExtraRequest } from '../types';
 import { supabase } from '../services/supabase';
 
 const Portaria: React.FC = () => {
-  const { requests, sectors, updateTimeRecord } = useExtras();
+  const { requests, sectors, updateTimeRecord, appendRequestObservation } = useExtras();
   const { user } = useAuth();
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
@@ -117,6 +117,11 @@ const Portaria: React.FC = () => {
     return now.toTimeString().slice(0, 5);
   };
 
+  const buildNotInformedNote = (fieldLabel: string, workDate: string) => {
+    const formattedDate = new Date(`${workDate}T00:00:00`).toLocaleDateString('pt-BR');
+    return `PORTARIA - Horário não informado: ${fieldLabel} (${formattedDate})`;
+  };
+
   const handleTimeChange = (
     requestId: string, 
     workDate: string, 
@@ -137,6 +142,25 @@ const Portaria: React.FC = () => {
     };
 
     updateTimeRecord(requestId, workDate, updatedTimeRecord, user?.name || 'Portaria');
+  };
+
+  const handleRegisterTime = (
+    requestId: string,
+    workDate: string,
+    field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure'
+  ) => {
+    const currentTimeValue = getCurrentTime();
+    handleTimeChange(requestId, workDate, field, currentTimeValue);
+  };
+
+  const handleNotInformed = async (
+    requestId: string,
+    workDate: string,
+    field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure',
+    fieldLabel: string
+  ) => {
+    handleTimeChange(requestId, workDate, field, '');
+    await appendRequestObservation(requestId, buildNotInformedNote(fieldLabel, workDate));
   };
 
   const getTimeRecord = (request: ExtraRequest, date: string) => {
@@ -580,15 +604,24 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, workDayDate, 'arrival', value);
                               }
                             }}
-                            onFocus={(e) => {
-                              if (!e.target.value) {
-                                const currentTime = getCurrentTime();
-                                e.target.value = currentTime;
-                                handleTimeChange(request.id, workDayDate, 'arrival', currentTime);
-                              }
-                            }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                           />
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRegisterTime(request.id, workDayDate, 'arrival')}
+                              className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase hover:bg-emerald-700 transition-colors"
+                            >
+                              Registrar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleNotInformed(request.id, workDayDate, 'arrival', 'Chegada')}
+                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                            >
+                              Não informado
+                            </button>
+                          </div>
                         </div>
 
                         {/* Saída para Intervalo */}
@@ -612,15 +645,24 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, workDayDate, 'breakStart', value);
                               }
                             }}
-                            onFocus={(e) => {
-                              if (!e.target.value) {
-                                const currentTime = getCurrentTime();
-                                e.target.value = currentTime;
-                                handleTimeChange(request.id, workDayDate, 'breakStart', currentTime);
-                              }
-                            }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
                           />
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRegisterTime(request.id, workDayDate, 'breakStart')}
+                              className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold uppercase hover:bg-amber-700 transition-colors"
+                            >
+                              Registrar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleNotInformed(request.id, workDayDate, 'breakStart', 'Saída p/ Intervalo')}
+                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                            >
+                              Não informado
+                            </button>
+                          </div>
                         </div>
 
                         {/* Volta do Intervalo */}
@@ -644,15 +686,24 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, workDayDate, 'breakEnd', value);
                               }
                             }}
-                            onFocus={(e) => {
-                              if (!e.target.value) {
-                                const currentTime = getCurrentTime();
-                                e.target.value = currentTime;
-                                handleTimeChange(request.id, workDayDate, 'breakEnd', currentTime);
-                              }
-                            }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                           />
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRegisterTime(request.id, workDayDate, 'breakEnd')}
+                              className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase hover:bg-emerald-700 transition-colors"
+                            >
+                              Registrar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleNotInformed(request.id, workDayDate, 'breakEnd', 'Volta do Intervalo')}
+                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                            >
+                              Não informado
+                            </button>
+                          </div>
                         </div>
 
                         {/* Saída Final */}
@@ -676,15 +727,24 @@ const Portaria: React.FC = () => {
                                 handleTimeChange(request.id, workDayDate, 'departure', value);
                               }
                             }}
-                            onFocus={(e) => {
-                              if (!e.target.value) {
-                                const currentTime = getCurrentTime();
-                                e.target.value = currentTime;
-                                handleTimeChange(request.id, workDayDate, 'departure', currentTime);
-                              }
-                            }}
                             className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                           />
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRegisterTime(request.id, workDayDate, 'departure')}
+                              className="flex-1 py-2 rounded-lg bg-red-600 text-white text-xs font-bold uppercase hover:bg-red-700 transition-colors"
+                            >
+                              Registrar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleNotInformed(request.id, workDayDate, 'departure', 'Saída Final')}
+                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                            >
+                              Não informado
+                            </button>
+                          </div>
                         </div>
                       </div>
 
