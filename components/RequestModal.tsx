@@ -10,16 +10,25 @@ interface RequestModalProps {
   onClose: () => void;
 }
 
+const getTodayDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   const { sectors, requesters, reasons, extras, addRequest, getSaldoForWeek } = useExtras();
   const { user } = useAuth();
+  const todayStr = getTodayDateString();
   
   const [formData, setFormData] = useState({
     sector: '',
     role: '',
     workDays: [
       {
-        date: new Date().toISOString().split('T')[0],
+        date: todayStr,
         shift: 'Manhã' as any,
       },
     ],
@@ -83,8 +92,9 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleUpdateDay = (idx: number, field: 'date' | 'shift', value: string) => {
+    const normalizedValue = field === 'date' && value < todayStr ? todayStr : value;
     const updated = [...formData.workDays];
-    updated[idx] = { ...updated[idx], [field]: value };
+    updated[idx] = { ...updated[idx], [field]: normalizedValue };
     setFormData({ ...formData, workDays: updated });
   };
 
@@ -96,13 +106,13 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         role: '',
         workDays: [
           {
-            date: new Date().toISOString().split('T')[0],
+            date: todayStr,
             shift: 'Manhã' as any,
           },
         ],
       }));
     }
-  }, [isOpen]);
+  }, [isOpen, todayStr]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,7 +140,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         sector: '',
         role: '',
         workDays: [{
-          date: new Date().toISOString().split('T')[0],
+          date: todayStr,
           shift: 'Manhã' as any,
         }],
         requester: '',
@@ -272,6 +282,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                         type="date"
                         className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                         value={day.date}
+                        min={todayStr}
                         onChange={(e) => handleUpdateDay(idx, 'date', e.target.value)}
                       />
                     </div>

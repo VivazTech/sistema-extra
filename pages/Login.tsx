@@ -7,21 +7,20 @@ import { MOCK_USERS } from '../constants';
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      const isPortariaProfile = user?.role === 'PORTARIA' || user?.role === 'VIEWER';
+      navigate(isPortariaProfile ? '/portaria' : '/');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, user]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const success = await login(username);
-    if (success) {
-      navigate('/');
-    } else {
+    if (!success) {
       setError(true);
     }
   };

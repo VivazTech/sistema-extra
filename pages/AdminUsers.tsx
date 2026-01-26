@@ -4,6 +4,39 @@ import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { User, UserRole } from '../types';
 
+const ROLE_ACCESS = [
+  {
+    role: 'ADMIN',
+    label: 'Administrador',
+    access: ['Dashboard', 'Solicitações', 'Portaria', 'Relatórios', 'Cadastros', 'Usuários', 'Saldo de Extras', 'Banco de Extras', 'Painel 24h'],
+    actions: ['Gerencia usuários e cadastros', 'Aprova/reprova solicitações', 'Acompanha saldos e relatórios'],
+  },
+  {
+    role: 'MANAGER',
+    label: 'Gerente',
+    access: ['Dashboard', 'Solicitações', 'Portaria', 'Relatórios', 'Saldo de Extras', 'Painel 24h'],
+    actions: ['Aprova solicitações do setor', 'Consulta relatórios e saldos'],
+  },
+  {
+    role: 'LEADER',
+    label: 'Líder',
+    access: ['Dashboard', 'Solicitações', 'Portaria', 'Relatórios', 'Painel 24h'],
+    actions: ['Cria e acompanha solicitações', 'Cancela solicitações próprias'],
+  },
+  {
+    role: 'VIEWER',
+    label: 'Visualizador',
+    access: ['Portaria', 'Painel 24h'],
+    actions: ['Acesso somente para consulta'],
+  },
+  {
+    role: 'PORTARIA',
+    label: 'Portaria',
+    access: ['Portaria'],
+    actions: ['Registra horários e ocorrências do dia'],
+  },
+] as const;
+
 const AdminUsers: React.FC = () => {
   const { sectors, users, addUser, updateUser, deleteUser } = useExtras();
   const { user: currentUser } = useAuth();
@@ -135,6 +168,45 @@ const AdminUsers: React.FC = () => {
         </button>
       </div>
 
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Níveis de acesso por função</h2>
+          <p className="text-sm text-gray-500">
+            Defina o que cada perfil pode acessar e fazer no sistema.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {ROLE_ACCESS.map((item) => (
+            <div key={item.role} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 uppercase">Perfil</span>
+                <span className="text-[10px] font-bold uppercase bg-white border border-gray-200 text-gray-700 px-2 py-1 rounded-full">
+                  {item.label}
+                </span>
+              </div>
+              <div className="mt-3">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Acesso</p>
+                <div className="flex flex-wrap gap-2">
+                  {item.access.map((access) => (
+                    <span key={access} className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                      {access}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Pode fazer</p>
+                <ul className="text-xs text-gray-600 space-y-1">
+                  {item.actions.map((action) => (
+                    <li key={action}>• {action}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
@@ -166,6 +238,7 @@ const AdminUsers: React.FC = () => {
                       user.role === 'ADMIN' ? 'bg-red-100 text-red-700' :
                       user.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' :
                       user.role === 'LEADER' ? 'bg-emerald-100 text-emerald-700' :
+                      user.role === 'PORTARIA' ? 'bg-purple-100 text-purple-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {user.role}
@@ -301,6 +374,7 @@ const AdminUsers: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                   >
                     <option value="VIEWER">Visualizador</option>
+                    <option value="PORTARIA">Portaria</option>
                     <option value="LEADER">Líder</option>
                     <option value="MANAGER">Gerente</option>
                     <option value="ADMIN">Administrador</option>

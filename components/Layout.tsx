@@ -30,7 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
     { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
-    { icon: Clock, label: 'Portaria', path: '/portaria', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
+    { icon: Clock, label: 'Portaria', path: '/portaria', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER', 'PORTARIA'] },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', roles: ['ADMIN', 'MANAGER', 'LEADER', 'VIEWER'] },
     { icon: FileText, label: 'Relatórios', path: '/relatorios', roles: ['ADMIN', 'MANAGER', 'LEADER'] },
     { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', roles: ['ADMIN'] },
