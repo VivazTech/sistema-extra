@@ -80,10 +80,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     code: dbRequest.code,
     sector: dbRequest.sectors?.name || dbRequest.sector || '',
     role: dbRequest.role_name,
-    workDays: mappedWorkDays.length > 0 ? mappedWorkDays : [{
-      date: new Date().toISOString().split('T')[0],
-      shift: 'Manhã' as const,
-    }],
+    workDays: mappedWorkDays, // Não criar workDay padrão - se não houver, array vazio
     leaderId: dbRequest.leader_id,
     leaderName: dbRequest.leader_name,
     requester: dbRequest.requester_name,

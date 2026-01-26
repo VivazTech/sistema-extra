@@ -25,6 +25,7 @@ const ExtraBankForm: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [cpfError, setCpfError] = useState('');
   const [cepError, setCepError] = useState('');
+  const [contactError, setContactError] = useState('');
   const [isCepLoading, setIsCepLoading] = useState(false);
 
   const isAdult = useMemo(() => {
@@ -66,15 +67,70 @@ const ExtraBankForm: React.FC = () => {
     return check === parseInt(cpf[10], 10);
   };
 
-  const maskPhone = (value: string) => {
-    const digits = value.replace(/\D/g, '').slice(0, 11);
-    const ddd = digits.slice(0, 2);
-    const part1 = digits.slice(2, 7);
-    const part2 = digits.slice(7, 11);
+  const maskPhone = (value: string, ddi: string = '+55') => {
+    const digits = value.replace(/\D/g, '');
     if (!digits) return '';
-    if (digits.length <= 2) return `(${ddd}`;
-    if (digits.length <= 7) return `(${ddd}) ${part1}`;
-    return `(${ddd}) ${part1}-${part2}`;
+
+    switch (ddi) {
+      case '+55': // Brasil
+        const ddd = digits.slice(0, 2);
+        const part1 = digits.slice(2, 7);
+        const part2 = digits.slice(7, 11);
+        if (digits.length <= 2) return `(${ddd}`;
+        if (digits.length <= 7) return `(${ddd}) ${part1}`;
+        return `(${ddd}) ${part1}-${part2}`;
+      
+      case '+54': // Argentina
+        const area = digits.slice(0, 2);
+        const num1 = digits.slice(2, 6);
+        const num2 = digits.slice(6, 10);
+        if (digits.length <= 2) return `${area}`;
+        if (digits.length <= 6) return `${area} ${num1}`;
+        return `${area} ${num1}-${num2}`;
+      
+      case '+595': // Paraguai
+        const parArea = digits.slice(0, 2);
+        const parNum1 = digits.slice(2, 6);
+        const parNum2 = digits.slice(6, 10);
+        if (digits.length <= 2) return `${parArea}`;
+        if (digits.length <= 6) return `${parArea} ${parNum1}`;
+        return `${parArea} ${parNum1}-${parNum2}`;
+      
+      case '+598': // Uruguai
+        const uyArea = digits.slice(0, 2);
+        const uyNum1 = digits.slice(2, 6);
+        const uyNum2 = digits.slice(6, 10);
+        if (digits.length <= 2) return `${uyArea}`;
+        if (digits.length <= 6) return `${uyArea} ${uyNum1}`;
+        return `${uyArea} ${uyNum1}-${uyNum2}`;
+      
+      case '+1': // EUA/Canadá
+        const usArea = digits.slice(0, 3);
+        const usNum1 = digits.slice(3, 6);
+        const usNum2 = digits.slice(6, 10);
+        if (digits.length <= 3) return `(${usArea}`;
+        if (digits.length <= 6) return `(${usArea}) ${usNum1}`;
+        return `(${usArea}) ${usNum1}-${usNum2}`;
+      
+      case '+351': // Portugal
+        const ptNum1 = digits.slice(0, 3);
+        const ptNum2 = digits.slice(3, 6);
+        const ptNum3 = digits.slice(6, 9);
+        if (digits.length <= 3) return `${ptNum1}`;
+        if (digits.length <= 6) return `${ptNum1} ${ptNum2}`;
+        return `${ptNum1} ${ptNum2} ${ptNum3}`;
+      
+      case '+34': // Espanha
+        const esNum1 = digits.slice(0, 3);
+        const esNum2 = digits.slice(3, 6);
+        const esNum3 = digits.slice(6, 9);
+        if (digits.length <= 3) return `${esNum1}`;
+        if (digits.length <= 6) return `${esNum1} ${esNum2}`;
+        return `${esNum1} ${esNum2} ${esNum3}`;
+      
+      default:
+        return digits;
+    }
   };
 
   const maskCep = (value: string) => {
@@ -123,6 +179,17 @@ const ExtraBankForm: React.FC = () => {
       alert('Informe o documento estrangeiro.');
       return;
     }
+    
+    // Validar se contatos são diferentes
+    if (formData.contactNumber && formData.emergencyContactNumber) {
+      const contactDigits = formData.contactNumber.replace(/\D/g, '');
+      const emergencyDigits = formData.emergencyContactNumber.replace(/\D/g, '');
+      if (contactDigits === emergencyDigits && formData.ddiContact === formData.ddiEmergency) {
+        setContactError('O contato e o contato de emergência não podem ser iguais.');
+        return;
+      }
+    }
+    
     if (
       !formData.fullName ||
       !formData.birthDate ||
@@ -252,7 +319,17 @@ const ExtraBankForm: React.FC = () => {
                 required
                 className="border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.ddiContact}
-                onChange={(e) => setFormData({ ...formData, ddiContact: e.target.value })}
+                onChange={(e) => {
+                  const newDdi = e.target.value;
+                  // Reaplicar máscara com novo DDI
+                  const currentDigits = formData.contactNumber.replace(/\D/g, '');
+                  setFormData({ 
+                    ...formData, 
+                    ddiContact: newDdi,
+                    contactNumber: maskPhone(currentDigits, newDdi)
+                  });
+                  setContactError('');
+                }}
               >
                 <option value="+55">BR +55</option>
                 <option value="+54">AR +54</option>
@@ -265,10 +342,17 @@ const ExtraBankForm: React.FC = () => {
               <input
                 required
                 type="text"
-                placeholder="(XX) XXXXX-XXXX"
+                placeholder={formData.ddiContact === '+55' ? '(XX) XXXXX-XXXX' : 
+                            formData.ddiContact === '+1' ? '(XXX) XXX-XXXX' :
+                            formData.ddiContact === '+351' ? 'XXX XXX XXX' :
+                            formData.ddiContact === '+34' ? 'XXX XXX XXX' :
+                            'XX XXXX-XXXX'}
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.contactNumber}
-                onChange={(e) => setFormData({ ...formData, contactNumber: maskPhone(e.target.value) })}
+                onChange={(e) => {
+                  setFormData({ ...formData, contactNumber: maskPhone(e.target.value, formData.ddiContact) });
+                  setContactError('');
+                }}
               />
             </div>
           </div>
@@ -367,7 +451,17 @@ const ExtraBankForm: React.FC = () => {
                 required
                 className="border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.ddiEmergency}
-                onChange={(e) => setFormData({ ...formData, ddiEmergency: e.target.value })}
+                onChange={(e) => {
+                  const newDdi = e.target.value;
+                  // Reaplicar máscara com novo DDI
+                  const currentDigits = formData.emergencyContactNumber.replace(/\D/g, '');
+                  setFormData({ 
+                    ...formData, 
+                    ddiEmergency: newDdi,
+                    emergencyContactNumber: maskPhone(currentDigits, newDdi)
+                  });
+                  setContactError('');
+                }}
               >
                 <option value="+55">BR +55</option>
                 <option value="+54">AR +54</option>
@@ -380,12 +474,20 @@ const ExtraBankForm: React.FC = () => {
               <input
                 required
                 type="text"
-                placeholder="(XX) XXXXX-XXXX"
+                placeholder={formData.ddiEmergency === '+55' ? '(XX) XXXXX-XXXX' : 
+                            formData.ddiEmergency === '+1' ? '(XXX) XXX-XXXX' :
+                            formData.ddiEmergency === '+351' ? 'XXX XXX XXX' :
+                            formData.ddiEmergency === '+34' ? 'XXX XXX XXX' :
+                            'XX XXXX-XXXX'}
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.emergencyContactNumber}
-                onChange={(e) => setFormData({ ...formData, emergencyContactNumber: maskPhone(e.target.value) })}
+                onChange={(e) => {
+                  setFormData({ ...formData, emergencyContactNumber: maskPhone(e.target.value, formData.ddiEmergency) });
+                  setContactError('');
+                }}
               />
             </div>
+            {contactError && <p className="text-xs text-red-500 mt-1">{contactError}</p>}
           </div>
 
           <div>
