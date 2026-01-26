@@ -37,7 +37,7 @@ interface ReportTab {
   id: string;
   label: string;
   icon: React.ComponentType<{ size?: number }>;
-  component: React.ComponentType;
+  component: React.ComponentType<{ startDate?: string; endDate?: string }>;
   roles: string[];
 }
 
@@ -197,7 +197,9 @@ const Reports: React.FC = () => {
 
         {/* Report Content */}
         <div className="p-6">
-          <ActiveComponent startDate={startDate} endDate={endDate} />
+          <React.Suspense fallback={<div className="text-center p-8 text-gray-500">Carregando...</div>}>
+            <ActiveComponent startDate={startDate} endDate={endDate} />
+          </React.Suspense>
         </div>
       </div>
     </div>

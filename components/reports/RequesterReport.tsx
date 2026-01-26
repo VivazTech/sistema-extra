@@ -12,6 +12,19 @@ interface RequesterReportProps {
 const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate }) => {
   const { requests } = useExtras();
 
+  if (!requests || requests.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white p-12 rounded-xl border border-gray-200 text-center">
+          <User className="mx-auto text-gray-300 mb-4" size={48} />
+          <p className="text-gray-400 font-medium">
+            Nenhuma solicitação encontrada.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const filteredRequests = useMemo(() => {
     if (!startDate && !endDate) return requests;
     return requests.filter(req => {
@@ -78,6 +91,20 @@ const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate })
     ? (totalRequests / totalRequesters).toFixed(1)
     : '0';
 
+  // Se não houver dados, mostrar mensagem
+  if (requesterAnalysis.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white p-12 rounded-xl border border-gray-200 text-center">
+          <User className="mx-auto text-gray-300 mb-4" size={48} />
+          <p className="text-gray-400 font-medium">
+            Nenhum dado de solicitante encontrado para o período selecionado.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* KPIs */}
@@ -108,20 +135,22 @@ const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate })
       </div>
 
       {/* Gráfico Top 10 */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Top 10 Solicitantes</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={topRequesters}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="total" fill="#3b82f6" name="Total" />
-            <Bar dataKey="aprovadas" fill="#10b981" name="Aprovadas" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {topRequesters.length > 0 && (
+        <div className="bg-white p-6 rounded-xl border border-gray-200">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Top 10 Solicitantes</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={topRequesters}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="total" fill="#3b82f6" name="Total" />
+              <Bar dataKey="aprovadas" fill="#10b981" name="Aprovadas" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Tabela Detalhada */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -129,34 +158,40 @@ const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate })
           <h3 className="text-lg font-bold text-gray-900">Análise Detalhada por Solicitante</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Solicitante</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Aprovadas</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Reprovadas</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Taxa Aprovação</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total Dias</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Média Dias/Solicitação</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Setores</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {requesterAnalysis.map((requester, idx) => (
-                <tr key={idx} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{requester.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 font-bold">{requester.total}</td>
-                  <td className="px-6 py-4 text-sm text-emerald-600 font-bold">{requester.aprovadas}</td>
-                  <td className="px-6 py-4 text-sm text-red-600 font-bold">{requester.reprovadas}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{requester.taxaAprovacao}%</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{requester.totalDias}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{requester.mediaDiasPorSolicitacao}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{requester.setores}</td>
+          {requesterAnalysis.length > 0 ? (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Solicitante</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Aprovadas</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Reprovadas</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Taxa Aprovação</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total Dias</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Média Dias/Solicitação</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Setores</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {requesterAnalysis.map((requester, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{requester.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 font-bold">{requester.total}</td>
+                    <td className="px-6 py-4 text-sm text-emerald-600 font-bold">{requester.aprovadas}</td>
+                    <td className="px-6 py-4 text-sm text-red-600 font-bold">{requester.reprovadas}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{requester.taxaAprovacao}%</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{requester.totalDias}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{requester.mediaDiasPorSolicitacao}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{requester.setores}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-gray-400">
+              Nenhum solicitante encontrado.
+            </div>
+          )}
         </div>
       </div>
     </div>
