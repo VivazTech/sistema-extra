@@ -12,11 +12,14 @@ interface EditableListProps {
   onUpdate: (id: string, item: ListItem) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   addLabel: string;
+  maxHeight?: number;
+  expandable?: boolean;
 }
 
-const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpdate, onDelete, addLabel }) => {
+const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpdate, onDelete, addLabel, maxHeight, expandable }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleStartEdit = (item: ListItem) => {
     setEditingId(item.id);
@@ -58,7 +61,10 @@ const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpda
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div
+        className="space-y-2"
+        style={expandable && !isExpanded && maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+      >
         {items.length === 0 && (
           <p className="text-xs text-gray-400 italic">Nenhum item cadastrado.</p>
         )}
@@ -93,6 +99,17 @@ const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpda
           </div>
         ))}
       </div>
+      {expandable && items.length > 0 && maxHeight && (
+        <div className="pt-3">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(prev => !prev)}
+            className="w-full py-2 text-xs font-bold text-emerald-600 hover:text-emerald-700 border border-emerald-100 rounded-lg bg-emerald-50/60 hover:bg-emerald-100 transition-colors"
+          >
+            {isExpanded ? 'Ver menos' : 'Ver mais'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -194,6 +211,8 @@ const AdminCatalogs: React.FC = () => {
           onUpdate={updateRequester}
           onDelete={deleteRequester}
           addLabel="Novo Demandante"
+          maxHeight={500}
+          expandable
         />
         <EditableList
           title="Motivos da Solicitação"
