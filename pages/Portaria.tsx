@@ -16,7 +16,8 @@ import {
   Search,
   ArrowUpDown,
   ArrowUpAZ,
-  ArrowDownAZ
+  ArrowDownAZ,
+  UserX
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +25,7 @@ import { ExtraRequest } from '../types';
 import { supabase } from '../services/supabase';
 
 const Portaria: React.FC = () => {
-  const { requests, sectors, updateTimeRecord, appendRequestObservation } = useExtras();
+  const { requests, sectors, updateTimeRecord, appendRequestObservation, removeWorkDay } = useExtras();
   const { user } = useAuth();
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
@@ -566,6 +567,19 @@ const Portaria: React.FC = () => {
                         <span className="text-xs font-bold uppercase">Pendente</span>
                       </div>
                     )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${new Date(`${workDayDate}T00:00:00`).toLocaleDateString('pt-BR')}?`)) {
+                          removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors"
+                      title="Marcar como faltou"
+                    >
+                      <UserX size={16} />
+                      <span className="text-xs font-bold uppercase">Faltou</span>
+                    </button>
                     {isExpanded ? (
                       <ChevronUp className="text-gray-400" size={20} />
                     ) : (
@@ -582,7 +596,7 @@ const Portaria: React.FC = () => {
                         Registro de Horários
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         {/* Chegada */}
                         <div className="bg-white p-4 rounded-xl border border-gray-200">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">

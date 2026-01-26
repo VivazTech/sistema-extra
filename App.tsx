@@ -15,6 +15,7 @@ import TestSupabase from './pages/TestSupabase';
 import ExtraBank from './pages/ExtraBank';
 import ExtraBankForm from './pages/ExtraBankForm';
 import ExtraSaldo from './pages/ExtraSaldo';
+import Reports from './pages/Reports';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> = ({ children, roles }) => {
   const { isAuthenticated, user } = useAuth();
@@ -37,6 +38,7 @@ const AppRoutes = () => {
       <Route path="/admin/usuarios" element={<PrivateRoute roles={['ADMIN']}><AdminUsers /></PrivateRoute>} />
       <Route path="/admin/saldo-extras" element={<PrivateRoute roles={['ADMIN', 'MANAGER']}><ExtraSaldo /></PrivateRoute>} />
       <Route path="/admin/extras" element={<PrivateRoute roles={['ADMIN']}><ExtraBank /></PrivateRoute>} />
+      <Route path="/relatorios" element={<PrivateRoute roles={['ADMIN', 'MANAGER', 'LEADER']}><Reports /></PrivateRoute>} />
       <Route path="/banco-extras" element={<ExtraBankForm />} />
       <Route path="/tv" element={<TVDashboard />} />
       <Route path="*" element={<Navigate to="/" />} />

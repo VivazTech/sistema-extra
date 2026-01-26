@@ -43,6 +43,7 @@ interface ExtraContextType {
   updateExtraSaldoSettings: (settings: ExtraSaldoSettings) => void;
   updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
   appendRequestObservation: (requestId: string, note: string) => Promise<void>;
+  removeWorkDay: (requestId: string, workDate: string, registeredBy: string) => Promise<void>;
   getSaldoForWeek: (sector: string, dateStr: string) => number | null | 'no-record';
   addUser: (user: Partial<User>) => Promise<void>;
   updateUser: (id: string, user: Partial<User>) => Promise<void>;
@@ -1013,6 +1014,106 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const removeWorkDay = async (requestId: string, workDate: string, registeredBy: string) => {
+    const request = requests.find(r => r.id === requestId);
+    if (!request) return;
+
+    const workDay = request.workDays.find(d => d.date === workDate);
+    if (!workDay) return;
+
+    const formattedDate = new Date(`${workDate}T00:00:00`).toLocaleDateString('pt-BR');
+    const note = `PORTARIA - Extra faltou: ${request.extraName} não compareceu no dia ${formattedDate}. Registrado por ${registeredBy}.`;
+
+    // Atualizar estado local imediatamente (remover workDay)
+    setRequests(prev => prev.map(req => {
+      if (req.id !== requestId) return req;
+      
+      const updatedWorkDays = req.workDays.filter(d => d.date !== workDate);
+      
+      // Remover workDay mesmo que seja o último - se faltou, não deve aparecer na lista
+      return {
+        ...req,
+        workDays: updatedWorkDays,
+        observations: req.observations ? `${req.observations}\n${note}` : note,
+        updatedAt: new Date().toISOString()
+      };
+    }));
+
+    try {
+      // Buscar work_day_id
+      const { data: workDayData } = await supabase
+        .from('work_days')
+        .select('id')
+        .eq('request_id', requestId)
+        .eq('work_date', workDate)
+        .single();
+
+      if (workDayData) {
+        // Deletar time_records relacionados (se existir)
+        await supabase
+          .from('time_records')
+          .delete()
+          .eq('work_day_id', workDayData.id);
+
+        // Deletar work_day
+        const { error: deleteError } = await supabase
+          .from('work_days')
+          .delete()
+          .eq('id', workDayData.id);
+
+        if (deleteError) {
+          console.error('Erro ao deletar dia de trabalho:', deleteError);
+          throw deleteError;
+        }
+      }
+
+      // Adicionar observação
+      const existing = request.observations?.trim() || '';
+      const updatedObservations = existing ? `${existing}\n${note}` : note;
+      
+      const { error: obsError } = await supabase
+        .from('extra_requests')
+        .update({
+          observations: updatedObservations,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (obsError) {
+        console.error('Erro ao atualizar observações:', obsError);
+      }
+
+      // Recarregar dados do banco para garantir sincronização
+      const { data: updatedRequest } = await supabase
+        .from('extra_requests')
+        .select(`
+          *,
+          sectors(name),
+          users!extra_requests_approved_by_fkey(name),
+          work_days(
+            *,
+            time_records(*)
+          )
+        `)
+        .eq('id', requestId)
+        .single();
+
+      if (updatedRequest) {
+        const mappedRequest = mapExtraRequest(updatedRequest, updatedRequest.work_days);
+        setRequests(prev => prev.map(req => 
+          req.id === requestId ? mappedRequest : req
+        ));
+      }
+    } catch (error) {
+      console.error('Erro ao remover dia de trabalho:', error);
+      // Reverter estado local em caso de erro
+      setRequests(prev => prev.map(req => {
+        if (req.id !== requestId) return req;
+        return request; // Restaurar request original
+      }));
+    }
+  };
+
   const updateTimeRecord = async (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => {
     // Atualizar estado local imediatamente (otimistic update)
     setRequests(prev => prev.map(req => {
@@ -1454,6 +1555,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateExtraSaldoSettings,
       updateTimeRecord,
       appendRequestObservation,
+      removeWorkDay,
       getSaldoForWeek,
       addUser, updateUser, deleteUser
     }}>
