@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
-import { Eye, EyeOff, Mail } from 'lucide-react';
+import { Eye, EyeOff, Mail, X } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -36,13 +36,20 @@ const Login: React.FC = () => {
       return;
     }
 
-    const result = await login(username, password);
-    
-    if (!result.success) {
-      setError(result.error || 'Erro ao fazer login');
+    try {
+      const result = await login(username, password);
+      
+      if (!result.success) {
+        setError(result.error || 'Erro ao fazer login');
+        setLoading(false);
+      } else {
+        // Se o login foi bem-sucedido, o loading será gerenciado pelo AuthContext
+        // e o usuário será redirecionado pelo useEffect
+      }
+    } catch (error: any) {
+      setError(error.message || 'Erro ao fazer login');
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
