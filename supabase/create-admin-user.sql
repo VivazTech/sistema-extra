@@ -3,11 +3,13 @@
 -- Sistema de Controle de Extras - Vivaz Cataratas
 -- ============================================
 --
--- Este script cria um usuário admin padrão para acesso de desenvolvedor.
--- IMPORTANTE: Execute este script no Supabase SQL Editor.
+-- ⚠️ IMPORTANTE: Este script APENAS cria o usuário na tabela users.
+-- Você PRECISA criar o usuário no Supabase Auth também!
 --
--- Após executar, você precisará criar o usuário no Supabase Auth também.
--- Veja as instruções abaixo.
+-- RECOMENDAÇÃO: Use o script Node.js em scripts/create-admin-user.js
+-- Ele cria automaticamente no Auth e na tabela users.
+--
+-- Se preferir fazer manualmente, siga as instruções abaixo.
 -- ============================================
 
 -- Inserir usuário admin na tabela users

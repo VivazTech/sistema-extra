@@ -136,7 +136,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (authError) {
         console.error('Erro no login:', authError);
         if (authError.message.includes('Invalid login credentials')) {
-          return { success: false, error: 'Usuário ou senha incorretos' };
+          return { 
+            success: false, 
+            error: 'Usuário ou senha incorretos. Se você acabou de criar o usuário, certifique-se de que ele foi criado no Supabase Auth. Veja scripts/create-admin-user.js para criar o usuário admin.' 
+          };
         }
         return { success: false, error: authError.message };
       }
