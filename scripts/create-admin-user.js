@@ -102,22 +102,113 @@ async function createAdminUser() {
     }
 
     if (existingUser) {
-      // Atualizar ID do usuário existente
-      console.log('   Usuário encontrado na tabela users. Atualizando ID...');
-      const { error: updateError } = await supabaseAdmin
-        .from('users')
-        .update({ 
-          id: authData.user.id,
-          email: adminEmail,
-          role: 'ADMIN',
-          active: true,
-        })
-        .eq('username', adminUsername);
+      // Se o ID já é o mesmo, apenas atualizar outros campos
+      if (existingUser.id === authData.user.id) {
+        console.log('   ID já está correto. Atualizando outros campos...');
+        const { error: updateError } = await supabaseAdmin
+          .from('users')
+          .update({ 
+            email: adminEmail,
+            role: 'ADMIN',
+            active: true,
+          })
+          .eq('username', adminUsername);
 
-      if (updateError) {
-        throw updateError;
+        if (updateError) {
+          throw updateError;
+        }
+        console.log('✅ Usuário atualizado na tabela users!\n');
+      } else {
+        // ID diferente, precisa atualizar todas as referências primeiro
+        console.log('   Usuário encontrado com ID diferente. Atualizando referências...');
+        const oldUserId = existingUser.id;
+        const newUserId = authData.user.id;
+
+        // Atualizar referências em extra_requests
+        console.log('   - Atualizando extra_requests...');
+        const { error: reqError } = await supabaseAdmin.rpc('exec_sql', {
+          sql: `
+            UPDATE extra_requests 
+            SET leader_id = '${newUserId}' 
+            WHERE leader_id = '${oldUserId}';
+            
+            UPDATE extra_requests 
+            SET approved_by = '${newUserId}' 
+            WHERE approved_by = '${oldUserId}';
+            
+            UPDATE extra_requests 
+            SET created_by = '${newUserId}' 
+            WHERE created_by = '${oldUserId}';
+          `
+        }).catch(async () => {
+          // Se RPC não funcionar, usar updates diretos
+          await supabaseAdmin
+            .from('extra_requests')
+            .update({ leader_id: newUserId })
+            .eq('leader_id', oldUserId);
+          
+          await supabaseAdmin
+            .from('extra_requests')
+            .update({ approved_by: newUserId })
+            .eq('approved_by', oldUserId);
+          
+          await supabaseAdmin
+            .from('extra_requests')
+            .update({ created_by: newUserId })
+            .eq('created_by', oldUserId);
+        });
+
+        // Atualizar referências em user_sectors
+        console.log('   - Atualizando user_sectors...');
+        await supabaseAdmin
+          .from('user_sectors')
+          .update({ user_id: newUserId })
+          .eq('user_id', oldUserId);
+
+        // Atualizar referências em time_records
+        console.log('   - Atualizando time_records...');
+        await supabaseAdmin
+          .from('time_records')
+          .update({ registered_by: newUserId })
+          .eq('registered_by', oldUserId);
+
+        // Atualizar referências em extra_saldo_records (se existir)
+        console.log('   - Atualizando extra_saldo_records...');
+        await supabaseAdmin
+          .from('extra_saldo_records')
+          .update({ created_by: newUserId })
+          .eq('created_by', oldUserId)
+          .catch(() => {}); // Ignorar se a tabela não existir ou não tiver o campo
+
+        // Agora deletar o usuário antigo e criar um novo com o ID correto
+        console.log('   - Removendo usuário antigo...');
+        const { error: deleteError } = await supabaseAdmin
+          .from('users')
+          .delete()
+          .eq('id', oldUserId);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        // Criar usuário com o novo ID
+        console.log('   - Criando usuário com ID do Auth...');
+        const { error: insertError } = await supabaseAdmin
+          .from('users')
+          .insert({
+            id: newUserId,
+            name: 'Desenvolvedor Admin',
+            username: adminUsername,
+            email: adminEmail,
+            role: 'ADMIN',
+            active: true,
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
+        console.log('✅ Usuário atualizado com sucesso!\n');
       }
-      console.log('✅ ID atualizado na tabela users!\n');
     } else {
       // Criar usuário na tabela users
       console.log('   Usuário não encontrado. Criando na tabela users...');
