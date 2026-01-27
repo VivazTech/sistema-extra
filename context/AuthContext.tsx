@@ -55,15 +55,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loadUserData = async (authUserId: string) => {
     try {
       // Buscar usuário na tabela users pelo ID do Auth (que deve ser o mesmo)
-      const { data: userData, error } = await supabase
+      let { data: userData, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUserId)
         .eq('active', true)
         .single();
 
+      // Se não encontrou pelo ID, tentar buscar pelo email do Auth
+      if (error && error.code === 'PGRST116') {
+        console.warn('Usuário não encontrado pelo ID, tentando buscar pelo email...');
+        
+        // Buscar email do usuário no Auth
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (authUser?.email) {
+          const { data: userByEmail, error: emailError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', authUser.email)
+            .eq('active', true)
+            .single();
+
+          if (!emailError && userByEmail) {
+            console.warn('⚠️ Usuário encontrado por email, mas ID não corresponde. Execute o script create-admin-user.js para sincronizar.');
+            userData = userByEmail;
+            error = null;
+          }
+        }
+      }
+
       if (error || !userData) {
         console.error('Erro ao buscar dados do usuário:', error);
+        console.error('⚠️ O usuário existe no Supabase Auth mas não foi encontrado na tabela users.');
+        console.error('Execute o script: node scripts/create-admin-user.js');
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
         return;
