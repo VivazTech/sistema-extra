@@ -138,72 +138,12 @@ async function createAdminUser() {
         }
         console.log('✅ Usuário atualizado na tabela users!\n');
       } else {
-        // ID diferente, precisa atualizar todas as referências primeiro
-        console.log('   Usuário encontrado com ID diferente. Atualizando referências...');
+        // ID diferente, precisa criar o novo usuário primeiro, depois atualizar referências
+        console.log('   Usuário encontrado com ID diferente. Atualizando...');
         const oldUserId = existingUser.id;
 
-        // Atualizar referências em extra_requests
-        console.log('   - Atualizando extra_requests...');
-        try {
-          // Tentar atualizar leader_id
-          const { error: leaderError } = await supabaseAdmin
-            .from('extra_requests')
-            .update({ leader_id: newUserId })
-            .eq('leader_id', oldUserId);
-          if (leaderError) throw leaderError;
-
-          // Tentar atualizar approved_by
-          const { error: approvedError } = await supabaseAdmin
-            .from('extra_requests')
-            .update({ approved_by: newUserId })
-            .eq('approved_by', oldUserId);
-          if (approvedError && approvedError.code !== 'PGRST116') throw approvedError;
-
-          // Tentar atualizar created_by
-          const { error: createdError } = await supabaseAdmin
-            .from('extra_requests')
-            .update({ created_by: newUserId })
-            .eq('created_by', oldUserId);
-          if (createdError && createdError.code !== 'PGRST116') throw createdError;
-        } catch (reqError) {
-          console.log('   ⚠️  Alguns registros podem não ter sido atualizados:', reqError.message);
-        }
-
-        // Atualizar referências em user_sectors
-        console.log('   - Atualizando user_sectors...');
-        await supabaseAdmin
-          .from('user_sectors')
-          .update({ user_id: newUserId })
-          .eq('user_id', oldUserId);
-
-        // Atualizar referências em time_records
-        console.log('   - Atualizando time_records...');
-        await supabaseAdmin
-          .from('time_records')
-          .update({ registered_by: newUserId })
-          .eq('registered_by', oldUserId);
-
-        // Atualizar referências em extra_saldo_records (se existir)
-        console.log('   - Atualizando extra_saldo_records...');
-        await supabaseAdmin
-          .from('extra_saldo_records')
-          .update({ created_by: newUserId })
-          .eq('created_by', oldUserId)
-          .catch(() => {}); // Ignorar se a tabela não existir ou não tiver o campo
-
-        // Agora deletar o usuário antigo e criar um novo com o ID correto
-        console.log('   - Removendo usuário antigo...');
-        const { error: deleteError } = await supabaseAdmin
-          .from('users')
-          .delete()
-          .eq('id', oldUserId);
-
-        if (deleteError) {
-          throw deleteError;
-        }
-
-        // Criar usuário com o novo ID
-        console.log('   - Criando usuário com ID do Auth...');
+        // 1. Primeiro criar o novo usuário na tabela users (com o ID do Auth)
+        console.log('   - Criando novo registro com ID do Auth...');
         const { error: insertError } = await supabaseAdmin
           .from('users')
           .insert({
@@ -216,8 +156,103 @@ async function createAdminUser() {
           });
 
         if (insertError) {
-          throw insertError;
+          // Se já existe, apenas atualizar
+          if (insertError.code === '23505') {
+            console.log('   - Registro já existe, atualizando...');
+            const { error: updateError } = await supabaseAdmin
+              .from('users')
+              .update({
+                name: 'Desenvolvedor Admin',
+                email: adminEmail,
+                role: 'ADMIN',
+                active: true,
+              })
+              .eq('id', newUserId);
+            if (updateError) throw updateError;
+          } else {
+            throw insertError;
+          }
         }
+
+        // 2. Agora atualizar todas as referências
+        console.log('   - Atualizando referências em extra_requests...');
+        try {
+          const { error: leaderError } = await supabaseAdmin
+            .from('extra_requests')
+            .update({ leader_id: newUserId })
+            .eq('leader_id', oldUserId);
+          if (leaderError && leaderError.code !== 'PGRST116') console.log('     ⚠️  leader_id:', leaderError.message);
+
+          const { error: approvedError } = await supabaseAdmin
+            .from('extra_requests')
+            .update({ approved_by: newUserId })
+            .eq('approved_by', oldUserId);
+          if (approvedError && approvedError.code !== 'PGRST116') console.log('     ⚠️  approved_by:', approvedError.message);
+
+          const { error: createdError } = await supabaseAdmin
+            .from('extra_requests')
+            .update({ created_by: newUserId })
+            .eq('created_by', oldUserId);
+          if (createdError && createdError.code !== 'PGRST116') console.log('     ⚠️  created_by:', createdError.message);
+        } catch (reqError) {
+          console.log('     ⚠️  Erro ao atualizar extra_requests:', reqError.message);
+        }
+
+        // Atualizar referências em user_sectors
+        console.log('   - Atualizando user_sectors...');
+        try {
+          const { error: sectorsError } = await supabaseAdmin
+            .from('user_sectors')
+            .update({ user_id: newUserId })
+            .eq('user_id', oldUserId);
+          if (sectorsError && sectorsError.code !== 'PGRST116') console.log('     ⚠️  Erro:', sectorsError.message);
+        } catch (err) {
+          console.log('     ⚠️  Erro ao atualizar user_sectors:', err.message);
+        }
+
+        // Atualizar referências em time_records
+        console.log('   - Atualizando time_records...');
+        try {
+          const { error: timeError } = await supabaseAdmin
+            .from('time_records')
+            .update({ registered_by: newUserId })
+            .eq('registered_by', oldUserId);
+          if (timeError && timeError.code !== 'PGRST116') console.log('     ⚠️  Erro:', timeError.message);
+        } catch (err) {
+          console.log('     ⚠️  Erro ao atualizar time_records:', err.message);
+        }
+
+        // Atualizar referências em extra_saldo_records (se existir)
+        console.log('   - Atualizando extra_saldo_records...');
+        try {
+          const { error: saldoError } = await supabaseAdmin
+            .from('extra_saldo_records')
+            .update({ created_by: newUserId })
+            .eq('created_by', oldUserId);
+          if (saldoError && saldoError.code !== 'PGRST116') {
+            // Ignorar se a tabela não existir ou não tiver o campo
+            if (!saldoError.message.includes('column') && !saldoError.message.includes('does not exist')) {
+              console.log('     ⚠️  Erro:', saldoError.message);
+            }
+          }
+        } catch (err) {
+          // Ignorar erros nesta tabela
+        }
+
+        // 3. Por fim, deletar o usuário antigo
+        console.log('   - Removendo usuário antigo...');
+        const { error: deleteError } = await supabaseAdmin
+          .from('users')
+          .delete()
+          .eq('id', oldUserId);
+
+        if (deleteError) {
+          console.log('     ⚠️  Não foi possível remover o usuário antigo:', deleteError.message);
+          console.log('     Você pode removê-lo manualmente depois se necessário.');
+        } else {
+          console.log('     ✅ Usuário antigo removido!');
+        }
+
         console.log('✅ Usuário atualizado com sucesso!\n');
       }
     } else {
