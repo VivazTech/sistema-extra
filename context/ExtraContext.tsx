@@ -1493,7 +1493,6 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Gerenciar demandante
-      const existingUser = users.find(u => u.id === id);
       if (userData.isRequester && !existingUser?.isRequester) {
         // Criar como demandante
         await supabase
