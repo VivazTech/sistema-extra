@@ -42,52 +42,68 @@ async function createAdminUser() {
     const adminPassword = 'Admin@2024';
     const adminUsername = 'admin';
 
-    // 1. Criar usuário no Supabase Auth
-    console.log('1️⃣ Criando usuário no Supabase Auth...');
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
-      email_confirm: true, // Confirmar email automaticamente
-      user_metadata: {
-        name: 'Desenvolvedor Admin',
-        username: adminUsername,
-      },
-    });
-
-    if (authError) {
-      if (authError.message.includes('already registered')) {
-        console.log('⚠️  Usuário já existe no Supabase Auth.');
-        console.log('   Tentando buscar usuário existente...\n');
-        
-        // Buscar usuário existente
-        const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        if (listError) {
-          throw listError;
-        }
-        
-        const existingUser = existingUsers.users.find(u => u.email === adminEmail);
-        if (existingUser) {
-          console.log('✅ Usuário encontrado no Auth!');
-          console.log(`   ID: ${existingUser.id}\n`);
-          
-          // Atualizar tabela users
-          await updateUsersTable(existingUser.id);
-          return;
-        } else {
-          throw new Error('Usuário já existe mas não foi encontrado');
-        }
-      } else {
-        throw authError;
+    // 1. Verificar se usuário já existe no Supabase Auth
+    console.log('1️⃣ Verificando se usuário já existe no Supabase Auth...');
+    let authUserId = null;
+    
+    // Buscar usuário existente no Auth
+    const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError) {
+      console.log('   ⚠️  Erro ao listar usuários, tentando criar novo...');
+    } else {
+      const existingAuthUser = existingUsers.users.find(u => u.email === adminEmail);
+      if (existingAuthUser) {
+        console.log('✅ Usuário já existe no Supabase Auth!');
+        console.log(`   ID: ${existingAuthUser.id}`);
+        console.log(`   Email: ${existingAuthUser.email}\n`);
+        authUserId = existingAuthUser.id;
       }
     }
 
-    if (!authData.user) {
-      throw new Error('Erro ao criar usuário no Auth');
-    }
+    // Se não encontrou, tentar criar
+    if (!authUserId) {
+      console.log('   Usuário não encontrado. Criando novo usuário no Supabase Auth...');
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: true, // Confirmar email automaticamente
+        user_metadata: {
+          name: 'Desenvolvedor Admin',
+          username: adminUsername,
+        },
+      });
 
-    console.log('✅ Usuário criado no Supabase Auth!');
-    console.log(`   ID: ${authData.user.id}`);
-    console.log(`   Email: ${authData.user.email}\n`);
+      if (authError) {
+        if (authError.code === 'email_exists' || authError.message.includes('already registered')) {
+          console.log('⚠️  Usuário já existe no Supabase Auth (erro ao criar).');
+          console.log('   Buscando usuário existente...\n');
+          
+          // Buscar novamente
+          const { data: usersList, error: listError2 } = await supabaseAdmin.auth.admin.listUsers();
+          if (listError2) {
+            throw listError2;
+          }
+          
+          const foundUser = usersList.users.find(u => u.email === adminEmail);
+          if (foundUser) {
+            console.log('✅ Usuário encontrado no Auth!');
+            console.log(`   ID: ${foundUser.id}\n`);
+            authUserId = foundUser.id;
+          } else {
+            throw new Error('Usuário já existe mas não foi encontrado na lista');
+          }
+        } else {
+          throw authError;
+        }
+      } else if (authData?.user) {
+        console.log('✅ Usuário criado no Supabase Auth!');
+        console.log(`   ID: ${authData.user.id}`);
+        console.log(`   Email: ${authData.user.email}\n`);
+        authUserId = authData.user.id;
+      } else {
+        throw new Error('Erro ao criar usuário no Auth');
+      }
+    }
 
     // 2. Verificar se usuário existe na tabela users
     console.log('2️⃣ Verificando tabela users...');
@@ -96,6 +112,9 @@ async function createAdminUser() {
       .select('*')
       .eq('username', adminUsername)
       .single();
+    
+    // Usar authUserId que foi obtido acima
+    const newUserId = authUserId;
 
     if (userError && userError.code !== 'PGRST116') {
       throw userError;
@@ -103,7 +122,7 @@ async function createAdminUser() {
 
     if (existingUser) {
       // Se o ID já é o mesmo, apenas atualizar outros campos
-      if (existingUser.id === authData.user.id) {
+      if (existingUser.id === newUserId) {
         console.log('   ID já está correto. Atualizando outros campos...');
         const { error: updateError } = await supabaseAdmin
           .from('users')
@@ -122,7 +141,6 @@ async function createAdminUser() {
         // ID diferente, precisa atualizar todas as referências primeiro
         console.log('   Usuário encontrado com ID diferente. Atualizando referências...');
         const oldUserId = existingUser.id;
-        const newUserId = authData.user.id;
 
         // Atualizar referências em extra_requests
         console.log('   - Atualizando extra_requests...');
