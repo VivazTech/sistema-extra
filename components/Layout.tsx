@@ -97,7 +97,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <p className="text-[10px] bg-emerald-500 text-white inline-block px-1.5 py-0.5 rounded mt-1">{user.role}</p>
           </div>
           <button 
-            onClick={logout}
+            onClick={async () => {
+              await logout();
+              navigate('/login');
+            }}
             className="w-full flex items-center gap-3 px-4 py-2 text-emerald-400 hover:text-white transition-colors"
           >
             <LogOut size={18} />

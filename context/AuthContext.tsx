@@ -190,10 +190,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      setLoading(true);
-      await supabase.auth.signOut();
+      // Limpar estado primeiro para evitar loading infinito
       setState({ user: null, isAuthenticated: false });
       localStorage.removeItem('vivaz_auth');
+      
+      // Fazer signOut do Supabase (não bloqueia)
+      supabase.auth.signOut().catch(err => {
+        console.error('Erro ao fazer signOut:', err);
+      });
+      
       setLoading(false);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
