@@ -144,11 +144,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (userError || !userData) {
+        setLoading(false);
         return { success: false, error: 'Usuário não encontrado ou inativo' };
       }
 
       // Se o usuário não tem email, não pode fazer login via Supabase Auth
       if (!userData.email) {
+        setLoading(false);
         return { success: false, error: 'Usuário não possui email cadastrado. Entre em contato com o administrador.' };
       }
 
@@ -160,6 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (authError) {
         console.error('Erro no login:', authError);
+        setLoading(false);
         if (authError.message.includes('Invalid login credentials')) {
           return { 
             success: false, 
@@ -170,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (!authData.user) {
+        setLoading(false);
         return { success: false, error: 'Erro ao autenticar usuário' };
       }
 
@@ -186,14 +190,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
       setState({ user: null, isAuthenticated: false });
       localStorage.removeItem('vivaz_auth');
+      setLoading(false);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
       // Mesmo com erro, limpar estado local
       setState({ user: null, isAuthenticated: false });
       localStorage.removeItem('vivaz_auth');
+      setLoading(false);
     }
   };
 
