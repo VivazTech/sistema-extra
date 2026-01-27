@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Edit2, Trash2, X, UserPlus } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, X, UserPlus, KeyRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
 import { ACCESS_ACTIONS, ACCESS_PAGES, ROLE_LABELS } from '../constants';
 import { User, UserRole } from '../types';
+import { supabase } from '../services/supabase';
 
 const ROLE_ORDER: UserRole[] = ['ADMIN', 'MANAGER', 'LEADER', 'PORTARIA', 'VIEWER'];
 
@@ -21,10 +23,24 @@ const formatPhone = (value: string) => {
 
 const AdminUsers: React.FC = () => {
   const { sectors, users, addUser, updateUser, deleteUser } = useExtras();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, resetPassword } = useAuth();
   const { roleAccess, toggleRolePage, toggleRoleAction } = useAccess();
+  const navigate = useNavigate();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+
+  // Verificar se é ADMIN
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'ADMIN') {
+      navigate('/');
+    }
+  }, [currentUser, navigate]);
+
+  // Se não for ADMIN, não renderizar nada
+  if (!currentUser || currentUser.role !== 'ADMIN') {
+    return null;
+  }
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -87,6 +103,12 @@ const AdminUsers: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Verificar se é ADMIN
+    if (currentUser?.role !== 'ADMIN') {
+      alert('Apenas administradores podem criar ou editar usuários.');
+      return;
+    }
+    
     if (!formData.name || !formData.username) {
       alert('Nome e usuário são obrigatórios.');
       return;
@@ -94,6 +116,11 @@ const AdminUsers: React.FC = () => {
 
     if (!editingId && !formData.password) {
       alert('Senha é obrigatória para novos usuários.');
+      return;
+    }
+
+    if (!editingId && !formData.email) {
+      alert('Email é obrigatório para novos usuários.');
       return;
     }
 
@@ -124,6 +151,12 @@ const AdminUsers: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Verificar se é ADMIN
+    if (currentUser?.role !== 'ADMIN') {
+      alert('Apenas administradores podem deletar usuários.');
+      return;
+    }
+
     if (id === currentUser?.id) {
       alert('Você não pode deletar seu próprio usuário.');
       return;
@@ -135,6 +168,36 @@ const AdminUsers: React.FC = () => {
       } catch (error) {
         console.error('Erro ao deletar usuário:', error);
         alert('Erro ao deletar usuário.');
+      }
+    }
+  };
+
+  const handleResetPassword = async (user: User) => {
+    // Verificar se é ADMIN
+    if (currentUser?.role !== 'ADMIN') {
+      alert('Apenas administradores podem redefinir senhas.');
+      return;
+    }
+
+    if (!user.email) {
+      alert('Este usuário não possui email cadastrado. É necessário ter email para redefinir a senha.');
+      return;
+    }
+
+    if (confirm(`Deseja enviar um email de recuperação de senha para ${user.email}?`)) {
+      setResettingPassword(user.id);
+      try {
+        const result = await resetPassword(user.email);
+        if (result.success) {
+          alert(`Email de recuperação de senha enviado para ${user.email}`);
+        } else {
+          alert(`Erro ao enviar email: ${result.error}`);
+        }
+      } catch (error) {
+        console.error('Erro ao redefinir senha:', error);
+        alert('Erro ao redefinir senha.');
+      } finally {
+        setResettingPassword(null);
       }
     }
   };
@@ -263,6 +326,16 @@ const AdminUsers: React.FC = () => {
                       >
                         <Edit2 size={16} />
                       </button>
+                      {user.email && (
+                        <button
+                          onClick={() => handleResetPassword(user)}
+                          disabled={resettingPassword === user.id}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Redefinir Senha"
+                        >
+                          <KeyRound size={16} />
+                        </button>
+                      )}
                       {user.id !== currentUser?.id && (
                         <button
                           onClick={() => handleDelete(user.id)}
@@ -324,9 +397,12 @@ const AdminUsers: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Email</label>
+                  <label className="text-xs font-bold text-gray-500 uppercase">
+                    Email {!editingId && '*'}
+                  </label>
                   <input
                     type="email"
+                    required={!editingId}
                     className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}

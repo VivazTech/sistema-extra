@@ -1,11 +1,11 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthState, User } from '../types';
 import { supabase } from '../services/supabase';
 
 interface AuthContextType extends AuthState {
-  login: (username: string) => Promise<boolean>;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -15,41 +15,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user: null,
     isAuthenticated: false,
   });
+  const [loading, setLoading] = useState(true);
 
+  // Verificar sessão existente ao carregar
   useEffect(() => {
-    // Tentar carregar do localStorage, mas validar se o ID é UUID válido
-    const saved = localStorage.getItem('vivaz_auth');
-    if (saved) {
+    const checkSession = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        // Validar se o ID é um UUID válido (não é ID mock antigo)
-        const isValidUUID = parsed.user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parsed.user.id);
-        if (isValidUUID) {
-          setState(parsed);
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          // Buscar dados do usuário na tabela users
+          await loadUserData(session.user.id);
         } else {
-          // Se for ID mock antigo, limpar e forçar novo login
-          localStorage.removeItem('vivaz_auth');
+          setLoading(false);
         }
-      } catch (e) {
-        console.error('Erro ao carregar auth do localStorage:', e);
+      } catch (error) {
+        console.error('Erro ao verificar sessão:', error);
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Ouvir mudanças na autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        await loadUserData(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        setState({ user: null, isAuthenticated: false });
         localStorage.removeItem('vivaz_auth');
       }
-    }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (username: string): Promise<boolean> => {
+  const loadUserData = async (authUserId: string) => {
     try {
-      // Buscar usuário no Supabase
+      // Buscar usuário na tabela users pelo ID do Auth (que deve ser o mesmo)
       const { data: userData, error } = await supabase
         .from('users')
         .select('*')
-        .eq('username', username.toLowerCase())
+        .eq('id', authUserId)
         .eq('active', true)
         .single();
 
       if (error || !userData) {
-        console.error('Erro ao buscar usuário:', error);
-        return false;
+        console.error('Erro ao buscar dados do usuário:', error);
+        setState({ user: null, isAuthenticated: false });
+        setLoading(false);
+        return;
       }
 
       // Buscar setores do usuário (se for manager)
@@ -70,6 +87,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: userData.username,
         role: userData.role as User['role'],
         sectors: sectors.length > 0 ? sectors : undefined,
+        email: userData.email,
+        ramal: userData.ramal,
+        whatsapp: userData.whatsapp,
+        isRequester: userData.is_requester || false,
       };
 
       const newState = { user, isAuthenticated: true };
@@ -77,21 +98,122 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Salvar no localStorage como fallback
       localStorage.setItem('vivaz_auth', JSON.stringify(newState));
-      
-      return true;
+      setLoading(false);
     } catch (error) {
-      console.error('Erro no login:', error);
-      return false;
+      console.error('Erro ao carregar dados do usuário:', error);
+      setState({ user: null, isAuthenticated: false });
+      setLoading(false);
     }
   };
 
-  const logout = () => {
-    setState({ user: null, isAuthenticated: false });
-    localStorage.removeItem('vivaz_auth');
+  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setLoading(true);
+      
+      // Primeiro, buscar o usuário na tabela users para obter o email
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email, username')
+        .eq('username', username.toLowerCase())
+        .eq('active', true)
+        .single();
+
+      if (userError || !userData) {
+        return { success: false, error: 'Usuário não encontrado ou inativo' };
+      }
+
+      // Se o usuário não tem email, não pode fazer login via Supabase Auth
+      if (!userData.email) {
+        return { success: false, error: 'Usuário não possui email cadastrado. Entre em contato com o administrador.' };
+      }
+
+      // Fazer login no Supabase Auth usando o email
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: userData.email,
+        password: password,
+      });
+
+      if (authError) {
+        console.error('Erro no login:', authError);
+        if (authError.message.includes('Invalid login credentials')) {
+          return { success: false, error: 'Usuário ou senha incorretos' };
+        }
+        return { success: false, error: authError.message };
+      }
+
+      if (!authData.user) {
+        return { success: false, error: 'Erro ao autenticar usuário' };
+      }
+
+      // Carregar dados do usuário
+      await loadUserData(authData.user.id);
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Erro no login:', error);
+      setLoading(false);
+      return { success: false, error: error.message || 'Erro ao fazer login' };
+    }
   };
 
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setState({ user: null, isAuthenticated: false });
+      localStorage.removeItem('vivaz_auth');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      // Mesmo com erro, limpar estado local
+      setState({ user: null, isAuthenticated: false });
+      localStorage.removeItem('vivaz_auth');
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Verificar se o email existe na tabela users
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email.toLowerCase())
+        .eq('active', true)
+        .single();
+
+      if (userError || !userData || !userData.email) {
+        return { success: false, error: 'Email não encontrado ou usuário inativo' };
+      }
+
+      // Enviar email de recuperação de senha
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        console.error('Erro ao enviar email de recuperação:', resetError);
+        return { success: false, error: resetError.message };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Erro ao resetar senha:', error);
+      return { success: false, error: error.message || 'Erro ao enviar email de recuperação' };
+    }
+  };
+
+  // Mostrar loading enquanto verifica sessão
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

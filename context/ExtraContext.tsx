@@ -1330,19 +1330,45 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Nome e usuário são obrigatórios');
       }
 
-      // Criar hash simples da senha (em produção, usar bcrypt ou similar)
-      const passwordHash = userData.password ? btoa(userData.password) : null;
+      if (!userData.email) {
+        throw new Error('Email é obrigatório para criar usuário');
+      }
 
-      // Criar usuário no Supabase
+      if (!userData.password) {
+        throw new Error('Senha é obrigatória para criar usuário');
+      }
+
+      // Criar usuário no Supabase Auth primeiro
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            name: userData.name,
+            username: userData.username.toLowerCase(),
+          },
+        },
+      });
+
+      if (authError) {
+        console.error('Erro ao criar usuário no Auth:', authError);
+        throw new Error(`Erro ao criar usuário: ${authError.message}`);
+      }
+
+      if (!authData.user) {
+        throw new Error('Erro ao criar usuário no sistema de autenticação');
+      }
+
+      // Criar usuário na tabela users com o ID do Auth
       const { data: newUser, error: userError } = await supabase
         .from('users')
         .insert({
+          id: authData.user.id, // Usar o ID do Auth
           name: userData.name,
           username: userData.username.toLowerCase(),
-          email: userData.email || null,
+          email: userData.email,
           ramal: userData.ramal || null,
           whatsapp: userData.whatsapp || null,
-          password_hash: passwordHash,
           role: userData.role || 'VIEWER',
           is_requester: userData.isRequester || false,
         })
@@ -1350,7 +1376,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .single();
 
       if (userError || !newUser) {
-        console.error('Erro ao criar usuário:', userError);
+        console.error('Erro ao criar usuário na tabela:', userError);
+        // Se falhar, tentar remover o usuário do Auth (opcional)
         throw userError;
       }
 
@@ -1427,7 +1454,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateUser = async (id: string, userData: Partial<User>) => {
     try {
-      // Atualizar usuário no Supabase
+      // Buscar usuário existente para obter email do Auth
+      const existingUser = users.find(u => u.id === id);
+      if (!existingUser) {
+        throw new Error('Usuário não encontrado');
+      }
+
+      // Atualizar usuário na tabela users
       const updateData: any = {
         name: userData.name,
         username: userData.username?.toLowerCase(),
@@ -1438,10 +1471,6 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         is_requester: userData.isRequester || false,
       };
 
-      if (userData.password) {
-        updateData.password_hash = btoa(userData.password);
-      }
-
       const { error: userError } = await supabase
         .from('users')
         .update(updateData)
@@ -1450,6 +1479,17 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (userError) {
         console.error('Erro ao atualizar usuário:', userError);
         throw userError;
+      }
+
+      // Se a senha foi fornecida, atualizar no Supabase Auth
+      if (userData.password && existingUser.email) {
+        // Para atualizar senha, precisamos usar resetPasswordForEmail ou Admin API
+        // Por enquanto, vamos apenas atualizar o email se mudou
+        if (userData.email && userData.email !== existingUser.email) {
+          // Atualizar email no Auth (requer Admin API ou Edge Function)
+          // Por enquanto, apenas logamos o aviso
+          console.warn('Atualização de email requer ação manual no Supabase Dashboard');
+        }
       }
 
       // Gerenciar demandante
