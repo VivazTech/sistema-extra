@@ -144,37 +144,30 @@ async function createAdminUser() {
 
         // Atualizar referências em extra_requests
         console.log('   - Atualizando extra_requests...');
-        const { error: reqError } = await supabaseAdmin.rpc('exec_sql', {
-          sql: `
-            UPDATE extra_requests 
-            SET leader_id = '${newUserId}' 
-            WHERE leader_id = '${oldUserId}';
-            
-            UPDATE extra_requests 
-            SET approved_by = '${newUserId}' 
-            WHERE approved_by = '${oldUserId}';
-            
-            UPDATE extra_requests 
-            SET created_by = '${newUserId}' 
-            WHERE created_by = '${oldUserId}';
-          `
-        }).catch(async () => {
-          // Se RPC não funcionar, usar updates diretos
-          await supabaseAdmin
+        try {
+          // Tentar atualizar leader_id
+          const { error: leaderError } = await supabaseAdmin
             .from('extra_requests')
             .update({ leader_id: newUserId })
             .eq('leader_id', oldUserId);
-          
-          await supabaseAdmin
+          if (leaderError) throw leaderError;
+
+          // Tentar atualizar approved_by
+          const { error: approvedError } = await supabaseAdmin
             .from('extra_requests')
             .update({ approved_by: newUserId })
             .eq('approved_by', oldUserId);
-          
-          await supabaseAdmin
+          if (approvedError && approvedError.code !== 'PGRST116') throw approvedError;
+
+          // Tentar atualizar created_by
+          const { error: createdError } = await supabaseAdmin
             .from('extra_requests')
             .update({ created_by: newUserId })
             .eq('created_by', oldUserId);
-        });
+          if (createdError && createdError.code !== 'PGRST116') throw createdError;
+        } catch (reqError) {
+          console.log('   ⚠️  Alguns registros podem não ter sido atualizados:', reqError.message);
+        }
 
         // Atualizar referências em user_sectors
         console.log('   - Atualizando user_sectors...');
