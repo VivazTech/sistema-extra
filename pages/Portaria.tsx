@@ -187,19 +187,91 @@ const Portaria: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Effect para atribuir o stream ao vídeo quando o elemento estiver pronto
+  useEffect(() => {
+    if (capturingPhoto && streamRef.current) {
+      // Aguardar o elemento de vídeo ser renderizado
+      const checkVideoElement = () => {
+        if (videoRef.current && streamRef.current) {
+          const video = videoRef.current;
+          const stream = streamRef.current;
+          
+          video.srcObject = stream;
+          
+          // Aguardar o vídeo estar pronto para reproduzir
+          const handleLoadedMetadata = () => {
+            video.play().catch(err => {
+              console.error('Erro ao reproduzir vídeo:', err);
+            });
+          };
+          
+          if (video.readyState >= 2) {
+            // Já está carregado
+            video.play().catch(err => {
+              console.error('Erro ao reproduzir vídeo:', err);
+            });
+          } else {
+            video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+          }
+        } else {
+          // Tentar novamente após um pequeno delay
+          setTimeout(checkVideoElement, 50);
+        }
+      };
+      
+      checkVideoElement();
+    }
+  }, [capturingPhoto]);
+
   const startCamera = async (requestId: string, workDate: string) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
-      });
-      streamRef.current = stream;
+      // Verificar se getUserMedia está disponível
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia não está disponível neste navegador. Use HTTPS ou localhost.');
+      }
+
+      // Primeiro, definir o estado para renderizar o elemento de vídeo
       setCapturingPhoto(`${requestId}-${workDate}`);
+      
+      // Aguardar um pouco para garantir que o elemento seja renderizado
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Agora acessar a câmera
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      streamRef.current = stream;
+      
+      // O useEffect vai atribuir o stream ao vídeo quando o elemento estiver pronto
+      // Mas também tentamos atribuir diretamente caso o elemento já esteja disponível
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(err => {
+          console.error('Erro ao reproduzir vídeo:', err);
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao acessar câmera:', error);
-      alert('Erro ao acessar a câmera. Verifique as permissões.');
+      setCapturingPhoto(null); // Limpar estado em caso de erro
+      streamRef.current = null;
+      
+      let errorMessage = 'Erro ao acessar a câmera.';
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage = 'Permissão de câmera negada. Por favor, permita o acesso à câmera nas configurações do navegador.';
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage = 'Nenhuma câmera encontrada. Verifique se há uma câmera conectada.';
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        errorMessage = 'A câmera está sendo usada por outro aplicativo. Feche outros aplicativos que possam estar usando a câmera.';
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+      
+      alert(errorMessage);
     }
   };
 
