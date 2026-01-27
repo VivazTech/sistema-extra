@@ -184,8 +184,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Enviar email de recuperação de senha
+      // Usar hash router (#) para funcionar com HashRouter
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}/#/reset-password`,
       });
 
       if (resetError) {

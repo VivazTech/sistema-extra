@@ -7,6 +7,7 @@ import { AccessPageKey } from './types';
 import { ExtraProvider } from './context/ExtraContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Requests from './pages/Requests';
 import TVDashboard from './pages/TVDashboard';
@@ -35,6 +36,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/" element={<PrivateRoute page="dashboard"><Dashboard /></PrivateRoute>} />
       <Route path="/solicitacoes" element={<PrivateRoute page="requests"><Requests /></PrivateRoute>} />
       <Route path="/portaria" element={<PrivateRoute page="portaria"><Portaria /></PrivateRoute>} />
