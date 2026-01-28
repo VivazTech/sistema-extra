@@ -8,6 +8,21 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+// Timeout de rede para evitar "loading infinito" quando o Supabase fica pendurado.
+// Usa AbortSignal.timeout (sem setTimeout). Se não existir no browser, não aplica timeout.
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  try {
+    const timeoutMs = 15000;
+    const hasTimeout = typeof (AbortSignal as any)?.timeout === 'function';
+    const signal =
+      init?.signal ??
+      (hasTimeout ? (AbortSignal as any).timeout(timeoutMs) : undefined);
+    return fetch(input, { ...(init || {}), signal });
+  } catch {
+    return fetch(input, init);
+  }
+};
+
 const isDebugEnabled = (() => {
   try {
     if (typeof window === 'undefined') return false;
@@ -49,6 +64,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    fetch: fetchWithTimeout,
+  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
