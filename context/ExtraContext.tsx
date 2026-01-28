@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
-import { INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS } from '../constants';
+// Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
 import { useAuth } from './AuthContext';
@@ -56,9 +56,9 @@ const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
 export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [requests, setRequests] = useState<ExtraRequest[]>([]);
-  const [sectors, setSectors] = useState<Sector[]>(INITIAL_SECTORS);
-  const [requesters, setRequesters] = useState<RequesterItem[]>(INITIAL_REQUESTERS);
-  const [reasons, setReasons] = useState<ReasonItem[]>(INITIAL_REASONS);
+  const [sectors, setSectors] = useState<Sector[]>([]); // Carregado apenas do banco
+  const [requesters, setRequesters] = useState<RequesterItem[]>([]); // Carregado apenas do banco
+  const [reasons, setReasons] = useState<ReasonItem[]>([]); // Carregado apenas do banco
   const [extras, setExtras] = useState<ExtraPerson[]>([]);
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
@@ -215,19 +215,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } catch (error) {
         console.error('Erro ao carregar dados do Supabase:', error);
-        // Fallback para LocalStorage em caso de erro
-    const savedRequests = localStorage.getItem('vivaz_requests');
-    if (savedRequests) {
-      const parsed = JSON.parse(savedRequests);
-      const normalized = parsed.map((req: any) => ({
-        ...req,
-        needsManagerApproval: req.needsManagerApproval ?? false,
-        workDays: req.workDays && req.workDays.length
-          ? req.workDays
-          : [{ date: req.workDate || new Date().toISOString().split('T')[0], shift: req.shift || 'Manhã' }],
-      }));
-      setRequests(normalized);
-    }
+        // Nota: Não usar localStorage como fallback - dados devem vir apenas do banco
+        // Se houver erro, o sistema deve mostrar mensagem de erro ao usuário
+        // e tentar recarregar os dados
       }
     };
 
@@ -235,7 +225,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   // Sincronização com Supabase é feita nas funções individuais
-  // LocalStorage mantido apenas como fallback em caso de erro
+  // Todos os dados vêm exclusivamente do banco de dados
 
   const getWeekRange = (dateStr: string) => {
     const date = new Date(`${dateStr}T00:00:00`);

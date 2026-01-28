@@ -121,8 +121,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const newState = { user, isAuthenticated: true };
       setState(newState);
       
-      // Salvar no localStorage como fallback
-      localStorage.setItem('vivaz_auth', JSON.stringify(newState));
+      // Cache temporário no localStorage (apenas para melhorar UX, não é fonte primária)
+      // A fonte primária é sempre o Supabase Auth e a tabela users
+      try {
+        localStorage.setItem('vivaz_auth', JSON.stringify(newState));
+      } catch (error) {
+        // Ignorar erros de localStorage (pode estar desabilitado)
+      }
       setLoading(false);
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);

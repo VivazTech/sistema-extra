@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { ACCESS_ACTIONS, ACCESS_PAGES, DEFAULT_ROLE_ACCESS } from '../constants';
 import { AccessActionKey, AccessPageKey, RoleAccess, UserRole } from '../types';
+import { supabase } from '../services/supabase';
 
 interface AccessContextType {
   roleAccess: RoleAccess;
+  loading: boolean;
   toggleRolePage: (role: UserRole, page: AccessPageKey) => void;
   toggleRoleAction: (role: UserRole, action: AccessActionKey) => void;
   hasPageAccess: (role: UserRole, page: AccessPageKey) => boolean;
@@ -12,71 +14,132 @@ interface AccessContextType {
 
 const AccessContext = createContext<AccessContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'vivaz_role_access';
-
 const isValidPage = (page: string): page is AccessPageKey =>
   ACCESS_PAGES.some((item) => item.key === page);
 
 const isValidAction = (action: string): action is AccessActionKey =>
   ACCESS_ACTIONS.some((item) => item.key === action);
 
-const mergeRoleAccess = (saved?: Partial<RoleAccess> | null): RoleAccess => {
-  const merged: RoleAccess = JSON.parse(JSON.stringify(DEFAULT_ROLE_ACCESS));
-  if (!saved) return merged;
-
-  (Object.keys(DEFAULT_ROLE_ACCESS) as UserRole[]).forEach((role) => {
-    const savedRole = saved[role];
-    if (!savedRole) return;
-    if (Array.isArray(savedRole.pages)) {
-      merged[role].pages = savedRole.pages.filter((page) => isValidPage(page));
-    }
-    if (Array.isArray(savedRole.actions)) {
-      merged[role].actions = savedRole.actions.filter((action) => isValidAction(action));
+// Converter dados do banco para RoleAccess
+const mapRoleAccessFromDB = (dbData: any[]): RoleAccess => {
+  const result: RoleAccess = JSON.parse(JSON.stringify(DEFAULT_ROLE_ACCESS));
+  
+  dbData.forEach((row) => {
+    const role = row.role as UserRole;
+    if (role && result[role]) {
+      result[role] = {
+        pages: Array.isArray(row.pages) 
+          ? row.pages.filter((p: string) => isValidPage(p)) as AccessPageKey[]
+          : result[role].pages,
+        actions: Array.isArray(row.actions)
+          ? row.actions.filter((a: string) => isValidAction(a)) as AccessActionKey[]
+          : result[role].actions,
+      };
     }
   });
-
-  return merged;
-};
-
-const loadRoleAccess = (): RoleAccess => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return mergeRoleAccess(null);
-    const parsed = JSON.parse(raw) as Partial<RoleAccess>;
-    return mergeRoleAccess(parsed);
-  } catch (error) {
-    console.error('Erro ao carregar permissões:', error);
-    return mergeRoleAccess(null);
-  }
+  
+  return result;
 };
 
 export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [roleAccess, setRoleAccess] = useState<RoleAccess>(() => loadRoleAccess());
+  const [roleAccess, setRoleAccess] = useState<RoleAccess>(DEFAULT_ROLE_ACCESS);
+  const [loading, setLoading] = useState(true);
 
+  // Carregar configurações do banco de dados
   useEffect(() => {
+    const loadRoleAccess = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('role_access')
+          .select('role, pages, actions')
+          .order('role');
+
+        if (error) {
+          console.error('Erro ao carregar permissões do banco:', error);
+          // Usar padrão em caso de erro
+          setRoleAccess(DEFAULT_ROLE_ACCESS);
+        } else if (data && data.length > 0) {
+          const mapped = mapRoleAccessFromDB(data);
+          setRoleAccess(mapped);
+        } else {
+          // Se não houver dados, usar padrão
+          setRoleAccess(DEFAULT_ROLE_ACCESS);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar permissões:', error);
+        setRoleAccess(DEFAULT_ROLE_ACCESS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRoleAccess();
+  }, []);
+
+  const toggleRolePage = async (role: UserRole, page: AccessPageKey) => {
+    const current = roleAccess[role].pages;
+    const exists = current.includes(page);
+    const pages = exists ? current.filter((item) => item !== page) : [...current, page];
+    
+    // Atualizar estado local imediatamente (otimistic update)
+    setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages } }));
+    
+    // Salvar no banco
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(roleAccess));
+      const { error } = await supabase
+        .from('role_access')
+        .upsert({
+          role,
+          pages,
+          actions: roleAccess[role].actions,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'role'
+        });
+
+      if (error) {
+        console.error('Erro ao salvar permissões:', error);
+        // Reverter em caso de erro
+        setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages: current } }));
+      }
     } catch (error) {
       console.error('Erro ao salvar permissões:', error);
+      // Reverter em caso de erro
+      setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages: current } }));
     }
-  }, [roleAccess]);
-
-  const toggleRolePage = (role: UserRole, page: AccessPageKey) => {
-    setRoleAccess((prev) => {
-      const current = prev[role].pages;
-      const exists = current.includes(page);
-      const pages = exists ? current.filter((item) => item !== page) : [...current, page];
-      return { ...prev, [role]: { ...prev[role], pages } };
-    });
   };
 
-  const toggleRoleAction = (role: UserRole, action: AccessActionKey) => {
-    setRoleAccess((prev) => {
-      const current = prev[role].actions;
-      const exists = current.includes(action);
-      const actions = exists ? current.filter((item) => item !== action) : [...current, action];
-      return { ...prev, [role]: { ...prev[role], actions } };
-    });
+  const toggleRoleAction = async (role: UserRole, action: AccessActionKey) => {
+    const current = roleAccess[role].actions;
+    const exists = current.includes(action);
+    const actions = exists ? current.filter((item) => item !== action) : [...current, action];
+    
+    // Atualizar estado local imediatamente (otimistic update)
+    setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions } }));
+    
+    // Salvar no banco
+    try {
+      const { error } = await supabase
+        .from('role_access')
+        .upsert({
+          role,
+          pages: roleAccess[role].pages,
+          actions,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'role'
+        });
+
+      if (error) {
+        console.error('Erro ao salvar permissões:', error);
+        // Reverter em caso de erro
+        setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions: current } }));
+      }
+    } catch (error) {
+      console.error('Erro ao salvar permissões:', error);
+      // Reverter em caso de erro
+      setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions: current } }));
+    }
   };
 
   const hasPageAccess = (role: UserRole, page: AccessPageKey) =>
@@ -94,6 +157,7 @@ export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <AccessContext.Provider
       value={{
         roleAccess,
+        loading,
         toggleRolePage,
         toggleRoleAction,
         hasPageAccess,
