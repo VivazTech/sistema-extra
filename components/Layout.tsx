@@ -61,8 +61,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-0 z-40 transform md:fixed md:translate-x-0 transition-transform duration-300 ease-in-out
-        w-64 bg-emerald-950 text-white flex flex-col shadow-xl h-screen
+        fixed inset-0 z-40 transform md:relative md:translate-x-0 transition-transform duration-300 ease-in-out
+        w-64 bg-emerald-950 text-white flex flex-col shadow-xl min-h-screen
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="p-6 flex-1 flex flex-col min-h-0">
@@ -91,7 +91,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </nav>
         </div>
 
-        <div className="p-6 border-t border-emerald-900 flex-shrink-0">
+        <div className="p-6 border-t border-emerald-900 flex-shrink-0 sticky bottom-0 bg-emerald-950">
           <div className="mb-4">
             <p className="text-xs text-emerald-500 uppercase font-bold tracking-tighter mb-1">Usuário</p>
             <p className="text-sm font-semibold truncate">{user.name}</p>
