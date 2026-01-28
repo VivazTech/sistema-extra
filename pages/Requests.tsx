@@ -163,17 +163,26 @@ const Requests: React.FC = () => {
               <th className="px-6 py-4 text-center">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
-            {(() => {
-              let globalRowIndex = 0;
-              return filteredRequests.flatMap((req) =>
-                req.workDays.map((workDay) => {
-                  const isEven = globalRowIndex % 2 === 0;
-                  const bgColor = isEven ? 'bg-white' : 'bg-gray-50';
-                  globalRowIndex++;
-                  
-                  return (
-                    <tr key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${bgColor} hover:bg-gray-100 transition-colors`}>
+          {filteredRequests.map((req) => (
+            <tbody key={req.id} className="divide-y divide-gray-100">
+              {/* Separador visual do grupo */}
+              <tr className="bg-gray-50/70">
+                <td colSpan={8} className="px-6 py-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    <span className="font-bold text-gray-900">{req.code}</span>
+                    <span className="text-gray-600">{req.extraName}</span>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-gray-600">{req.sector} / {req.role}</span>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-gray-600">Líder: {req.leaderName}</span>
+                  </div>
+                </td>
+              </tr>
+              {req.workDays.map((workDay, idx) => {
+                const isEven = idx % 2 === 0;
+                const bgColor = isEven ? 'bg-white' : 'bg-gray-50';
+                return (
+                  <tr key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${bgColor} hover:bg-gray-100 transition-colors`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <p className="font-bold text-gray-900 text-sm">{req.code}</p>
                       </td>
@@ -263,11 +272,10 @@ const Requests: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  );
-                })
-              );
-            })()}
-          </tbody>
+                );
+              })}
+            </tbody>
+          ))}
         </table>
         {filteredRequests.length === 0 && (
           <div className="p-12 text-center text-gray-400 flex flex-col items-center gap-2">
