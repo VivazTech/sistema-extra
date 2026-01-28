@@ -22,6 +22,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   const { sectors, requesters, reasons, extras, addRequest, getSaldoForWeek } = useExtras();
   const { user } = useAuth();
   const todayStr = getTodayDateString();
+  const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     sector: '',
@@ -116,6 +117,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     const hasInvalidDay = formData.workDays.some(d => !d.date || !d.shift);
     if (!formData.sector || !formData.role || !formData.extraName || !formData.value || hasInvalidDay) {
       alert('Por favor, preencha todos os campos obrigatórios.');
@@ -123,6 +125,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     }
     
     try {
+      setIsSaving(true);
       // Validar se user.id é UUID válido
       if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
         alert('Erro: Usuário não autenticado corretamente. Por favor, faça login novamente.');
@@ -154,6 +157,8 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     } catch (error) {
       console.error('Erro ao salvar solicitação:', error);
       alert('Erro ao salvar solicitação. Verifique o console para mais detalhes.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -416,15 +421,26 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
             <button 
               type="button"
               onClick={onClose}
+              disabled={isSaving}
               className="flex-1 py-3 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
             >
               Cancelar
             </button>
             <button 
               type="submit"
-              className="flex-1 py-3 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all"
+              disabled={isSaving}
+              className="flex-1 py-3 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Save size={20} /> Salvar Solicitação
+              {isSaving ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save size={20} /> Salvar Solicitação
+                </>
+              )}
             </button>
           </div>
         </form>
