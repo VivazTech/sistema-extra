@@ -94,6 +94,15 @@ const Requests: React.FC = () => {
     generateIndividualPDF(r);
   };
 
+  const handlePrintDay = (req: any, workDay: any) => {
+    // Gerar PDF apenas para o dia selecionado (já inclui horários/foto se existirem no timeRecord)
+    const requestForDay = {
+      ...req,
+      workDays: [workDay],
+    };
+    generateIndividualPDF(requestForDay);
+  };
+
   const handleExportList = () => {
     generateListPDF(filteredRequests, `Solicitações - Filtro: ${filterStatus}`);
   };
@@ -149,139 +158,148 @@ const Requests: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
-            <tr>
-              <th className="px-6 py-4">ID</th>
-              <th className="px-6 py-4">Data / Turno</th>
-              <th className="px-6 py-4">Setor / Função</th>
-              <th className="px-6 py-4">Nome do Extra</th>
-              <th className="px-6 py-4">Líder</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Valor</th>
-              <th className="px-6 py-4 text-center">Ações</th>
-            </tr>
-          </thead>
-          {filteredRequests.map((req) => (
-            <tbody key={req.id} className="divide-y divide-gray-100">
-              {/* Separador visual do grupo */}
-              <tr className="bg-gray-50/70">
-                <td colSpan={8} className="px-6 py-3">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                    <span className="font-bold text-gray-900">{req.code}</span>
-                    <span className="text-gray-600">{req.extraName}</span>
-                    <span className="text-gray-400">•</span>
-                    <span className="text-gray-600">{req.sector} / {req.role}</span>
-                    <span className="text-gray-400">•</span>
-                    <span className="text-gray-600">Líder: {req.leaderName}</span>
-                  </div>
-                </td>
-              </tr>
-              {req.workDays.map((workDay, idx) => {
-                const isEven = idx % 2 === 0;
-                const bgColor = isEven ? 'bg-white' : 'bg-gray-50';
-                return (
-                  <tr key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${bgColor} hover:bg-gray-100 transition-colors`}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="font-bold text-gray-900 text-sm">{req.code}</p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-gray-900">
-                          {formatDateBR(workDay.date)}
-                        </p>
-                        <p className="text-xs text-gray-500">{workDay.shift}</p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="font-medium text-gray-900 text-sm">{req.sector}</p>
-                        <p className="text-xs text-gray-500">{req.role}</p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold">{req.extraName}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-600">{req.leaderName}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-1 items-start">
-                          <span className={`
-                            inline-block px-2 py-1 rounded-full text-[10px] font-bold uppercase
-                            ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
-                            ${req.status === 'SOLICITADO' ? 'bg-amber-100 text-amber-700' : ''}
-                            ${req.status === 'REPROVADO' ? 'bg-red-100 text-red-700' : ''}
-                            ${req.status === 'CANCELADO' ? 'bg-gray-100 text-gray-700' : ''}
-                          `}>
-                            {req.status}
-                          </span>
-                          {req.status === 'SOLICITADO' && req.needsManagerApproval && (
-                            <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
-                          )}
-                          {req.status === 'APROVADO' && req.approvedBy && (
-                            <span className="text-[10px] text-gray-500">Aprovado por {req.approvedBy}</span>
-                          )}
-                          {req.observations?.includes('PORTARIA - Horário não informado') && (
-                            <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-bold text-gray-900">
-                          {req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex justify-center gap-1">
-                          {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
-                            <>
-                              <button 
-                                onClick={() => handleApprove(req.id)}
-                                className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all"
-                                title="Aprovar"
-                              >
-                                <Check size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleOpenReject(req.id)}
-                                className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"
-                                title="Reprovar"
-                              >
-                                <X size={16} />
-                              </button>
-                            </>
-                          )}
-                          {req.status === 'APROVADO' && (
-                            <button 
-                              onClick={() => handlePrint(req)}
-                              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
-                              title="Imprimir PDF"
-                            >
-                              <Printer size={16} />
-                            </button>
-                          )}
-                          {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
-                            <button 
-                              onClick={() => handleCancel(req.id)}
-                              className="p-1.5 bg-gray-50 text-gray-400 rounded-lg hover:bg-gray-200 hover:text-gray-900 transition-all"
-                              title="Cancelar"
-                            >
-                              <Ban size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                );
-              })}
-            </tbody>
-          ))}
-        </table>
-        {filteredRequests.length === 0 && (
-          <div className="p-12 text-center text-gray-400 flex flex-col items-center gap-2">
+      <div className="space-y-6">
+        {filteredRequests.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400 flex flex-col items-center gap-2">
             <Search size={40} className="opacity-20" />
             <p>Nenhum extra encontrado com estes filtros.</p>
           </div>
+        ) : (
+          filteredRequests.map((req) => (
+            <div key={req.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Header do card (igual vibe Banco de Extras) */}
+              <div className="p-6 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-gray-500">{req.code}</span>
+                    <span className="text-xs text-gray-300">•</span>
+                    <span className="text-sm font-black text-gray-900 truncate">{req.extraName}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                    <span className="font-bold text-gray-700">{req.sector}</span>
+                    <span>/{req.role}</span>
+                    <span className="text-gray-300">•</span>
+                    <span>Líder: <span className="font-semibold text-gray-700">{req.leaderName}</span></span>
+                    <span className="text-gray-300">•</span>
+                    <span>Demandante: <span className="font-semibold text-gray-700">{req.requester}</span></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between lg:justify-end gap-4">
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
+                    <div className="text-lg font-black text-gray-900">
+                      {req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`
+                      inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide
+                      ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
+                      ${req.status === 'SOLICITADO' ? 'bg-amber-100 text-amber-700' : ''}
+                      ${req.status === 'REPROVADO' ? 'bg-red-100 text-red-700' : ''}
+                      ${req.status === 'CANCELADO' ? 'bg-gray-100 text-gray-700' : ''}
+                    `}>
+                      {req.status}
+                    </span>
+                    {req.status === 'SOLICITADO' && req.needsManagerApproval && (
+                      <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
+                    )}
+                    {req.observations?.includes('PORTARIA - Horário não informado') && (
+                      <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dias (cada dia com ações próprias) */}
+              <div className="divide-y divide-gray-100">
+                {req.workDays.map((workDay: any, idx: number) => {
+                  const zebra = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                  const tr = workDay.timeRecord;
+                  const hasTimes = !!(tr?.arrival || tr?.breakStart || tr?.breakEnd || tr?.departure);
+                  const hasPhoto = !!tr?.photoUrl;
+
+                  return (
+                    <div key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${zebra} p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4`}>
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
+                          <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
+                          <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold text-gray-500 uppercase">Portaria</div>
+                          <div className="text-xs text-gray-700">
+                            {hasTimes ? (
+                              <span className="font-semibold">
+                                {tr?.arrival || '—'} • {tr?.breakStart || '—'} • {tr?.breakEnd || '—'} • {tr?.departure || '—'}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Sem horários</span>
+                            )}
+                            {hasPhoto && <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Foto</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 justify-end">
+                        {/* Aprovar/Reprovar por dia (ação aplicada na solicitação, mas disponível em cada dia) */}
+                        {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(req.id)}
+                              className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
+                              title="Aprovar"
+                            >
+                              <Check size={16} />
+                              Aprovar
+                            </button>
+                            <button
+                              onClick={() => handleOpenReject(req.id)}
+                              className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
+                              title="Reprovar"
+                            >
+                              <X size={16} />
+                              Reprovar
+                            </button>
+                          </>
+                        )}
+
+                        {/* Imprimir por dia */}
+                        {req.status === 'APROVADO' && (
+                          <button
+                            onClick={() => handlePrintDay(req, workDay)}
+                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
+                            title="Imprimir PDF do dia"
+                          >
+                            <Printer size={16} />
+                            Imprimir dia
+                          </button>
+                        )}
+
+                        {/* Cancelar (líder) */}
+                        {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
+                          <button
+                            onClick={() => handleCancel(req.id)}
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
+                            title="Cancelar"
+                          >
+                            <Ban size={16} />
+                            Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
