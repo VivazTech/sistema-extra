@@ -37,21 +37,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   })();
 
+  const canPostLocalDebug = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    } catch {
+      return false;
+    }
+  })();
+
+  const agentPost = (payload: any) => {
+    if (!canPostLocalDebug) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
+    // #endregion
+  };
+
   // Verificar sessão existente ao carregar
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:start',message:'checkSession start',data:{loadingBefore:true},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:start',message:'checkSession start',data:{loadingBefore:true},timestamp:Date.now()});
         // Fallback (caso o envio de logs para 127.0.0.1 esteja bloqueado no navegador)
         console.info('[AGENT_DEBUG][A] checkSession:start');
         setDebugStep('checkSession:start');
         const { data: { session } } = await supabase.auth.getSession();
 
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:gotSession',message:'checkSession gotSession',data:{hasSession:!!session,hasSessionUser:!!session?.user,eventUserRole:session?.user?undefined:undefined},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:gotSession',message:'checkSession gotSession',data:{hasSession:!!session,hasSessionUser:!!session?.user},timestamp:Date.now()});
         console.info('[AGENT_DEBUG][A] checkSession:gotSession', { hasSession: !!session, hasSessionUser: !!session?.user });
         setDebugStep(`checkSession:gotSession hasUser=${!!session?.user}`);
 
@@ -61,17 +73,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await loadUserData(session.user.id);
         } else {
           setLoading(false);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'context/AuthContext.tsx:checkSession:noSession',message:'checkSession noSession -> setLoading(false)',data:{},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
+          agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'context/AuthContext.tsx:checkSession:noSession',message:'checkSession noSession -> setLoading(false)',data:{},timestamp:Date.now()});
           setDebugStep('checkSession:noSession -> setLoading(false)');
         }
       } catch (error) {
         console.error('Erro ao verificar sessão:', error);
         setLoading(false);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:catch',message:'checkSession catch -> setLoading(false)',data:{errorName:(error as any)?.name,errorMessage:(error as any)?.message},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
+        agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:catch',message:'checkSession catch -> setLoading(false)',data:{errorName:(error as any)?.name,errorMessage:(error as any)?.message},timestamp:Date.now()});
         setDebugStep(`checkSession:catch ${(error as any)?.name || 'Error'}`);
       }
     };
@@ -80,9 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Ouvir mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'context/AuthContext.tsx:onAuthStateChange',message:'onAuthStateChange',data:{event,hasSession:!!session,hasSessionUser:!!session?.user},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'context/AuthContext.tsx:onAuthStateChange',message:'onAuthStateChange',data:{event,hasSession:!!session,hasSessionUser:!!session?.user},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][C] onAuthStateChange', { event, hasSessionUser: !!session?.user });
       setDebugStep(`onAuthStateChange:${event} hasUser=${!!session?.user}`);
       if (event === 'SIGNED_IN' && session?.user) {
@@ -100,12 +106,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserData = async (authUserId: string) => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:start',message:'loadUserData start',data:{hasAuthUserId:!!authUserId},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:start',message:'loadUserData start',data:{hasAuthUserId:!!authUserId},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][B] loadUserData:start', { hasAuthUserId: !!authUserId });
       setDebugStep('loadUserData:start');
       // Buscar usuário na tabela users pelo ID do Auth (que deve ser o mesmo)
+      setDebugStep('loadUserData:usersQuery:start');
       let { data: userData, error } = await supabase
         .from('users')
         .select('*')
@@ -113,9 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('active', true)
         .single();
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:usersQuery',message:'loadUserData usersQuery result',data:{hasUserData:!!userData,errorCode:(error as any)?.code,errorMessage:(error as any)?.message},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:usersQuery',message:'loadUserData usersQuery result',data:{hasUserData:!!userData,errorCode:(error as any)?.code,errorMessage:(error as any)?.message},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][B] loadUserData:usersQuery', { hasUserData: !!userData, errorCode: (error as any)?.code, hasError: !!error });
       setDebugStep(`loadUserData:usersQuery hasUser=${!!userData} err=${(error as any)?.code || 'none'}`);
 

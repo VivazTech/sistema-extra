@@ -8,6 +8,40 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+const isDebugEnabled = (() => {
+  try {
+    if (typeof window === 'undefined') return false;
+    const search = new URLSearchParams(window.location.search);
+    if (search.get('debug') === '1') return true;
+    const hash = window.location.hash || '';
+    const qIndex = hash.indexOf('?');
+    if (qIndex >= 0) {
+      const hashQuery = new URLSearchParams(hash.slice(qIndex + 1));
+      if (hashQuery.get('debug') === '1') return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+})();
+
+if (isDebugEnabled) {
+  try {
+    const host = supabaseUrl ? new URL(supabaseUrl).host : '(empty)';
+    console.info('[AGENT_DEBUG][SUPABASE] env', {
+      urlHost: host,
+      hasUrl: !!supabaseUrl,
+      hasAnonKey: !!supabaseAnonKey,
+    });
+  } catch {
+    console.info('[AGENT_DEBUG][SUPABASE] env', {
+      urlHost: '(invalid url)',
+      hasUrl: !!supabaseUrl,
+      hasAnonKey: !!supabaseAnonKey,
+    });
+  }
+}
+
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ Variáveis de ambiente do Supabase não configuradas!');
   console.error('VITE_SUPABASE_URL:', supabaseUrl ? '✅' : '❌');
