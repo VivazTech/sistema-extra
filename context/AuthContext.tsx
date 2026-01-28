@@ -18,6 +18,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [debugStep, setDebugStep] = useState<string>('init');
   const [debugStartedAt] = useState<number>(() => Date.now());
+  const [debugNow, setDebugNow] = useState<number>(() => Date.now());
 
   const debugEnabled = (() => {
     try {
@@ -36,6 +37,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   })();
+
+  // Atualizar timestamp na tela de loading sem setTimeout (apenas para debug visual)
+  useEffect(() => {
+    if (!debugEnabled) return;
+    if (!loading) return;
+    let raf = 0;
+    const loop = () => {
+      setDebugNow((prev) => {
+        const now = Date.now();
+        // throttle ~4x/s
+        return now - prev > 250 ? now : prev;
+      });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [debugEnabled, loading]);
 
   const canPostLocalDebug = (() => {
     try {
@@ -317,15 +335,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Mostrar loading enquanto verifica sessão
   if (loading) {
+    const fetchDebug = (() => {
+      try {
+        return (window as any).__agentSupabaseFetchDebug || null;
+      } catch {
+        return null;
+      }
+    })();
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Carregando...</p>
           {debugEnabled ? (
-            <div className="mt-3 text-xs text-gray-500 font-mono space-y-1">
+            <div className="mt-3 text-xs text-gray-500 font-mono space-y-1 text-left inline-block">
               <div>debugStep: {debugStep}</div>
-              <div>elapsed: {Math.floor((Date.now() - debugStartedAt) / 1000)}s</div>
+              <div>elapsed: {Math.floor((debugNow - debugStartedAt) / 1000)}s</div>
+              <div>fetch.lastEvent: {fetchDebug?.lastEvent || '(none)'}</div>
+              <div>fetch.lastHost: {fetchDebug?.lastUrl?.host || '(n/a)'}</div>
+              <div>fetch.lastPath: {fetchDebug?.lastUrl?.path || '(n/a)'}</div>
+              <div>fetch.status: {typeof fetchDebug?.lastStatus === 'number' ? fetchDebug.lastStatus : '(n/a)'}</div>
+              <div>fetch.ms: {typeof fetchDebug?.lastMs === 'number' ? fetchDebug.lastMs : '(n/a)'}</div>
+              <div>AbortSignal.timeout: {String(fetchDebug?.hasAbortSignalTimeout)}</div>
             </div>
           ) : null}
         </div>
