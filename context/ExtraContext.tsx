@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -38,9 +38,9 @@ interface ExtraContextType {
   deleteReason: (id: string) => Promise<void>;
   addExtra: (extra: ExtraPerson) => void;
   deleteExtra: (id: string) => void;
-  addExtraSaldoRecord: (record: ExtraSaldoRecord) => void;
-  updateExtraSaldoRecord: (id: string, record: ExtraSaldoRecord) => void;
-  deleteExtraSaldoRecord: (id: string) => void;
+  addExtraSaldoRecord: (input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
+  updateExtraSaldoRecord: (id: string, input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
+  deleteExtraSaldoRecord: (id: string) => Promise<void>;
   updateExtraSaldoSettings: (settings: ExtraSaldoSettings) => void;
   updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
   appendRequestObservation: (requestId: string, note: string) => Promise<void>;
@@ -1000,11 +1000,107 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const addExtraSaldoRecord = (record: ExtraSaldoRecord) => setExtraSaldoRecords(prev => [record, ...prev]);
-  const updateExtraSaldoRecord = (id: string, record: ExtraSaldoRecord) =>
-    setExtraSaldoRecords(prev => prev.map(r => r.id === id ? record : r));
-  const deleteExtraSaldoRecord = (id: string) => setExtraSaldoRecords(prev => prev.filter(r => r.id !== id));
-  const updateExtraSaldoSettings = (settings: ExtraSaldoSettings) => setExtraSaldoSettings(settings);
+  const getSectorIdByName = async (sectorName: string): Promise<string> => {
+    const local = sectors.find(s => s.name === sectorName);
+    if (local?.id) return local.id;
+    const { data, error } = await supabase
+      .from('sectors')
+      .select('id')
+      .eq('name', sectorName)
+      .single();
+    if (error || !data?.id) throw error || new Error('Setor não encontrado');
+    return data.id;
+  };
+
+  const addExtraSaldoRecord = async (input: ExtraSaldoInput, valorDiariaSnapshot: number) => {
+    try {
+      const sectorId = await getSectorIdByName(input.setor);
+      const { data, error } = await supabase
+        .from('extra_saldo_records')
+        .insert({
+          sector_id: sectorId,
+          periodo_inicio: input.periodoInicio,
+          periodo_fim: input.periodoFim,
+          quadro_aprovado: input.quadroAprovado,
+          quadro_efetivo: input.quadroEfetivo,
+          folgas: input.folgas,
+          domingos: input.domingos,
+          demanda: input.demanda,
+          atestado: input.atestado,
+          extras_solicitados: input.extrasSolicitados || 0,
+          valor_diaria_snapshot: valorDiariaSnapshot,
+          created_by: user?.id || null,
+        })
+        .select('*, sectors(name)')
+        .single();
+
+      if (error || !data) throw error || new Error('Erro ao salvar registro de saldo');
+      const mapped = mapExtraSaldoRecord(data);
+      setExtraSaldoRecords(prev => [mapped, ...prev]);
+    } catch (error) {
+      console.error('Erro ao adicionar registro de saldo:', error);
+      throw error;
+    }
+  };
+
+  const updateExtraSaldoRecord = async (id: string, input: ExtraSaldoInput, valorDiariaSnapshot: number) => {
+    try {
+      const sectorId = await getSectorIdByName(input.setor);
+      const { data, error } = await supabase
+        .from('extra_saldo_records')
+        .update({
+          sector_id: sectorId,
+          periodo_inicio: input.periodoInicio,
+          periodo_fim: input.periodoFim,
+          quadro_aprovado: input.quadroAprovado,
+          quadro_efetivo: input.quadroEfetivo,
+          folgas: input.folgas,
+          domingos: input.domingos,
+          demanda: input.demanda,
+          atestado: input.atestado,
+          extras_solicitados: input.extrasSolicitados || 0,
+          valor_diaria_snapshot: valorDiariaSnapshot,
+        })
+        .eq('id', id)
+        .select('*, sectors(name)')
+        .single();
+
+      if (error || !data) throw error || new Error('Erro ao atualizar registro de saldo');
+      const mapped = mapExtraSaldoRecord(data);
+      setExtraSaldoRecords(prev => prev.map(r => (r.id === id ? mapped : r)));
+    } catch (error) {
+      console.error('Erro ao atualizar registro de saldo:', error);
+      throw error;
+    }
+  };
+
+  const deleteExtraSaldoRecord = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('extra_saldo_records')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      setExtraSaldoRecords(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar registro de saldo:', error);
+      throw error;
+    }
+  };
+
+  const updateExtraSaldoSettings = (settings: ExtraSaldoSettings) => {
+    setExtraSaldoSettings(settings);
+    // Persistir no banco sem travar UI (salvar a última configuração)
+    void supabase
+      .from('extra_saldo_settings')
+      .insert({
+        valor_diaria: settings.valorDiaria,
+        updated_by: user?.id || null,
+      })
+      .then(({ error }) => {
+        if (error) console.error('Erro ao salvar configurações de saldo:', error);
+      });
+  };
 
   const appendRequestObservation = async (requestId: string, note: string) => {
     const request = requests.find(r => r.id === requestId);

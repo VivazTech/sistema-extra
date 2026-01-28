@@ -36,7 +36,7 @@ const ExtraSaldo: React.FC = () => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.setor || !formData.periodoInicio || !formData.periodoFim) {
       alert('Setor e período são obrigatórios.');
       return;
@@ -54,26 +54,25 @@ const ExtraSaldo: React.FC = () => {
       extrasSolicitados: 0
     };
 
+    const existing = editingId ? extraSaldoRecords.find(r => r.id === editingId) : null;
+    const valorDiariaSnapshot = existing?.valorDiariaSnapshot ?? extraSaldoSettings.valorDiaria;
+
     try {
-      calculateExtraSaldo(input, extraSaldoSettings.valorDiaria);
+      calculateExtraSaldo(input, valorDiariaSnapshot);
     } catch (err: any) {
       alert(err?.message || 'Erro ao calcular o saldo.');
       return;
     }
 
-    const now = new Date().toISOString();
-    const payload = {
-      ...input,
-      id: editingId || Math.random().toString(36).substr(2, 9),
-      valorDiariaSnapshot: extraSaldoSettings.valorDiaria,
-      createdAt: editingId ? (extraSaldoRecords.find(r => r.id === editingId)?.createdAt || now) : now,
-      updatedAt: now
-    };
-
-    if (editingId) {
-      updateExtraSaldoRecord(editingId, payload);
-    } else {
-      addExtraSaldoRecord(payload);
+    try {
+      if (editingId) {
+        await updateExtraSaldoRecord(editingId, input, valorDiariaSnapshot);
+      } else {
+        await addExtraSaldoRecord(input, valorDiariaSnapshot);
+      }
+    } catch (error: any) {
+      alert(error?.message || 'Erro ao salvar no banco de dados.');
+      return;
     }
 
     setEditingId(null);
@@ -290,7 +289,17 @@ const ExtraSaldo: React.FC = () => {
                       <button onClick={() => handleEdit(record.id)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
                         <Edit2 size={14} />
                       </button>
-                      <button onClick={() => deleteExtraSaldoRecord(record.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('Deseja excluir este registro?')) return;
+                          try {
+                            await deleteExtraSaldoRecord(record.id);
+                          } catch (error: any) {
+                            alert(error?.message || 'Erro ao excluir no banco de dados.');
+                          }
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
