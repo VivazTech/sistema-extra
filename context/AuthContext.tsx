@@ -342,6 +342,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
     })();
+    const globalFetchDebug = (() => {
+      try {
+        return (window as any).__agentGlobalFetchDebug || null;
+      } catch {
+        return null;
+      }
+    })();
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -351,12 +358,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             <div className="mt-3 text-xs text-gray-500 font-mono space-y-1 text-left inline-block">
               <div>debugStep: {debugStep}</div>
               <div>elapsed: {Math.floor((debugNow - debugStartedAt) / 1000)}s</div>
-              <div>fetch.lastEvent: {fetchDebug?.lastEvent || '(none)'}</div>
-              <div>fetch.lastHost: {fetchDebug?.lastUrl?.host || '(n/a)'}</div>
-              <div>fetch.lastPath: {fetchDebug?.lastUrl?.path || '(n/a)'}</div>
-              <div>fetch.status: {typeof fetchDebug?.lastStatus === 'number' ? fetchDebug.lastStatus : '(n/a)'}</div>
-              <div>fetch.ms: {typeof fetchDebug?.lastMs === 'number' ? fetchDebug.lastMs : '(n/a)'}</div>
-              <div>AbortSignal.timeout: {String(fetchDebug?.hasAbortSignalTimeout)}</div>
+              <div className="pt-1 text-gray-400">supabase.fetch (injetado)</div>
+              <div>sb.lastEvent: {fetchDebug?.lastEvent || '(none)'}</div>
+              <div>sb.lastHost: {fetchDebug?.lastUrl?.host || '(n/a)'}</div>
+              <div>sb.lastPath: {fetchDebug?.lastUrl?.path || '(n/a)'}</div>
+              <div>sb.status: {typeof fetchDebug?.lastStatus === 'number' ? fetchDebug.lastStatus : '(n/a)'}</div>
+              <div>sb.ms: {typeof fetchDebug?.lastMs === 'number' ? fetchDebug.lastMs : '(n/a)'}</div>
+              <div>sb.AbortSignal.timeout: {String(fetchDebug?.hasAbortSignalTimeout)}</div>
+
+              <div className="pt-2 text-gray-400">global.fetch (browser)</div>
+              <div>gl.installed: {String(globalFetchDebug?.installed)}</div>
+              <div>gl.lastEvent: {globalFetchDebug?.lastEvent || '(none)'}</div>
+              <div>gl.lastHost: {globalFetchDebug?.lastUrl?.host || '(n/a)'}</div>
+              <div>gl.lastPath: {globalFetchDebug?.lastUrl?.path || '(n/a)'}</div>
+              <div>gl.status: {typeof globalFetchDebug?.lastStatus === 'number' ? globalFetchDebug.lastStatus : '(n/a)'}</div>
+              <div>gl.ms: {typeof globalFetchDebug?.lastMs === 'number' ? globalFetchDebug.lastMs : '(n/a)'}</div>
+              <div>gl.error: {globalFetchDebug?.lastErrorName ? `${globalFetchDebug.lastErrorName}` : '(n/a)'}</div>
             </div>
           ) : null}
         </div>

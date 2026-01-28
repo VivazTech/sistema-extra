@@ -45,6 +45,73 @@ const setGlobalFetchDebug = (patch: any) => {
   }
 };
 
+const setGlobalAnyFetchDebug = (patch: any) => {
+  if (!isDebugEnabled) return;
+  try {
+    const w = window as any;
+    const prev = w.__agentGlobalFetchDebug || {};
+    w.__agentGlobalFetchDebug = { ...prev, ...patch };
+  } catch {
+    // ignore
+  }
+};
+
+// Debug robusto: interceptar fetch global (Supabase pode não usar o fetch injetado).
+if (isDebugEnabled && typeof window !== 'undefined') {
+  try {
+    const w = window as any;
+    if (!w.__agentOriginalFetch && typeof w.fetch === 'function') {
+      w.__agentOriginalFetch = w.fetch.bind(window);
+      w.fetch = (input: any, init?: any) => {
+        const startedAt = Date.now();
+        let urlStr = '';
+        try {
+          urlStr = typeof input === 'string' ? input : input?.url || '';
+        } catch {
+          urlStr = '';
+        }
+        let urlInfo: any = { method: init?.method || 'GET' };
+        try {
+          const u = new URL(urlStr);
+          urlInfo = { ...urlInfo, host: u.host, path: u.pathname, search: u.search };
+        } catch {
+          urlInfo = { ...urlInfo, url: urlStr };
+        }
+        setGlobalAnyFetchDebug({ installed: true, lastEvent: 'start', lastUrl: urlInfo, lastTs: Date.now() });
+        debugLog('GLOBAL start', urlInfo);
+        return w.__agentOriginalFetch(input, init)
+          .then((res: any) => {
+            setGlobalAnyFetchDebug({
+              installed: true,
+              lastEvent: 'end',
+              lastUrl: urlInfo,
+              lastStatus: res?.status,
+              lastMs: Date.now() - startedAt,
+              lastTs: Date.now(),
+            });
+            debugLog('GLOBAL end', { ...urlInfo, status: res?.status, ms: Date.now() - startedAt });
+            return res;
+          })
+          .catch((err: any) => {
+            setGlobalAnyFetchDebug({
+              installed: true,
+              lastEvent: 'error',
+              lastUrl: urlInfo,
+              lastErrorName: err?.name,
+              lastErrorMessage: err?.message,
+              lastMs: Date.now() - startedAt,
+              lastTs: Date.now(),
+            });
+            debugLog('GLOBAL error', { ...urlInfo, ms: Date.now() - startedAt, errorName: err?.name, errorMessage: err?.message });
+            throw err;
+          });
+      };
+    }
+  } catch {
+    // ignore
+  }
+}
+
 // Timeout de rede para evitar "loading infinito" quando o Supabase fica pendurado.
 // Usa AbortSignal.timeout (sem setTimeout). Se não existir no browser, não aplica timeout.
 const fetchWithTimeout: typeof fetch = (input, init) => {
@@ -53,6 +120,7 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
     const hasTimeout = typeof (AbortSignal as any)?.timeout === 'function';
     debugLog('capabilities', { hasAbortSignalTimeout: hasTimeout });
     setGlobalFetchDebug({ hasAbortSignalTimeout: hasTimeout, timeoutMs, lastCapabilityTs: Date.now() });
+    setGlobalAnyFetchDebug({ hasAbortSignalTimeout: hasTimeout, timeoutMs, lastCapabilityTs: Date.now() });
     const signal =
       init?.signal ??
       (hasTimeout ? (AbortSignal as any).timeout(timeoutMs) : undefined);
