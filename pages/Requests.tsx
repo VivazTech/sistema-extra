@@ -154,118 +154,113 @@ const Requests: React.FC = () => {
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
             <tr>
               <th className="px-6 py-4">ID</th>
+              <th className="px-6 py-4">Data / Turno</th>
               <th className="px-6 py-4">Setor / Função</th>
               <th className="px-6 py-4">Nome do Extra</th>
               <th className="px-6 py-4">Líder</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Valor</th>
               <th className="px-6 py-4 text-center">Ações</th>
-              <th className="px-6 py-4">Data / Turno</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {(() => {
               let globalRowIndex = 0;
-              return filteredRequests.flatMap((req) => 
-                req.workDays.map((workDay, dayIndex) => {
+              return filteredRequests.flatMap((req) =>
+                req.workDays.map((workDay) => {
                   const isEven = globalRowIndex % 2 === 0;
                   const bgColor = isEven ? 'bg-white' : 'bg-gray-50';
-                  const isFirstDay = dayIndex === 0;
                   globalRowIndex++;
                   
                   return (
-                    <tr key={`${req.id}-${dayIndex}`} className={`${bgColor} hover:bg-gray-100 transition-colors`}>
-                      {isFirstDay && (
-                        <>
-                          <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>
-                            <p className="font-bold text-gray-900 text-sm">{req.code}</p>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>
-                            <p className="font-medium text-gray-900 text-sm">{req.sector}</p>
-                            <p className="text-xs text-gray-500">{req.role}</p>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold">{req.extraName}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>
-                            <span className="text-sm text-gray-600">{req.leaderName}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>
-                            <div className="flex flex-col gap-1 items-start">
-                              <span className={`
-                                inline-block px-2 py-1 rounded-full text-[10px] font-bold uppercase
-                                ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
-                                ${req.status === 'SOLICITADO' ? 'bg-amber-100 text-amber-700' : ''}
-                                ${req.status === 'REPROVADO' ? 'bg-red-100 text-red-700' : ''}
-                                ${req.status === 'CANCELADO' ? 'bg-gray-100 text-gray-700' : ''}
-                              `}>
-                                {req.status}
-                              </span>
-                              {req.status === 'SOLICITADO' && req.needsManagerApproval && (
-                                <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
-                              )}
-                              {req.status === 'APROVADO' && req.approvedBy && (
-                                <span className="text-[10px] text-gray-500">Aprovado por {req.approvedBy}</span>
-                              )}
-                              {req.observations?.includes('PORTARIA - Horário não informado') && (
-                                <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap" rowSpan={req.workDays.length}>
-                            <span className="text-sm font-bold text-gray-900">
-                              {req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center" rowSpan={req.workDays.length}>
-                            <div className="flex justify-center gap-1">
-                              {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
-                                <>
-                                  <button 
-                                    onClick={() => handleApprove(req.id)}
-                                    className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all"
-                                    title="Aprovar"
-                                  >
-                                    <Check size={16} />
-                                  </button>
-                                  <button 
-                                    onClick={() => handleOpenReject(req.id)}
-                                    className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"
-                                    title="Reprovar"
-                                  >
-                                    <X size={16} />
-                                  </button>
-                                </>
-                              )}
-                              {req.status === 'APROVADO' && (
-                                <button 
-                                  onClick={() => handlePrint(req)}
-                                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
-                                  title="Imprimir PDF"
-                                >
-                                  <Printer size={16} />
-                                </button>
-                              )}
-                              {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
-                                <button 
-                                  onClick={() => handleCancel(req.id)}
-                                  className="p-1.5 bg-gray-50 text-gray-400 rounded-lg hover:bg-gray-200 hover:text-gray-900 transition-all"
-                                  title="Cancelar"
-                                >
-                                  <Ban size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </>
-                      )}
+                    <tr key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${bgColor} hover:bg-gray-100 transition-colors`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="font-bold text-gray-900 text-sm">{req.code}</p>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <p className="text-sm text-gray-900">
                           {formatDateBR(workDay.date)}
                         </p>
                         <p className="text-xs text-gray-500">{workDay.shift}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="font-medium text-gray-900 text-sm">{req.sector}</p>
+                        <p className="text-xs text-gray-500">{req.role}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{req.extraName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-600">{req.leaderName}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`
+                            inline-block px-2 py-1 rounded-full text-[10px] font-bold uppercase
+                            ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
+                            ${req.status === 'SOLICITADO' ? 'bg-amber-100 text-amber-700' : ''}
+                            ${req.status === 'REPROVADO' ? 'bg-red-100 text-red-700' : ''}
+                            ${req.status === 'CANCELADO' ? 'bg-gray-100 text-gray-700' : ''}
+                          `}>
+                            {req.status}
+                          </span>
+                          {req.status === 'SOLICITADO' && req.needsManagerApproval && (
+                            <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
+                          )}
+                          {req.status === 'APROVADO' && req.approvedBy && (
+                            <span className="text-[10px] text-gray-500">Aprovado por {req.approvedBy}</span>
+                          )}
+                          {req.observations?.includes('PORTARIA - Horário não informado') && (
+                            <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-bold text-gray-900">
+                          {req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex justify-center gap-1">
+                          {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                            <>
+                              <button 
+                                onClick={() => handleApprove(req.id)}
+                                className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all"
+                                title="Aprovar"
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleOpenReject(req.id)}
+                                className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"
+                                title="Reprovar"
+                              >
+                                <X size={16} />
+                              </button>
+                            </>
+                          )}
+                          {req.status === 'APROVADO' && (
+                            <button 
+                              onClick={() => handlePrint(req)}
+                              className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
+                              title="Imprimir PDF"
+                            >
+                              <Printer size={16} />
+                            </button>
+                          )}
+                          {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
+                            <button 
+                              onClick={() => handleCancel(req.id)}
+                              className="p-1.5 bg-gray-50 text-gray-400 rounded-lg hover:bg-gray-200 hover:text-gray-900 transition-all"
+                              title="Cancelar"
+                            >
+                              <Ban size={16} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
