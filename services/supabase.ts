@@ -5,23 +5,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-// Timeout de rede para evitar "loading infinito" quando o Supabase fica pendurado.
-// Usa AbortSignal.timeout (sem setTimeout). Se não existir no browser, não aplica timeout.
-const fetchWithTimeout: typeof fetch = (input, init) => {
-  try {
-    const timeoutMs = 15000;
-    const hasTimeout = typeof (AbortSignal as any)?.timeout === 'function';
-    const signal =
-      init?.signal ??
-      (hasTimeout ? (AbortSignal as any).timeout(timeoutMs) : undefined);
-    return fetch(input, { ...(init || {}), signal });
-  } catch {
-    return fetch(input, init);
-  }
-};
+const metaEnv = (import.meta as any)?.env || {};
+const supabaseUrl = metaEnv.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = metaEnv.VITE_SUPABASE_ANON_KEY || '';
 
 const isDebugEnabled = (() => {
   try {
@@ -39,6 +25,58 @@ const isDebugEnabled = (() => {
     return false;
   }
 })();
+
+const debugLog = (msg: string, data?: any) => {
+  if (!isDebugEnabled) return;
+  try {
+    console.info(`[AGENT_DEBUG][SUPABASE_FETCH] ${msg}`, data ?? {});
+  } catch {
+    // ignore
+  }
+};
+
+// Timeout de rede para evitar "loading infinito" quando o Supabase fica pendurado.
+// Usa AbortSignal.timeout (sem setTimeout). Se não existir no browser, não aplica timeout.
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  try {
+    const timeoutMs = 15000;
+    const hasTimeout = typeof (AbortSignal as any)?.timeout === 'function';
+    debugLog('capabilities', { hasAbortSignalTimeout: hasTimeout });
+    const signal =
+      init?.signal ??
+      (hasTimeout ? (AbortSignal as any).timeout(timeoutMs) : undefined);
+
+    let urlStr = '';
+    try {
+      urlStr = typeof input === 'string' ? input : (input as any)?.url || '';
+    } catch {
+      urlStr = '';
+    }
+
+    const startedAt = Date.now();
+    let urlInfo: any = { method: init?.method || 'GET', timeoutMs: hasTimeout ? timeoutMs : null };
+    try {
+      const u = new URL(urlStr);
+      urlInfo = { ...urlInfo, host: u.host, path: u.pathname, search: u.search };
+    } catch {
+      urlInfo = { ...urlInfo, url: urlStr };
+    }
+
+    debugLog('start', urlInfo);
+
+    return fetch(input, { ...(init || {}), signal })
+      .then((res) => {
+        debugLog('end', { ...urlInfo, status: res.status, ms: Date.now() - startedAt });
+        return res;
+      })
+      .catch((err) => {
+        debugLog('error', { ...urlInfo, ms: Date.now() - startedAt, errorName: err?.name, errorMessage: err?.message });
+        throw err;
+      });
+  } catch {
+    return fetch(input, init);
+  }
+};
 
 if (isDebugEnabled) {
   try {
