@@ -2,13 +2,14 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ExtraRequest } from '../types';
+import { formatDateBR, formatDateTimeBR } from '../utils/date';
 
 export const generateIndividualPDF = (request: ExtraRequest) => {
   const doc = new jsPDF();
 
   const formatWorkDaysSummary = (workDays: ExtraRequest['workDays']) => {
     if (!workDays.length) return 'N/A';
-    const firstDate = new Date(workDays[0].date).toLocaleDateString('pt-BR');
+    const firstDate = formatDateBR(workDays[0].date);
     const extraDays = workDays.length - 1;
     return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
   };
@@ -53,7 +54,6 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   y += 10;
   
   addField('Data', formatWorkDaysSummary(request.workDays), col1, y);
-  addField('Turno', formatShiftSummary(request.workDays), col2, y);
   y += 10;
   
   addField('Líder', request.leaderName, col1, y);
@@ -68,19 +68,16 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   addField('Valor (R$)', request.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), col2, y);
   y += 10;
 
-  // Days/Shift Table
+  // Days Table (sem turno)
   y += 5;
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('DIAS E TURNOS', 105, y, { align: 'center' });
+  doc.text('DIAS', 105, y, { align: 'center' });
   y += 5;
   autoTable(doc, {
     startY: y,
-    head: [['Data', 'Turno']],
-    body: request.workDays.map(day => [
-      new Date(day.date).toLocaleDateString('pt-BR'),
-      day.shift
-    ]),
+    head: [['Data']],
+    body: request.workDays.map(day => [formatDateBR(day.date)]),
     theme: 'grid',
     styles: { fontSize: 9 },
     headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
@@ -90,15 +87,24 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   y = (doc as any).lastAutoTable.finalY + 10;
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('CONTROLE DE PONTO (PREENCHIMENTO MANUAL - PORTARIA)', 105, y, { align: 'center' });
+  doc.text('CONTROLE DE PONTO (PORTARIA)', 105, y, { align: 'center' });
   y += 5;
 
   autoTable(doc, {
     startY: y,
-    head: [['Horário de Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário de Saída']],
-    body: [[' ', ' ', ' ', ' ']],
+    head: [['Data', 'Horário de Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário de Saída']],
+    body: request.workDays.map(day => {
+      const tr = day.timeRecord;
+      return [
+        formatDateBR(day.date),
+        tr?.arrival || '',
+        tr?.breakStart || '',
+        tr?.breakEnd || '',
+        tr?.departure || ''
+      ];
+    }),
     theme: 'grid',
-    styles: { minCellHeight: 20, halign: 'center', valign: 'middle' },
+    styles: { minCellHeight: 14, halign: 'center', valign: 'middle', fontSize: 9 },
     headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
   });
 
@@ -111,7 +117,7 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   doc.line(120, finalY, 190, finalY);
   doc.text('Assinatura do Líder Responsável', 155, finalY + 5, { align: 'center' });
 
-  doc.text(`Impresso em: ${new Date().toLocaleString('pt-BR')}`, 105, 285, { align: 'center' });
+  doc.text(`Impresso em: ${formatDateTimeBR(new Date())}`, 105, 285, { align: 'center' });
 
   doc.save(`solicitacao-${request.code}.pdf`);
 };
@@ -120,7 +126,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   const doc = new jsPDF('l', 'mm', 'a4');
   const formatWorkDaysSummary = (workDays: ExtraRequest['workDays']) => {
     if (!workDays.length) return '';
-    const firstDate = new Date(workDays[0].date).toLocaleDateString('pt-BR');
+    const firstDate = formatDateBR(workDays[0].date);
     const extraDays = workDays.length - 1;
     return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
   };
@@ -134,7 +140,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.setFontSize(16);
   doc.text(`VIVAZ CATARATAS - ${title.toUpperCase()}`, 148, 15, { align: 'center' });
   doc.setFontSize(10);
-  doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 148, 22, { align: 'center' });
+  doc.text(`Gerado em: ${formatDateTimeBR(new Date())}`, 148, 22, { align: 'center' });
 
   autoTable(doc, {
     startY: 30,

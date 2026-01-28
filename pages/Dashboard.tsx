@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { RequestStatus } from '../types';
+import { formatDateBR } from '../utils/date';
 
 const Dashboard: React.FC = () => {
   const { requests } = useExtras();
@@ -84,7 +85,7 @@ const Dashboard: React.FC = () => {
                     `}>
                       {req.status}
                     </span>
-                    <p className="text-[10px] text-gray-400 mt-1">{new Date(req.createdAt).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{formatDateBR(req.createdAt)}</p>
                   </div>
                 </div>
               ))

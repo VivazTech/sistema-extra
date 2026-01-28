@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { formatDateBR } from '../../utils/date';
 
 interface PunctualityReportProps {
   startDate?: string;
@@ -273,7 +274,7 @@ const PunctualityReport: React.FC<PunctualityReportProps> = ({ startDate, endDat
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{record.extraName}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(record.date).toLocaleDateString('pt-BR')}
+                      {formatDateBR(record.date)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{record.sector}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{record.arrival}</td>

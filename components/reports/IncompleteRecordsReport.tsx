@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileWarning, AlertCircle, Camera, Clock } from 'lucide-react';
+import { formatDateBR } from '../../utils/date';
 
 interface IncompleteRecordsReportProps {
   startDate?: string;
@@ -184,7 +185,7 @@ const IncompleteRecordsReport: React.FC<IncompleteRecordsReportProps> = ({ start
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{record.extraName}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(record.date).toLocaleDateString('pt-BR')}
+                    {formatDateBR(record.date)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{record.sector}</td>
                   <td className="px-6 py-4">

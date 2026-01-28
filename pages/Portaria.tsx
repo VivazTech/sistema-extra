@@ -23,6 +23,8 @@ import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { ExtraRequest } from '../types';
 import { supabase } from '../services/supabase';
+import { formatDateTimeBR } from '../utils/date';
+import { formatDateBR } from '../utils/date';
 
 const Portaria: React.FC = () => {
   const { requests, sectors, updateTimeRecord, appendRequestObservation, removeWorkDay } = useExtras();
@@ -120,7 +122,7 @@ const Portaria: React.FC = () => {
   };
 
   const buildNotInformedNote = (fieldLabel: string, workDate: string) => {
-    const formattedDate = new Date(`${workDate}T00:00:00`).toLocaleDateString('pt-BR');
+    const formattedDate = formatDateBR(workDate);
     return `PORTARIA - Horário não informado: ${fieldLabel} (${formattedDate})`;
   };
 
@@ -392,10 +394,10 @@ const Portaria: React.FC = () => {
           </div>
           <div className="text-right">
             <div className="text-3xl font-black text-emerald-600">
-              {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+              {formatDateBR(new Date()).slice(0, 5)}
             </div>
             <div className="text-xs text-gray-500 uppercase font-bold">
-              {new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}
+              {new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date())}
             </div>
           </div>
         </header>
@@ -645,7 +647,7 @@ const Portaria: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${new Date(`${workDayDate}T00:00:00`).toLocaleDateString('pt-BR')}?`)) {
+                        if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${formatDateBR(workDayDate)}?`)) {
                           removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
                         }
                       }}
@@ -957,7 +959,7 @@ const Portaria: React.FC = () => {
                           <p className="text-xs text-gray-500">
                             <span className="font-bold">Registrado por:</span> {timeRecord.registeredBy}
                             {timeRecord.registeredAt && (
-                              <> • {new Date(timeRecord.registeredAt).toLocaleString('pt-BR')}</>
+                              <> • {formatDateTimeBR(timeRecord.registeredAt)}</>
                             )}
                           </p>
                         </div>

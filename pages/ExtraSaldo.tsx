@@ -3,6 +3,7 @@ import { Save, Trash2, Edit2, Filter } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { ExtraSaldoInput } from '../types';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
+import { formatDateBR } from '../utils/date';
 
 const ExtraSaldo: React.FC = () => {
   const {
@@ -271,7 +272,7 @@ const ExtraSaldo: React.FC = () => {
               return (
                 <tr key={record.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 font-semibold">{record.setor}</td>
-                  <td className="px-4 py-3">{record.periodoInicio} → {record.periodoFim}</td>
+                  <td className="px-4 py-3">{formatDateBR(record.periodoInicio)} → {formatDateBR(record.periodoFim)}</td>
                   <td className="px-4 py-3">{record.quadroAprovado}</td>
                   <td className="px-4 py-3">{record.quadroEfetivo}</td>
                   <td className="px-4 py-3">{record.folgas}</td>

@@ -15,6 +15,7 @@ import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { generateIndividualPDF, generateListPDF } from '../services/pdfService';
 import RequestModal from '../components/RequestModal';
+import { formatDateBR } from '../utils/date';
 
 const Requests: React.FC = () => {
   const { requests, updateStatus } = useExtras();
@@ -262,12 +263,7 @@ const Requests: React.FC = () => {
                       )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <p className="text-sm text-gray-900">
-                          {new Date(workDay.date).toLocaleDateString('pt-BR', { 
-                            weekday: 'short', 
-                            day: '2-digit', 
-                            month: '2-digit', 
-                            year: 'numeric' 
-                          })}
+                          {formatDateBR(workDay.date)}
                         </p>
                         <p className="text-xs text-gray-500">{workDay.shift}</p>
                       </td>

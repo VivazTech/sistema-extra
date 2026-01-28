@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
+import { formatDateBR } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 
 const TVDashboard: React.FC = () => {
@@ -153,7 +154,7 @@ const TVDashboard: React.FC = () => {
           <div className="text-right">
             <p className={`text-5xl font-mono font-black tabular-nums ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
             <p className={`text-xl ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} font-bold uppercase mt-1`}>
-              {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+              {formatDateBR(currentTime)}
             </p>
           </div>
         </div>

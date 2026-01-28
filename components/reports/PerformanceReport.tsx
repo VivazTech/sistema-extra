@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { UserCheck, Star, TrendingUp } from 'lucide-react';
+import { formatDateBR } from '../../utils/date';
 
 interface PerformanceReportProps {
   startDate?: string;
@@ -195,7 +196,7 @@ const PerformanceReport: React.FC<PerformanceReportProps> = ({ startDate, endDat
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{extra.setores}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {extra.ultimoTrabalho ? new Date(extra.ultimoTrabalho).toLocaleDateString('pt-BR') : 'N/A'}
+                    {extra.ultimoTrabalho ? formatDateBR(extra.ultimoTrabalho) : 'N/A'}
                   </td>
                 </tr>
               ))}

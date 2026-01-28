@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { Shield, User, Clock, FileText } from 'lucide-react';
+import { formatDateBR, formatDateTimeBR } from '../../utils/date';
 
 interface AuditReportProps {
   startDate?: string;
@@ -153,7 +154,7 @@ const AuditReport: React.FC<AuditReportProps> = ({ startDate, endDate }) => {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{item.approvedBy}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(item.approvedAt).toLocaleDateString('pt-BR')}
+                    {formatDateBR(item.approvedAt)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {item.timeToApproval ? `${item.timeToApproval}h` : 'N/A'}
@@ -190,12 +191,12 @@ const AuditReport: React.FC<AuditReportProps> = ({ startDate, endDate }) => {
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{change.extraName}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(change.date).toLocaleDateString('pt-BR')}
+                    {formatDateBR(change.date)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{change.sector}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{change.registeredBy}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(change.registeredAt).toLocaleString('pt-BR')}
+                    {formatDateTimeBR(change.registeredAt)}
                   </td>
                   <td className="px-6 py-4">
                     {change.hasPhoto ? (

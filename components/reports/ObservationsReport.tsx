@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { AlertCircle, FileText, TrendingUp } from 'lucide-react';
+import { formatDateBR } from '../../utils/date';
 
 interface ObservationsReportProps {
   startDate?: string;
@@ -169,7 +170,7 @@ const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endD
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{obs.extraName}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {obs.date ? (obs.date.includes('/') ? obs.date : new Date(obs.date).toLocaleDateString('pt-BR')) : 'N/A'}
+                    {obs.date ? (obs.date.includes('/') ? obs.date : formatDateBR(obs.date)) : 'N/A'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{obs.sector}</td>
                   <td className="px-6 py-4">
