@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { AuthState, User } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -19,6 +19,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [debugStep, setDebugStep] = useState<string>('init');
   const [debugStartedAt] = useState<number>(() => Date.now());
   const [debugNow, setDebugNow] = useState<number>(() => Date.now());
+
+  const loadUserInFlightRef = useRef<Promise<void> | null>(null);
 
   const debugEnabled = (() => {
     try {
@@ -75,6 +77,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // 1) Cache local para evitar "loading infinito" em reload
+        // (se o Supabase travar ao resolver sessão/token, o app não fica preso na tela de loading)
+        try {
+          const raw = localStorage.getItem('vivaz_auth');
+          if (raw) {
+            const parsed = JSON.parse(raw) as AuthState;
+            if (parsed?.isAuthenticated && parsed?.user?.id) {
+              setState(parsed);
+              setLoading(false);
+              setDebugStep('cache:vivaz_auth -> setLoading(false)');
+            }
+          }
+        } catch {
+          // ignore cache parse errors
+        }
+
         agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:start',message:'checkSession start',data:{loadingBefore:true},timestamp:Date.now()});
         // Fallback (caso o envio de logs para 127.0.0.1 esteja bloqueado no navegador)
         console.info('[AGENT_DEBUG][A] checkSession:start');
@@ -88,7 +106,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           // Buscar dados do usuário na tabela users
           setDebugStep('checkSession:hasSessionUser -> loadUserData');
-          await loadUserData(session.user.id);
+          // Evitar chamadas concorrentes que podem travar em alguns browsers
+          if (!loadUserInFlightRef.current) {
+            loadUserInFlightRef.current = loadUserData(session.user.id).finally(() => {
+              loadUserInFlightRef.current = null;
+            });
+          }
+          // Não bloquear o boot esperando o banco; o app já pode renderizar com cache
+          void loadUserInFlightRef.current;
+          // Se ainda está em loading, liberar aqui
+          setLoading(false);
         } else {
           setLoading(false);
           agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'context/AuthContext.tsx:checkSession:noSession',message:'checkSession noSession -> setLoading(false)',data:{},timestamp:Date.now()});
@@ -110,10 +137,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.info('[AGENT_DEBUG][C] onAuthStateChange', { event, hasSessionUser: !!session?.user });
       setDebugStep(`onAuthStateChange:${event} hasUser=${!!session?.user}`);
       if (event === 'SIGNED_IN' && session?.user) {
-        await loadUserData(session.user.id);
+        if (!loadUserInFlightRef.current) {
+          loadUserInFlightRef.current = loadUserData(session.user.id).finally(() => {
+            loadUserInFlightRef.current = null;
+          });
+        }
+        void loadUserInFlightRef.current;
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setState({ user: null, isAuthenticated: false });
         localStorage.removeItem('vivaz_auth');
+        setLoading(false);
       }
     });
 
