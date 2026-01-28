@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   CheckCircle2, 
@@ -15,6 +16,7 @@ import { formatDateBR } from '../utils/date';
 
 const Dashboard: React.FC = () => {
   const { requests } = useExtras();
+  const navigate = useNavigate();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRequests = requests.filter(r => r.workDays.some(d => d.date === todayStr));
@@ -101,7 +103,10 @@ const Dashboard: React.FC = () => {
               <p className="text-emerald-100 text-sm opacity-90 leading-relaxed">
                 Mantenha os cadastros de setores, funções, demandantes e motivos atualizados para agilizar novas solicitações.
               </p>
-              <button className="mt-4 flex items-center gap-2 text-sm font-bold bg-white text-emerald-900 px-4 py-2 rounded-lg">
+              <button 
+                onClick={() => navigate('/solicitacoes')}
+                className="mt-4 flex items-center gap-2 text-sm font-bold bg-white text-emerald-900 px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors"
+              >
                 Nova Solicitação <ArrowUpRight size={16} />
               </button>
             </div>

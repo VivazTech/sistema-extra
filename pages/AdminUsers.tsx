@@ -235,7 +235,7 @@ const AdminUsers: React.FC = () => {
               <div className="mt-3">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Acesso</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {ACCESS_PAGES.map((page) => (
+                  {ACCESS_PAGES.filter(page => page.key !== 'test').map((page) => (
                     <label key={page.key} className="flex items-center gap-2 text-xs text-gray-600">
                       <input
                         type="checkbox"

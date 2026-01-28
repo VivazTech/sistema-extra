@@ -35,10 +35,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Clock, label: 'Portaria', path: '/portaria', page: 'portaria' },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', page: 'tv' },
     { icon: FileText, label: 'Relatórios', path: '/relatorios', page: 'reports' },
-    { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', page: 'catalogs' },
     { icon: Users, label: 'Usuários', path: '/admin/usuarios', page: 'users' },
     { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', page: 'saldo' },
     { icon: Database, label: 'Banco de Extras', path: '/admin/extras', page: 'extras' },
+    { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', page: 'catalogs' },
   ].filter(item => (user ? hasPageAccess(user.role, item.page) : false));
 
   const activeItem = menuItems.find(item => item.path === location.pathname) || menuItems[0];

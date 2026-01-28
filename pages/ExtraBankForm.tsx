@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../context/ExtraContext';
 
 const ExtraBankForm: React.FC = () => {
-  const { sectors, addExtra } = useExtras();
+  const { sectors, addExtra, extras } = useExtras();
   const [formData, setFormData] = useState({
     fullName: '',
     birthDate: '',
@@ -165,6 +165,21 @@ const ExtraBankForm: React.FC = () => {
     }
   };
 
+  // Função para normalizar CPF (remover formatação)
+  const normalizeCpf = (cpf: string) => {
+    return cpf.replace(/\D/g, '');
+  };
+
+  // Verificar se CPF já existe
+  const cpfExists = (cpfToCheck: string) => {
+    if (!cpfToCheck) return false;
+    const normalizedCpf = normalizeCpf(cpfToCheck);
+    return extras.some(extra => {
+      if (!extra.cpf) return false;
+      return normalizeCpf(extra.cpf) === normalizedCpf;
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdult) {
@@ -175,6 +190,14 @@ const ExtraBankForm: React.FC = () => {
       setCpfError('CPF inválido.');
       return;
     }
+
+    // Verificar CPF duplicado
+    const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
+    if (cpfToCheck && cpfExists(cpfToCheck)) {
+      setCpfError('Este CPF já está cadastrado no banco de extras.');
+      return;
+    }
+
     if (formData.isForeign && !formData.foreignDoc) {
       alert('Informe o documento estrangeiro.');
       return;
@@ -306,7 +329,10 @@ const ExtraBankForm: React.FC = () => {
                   placeholder="Documento estrangeiro"
                   className="mt-2 w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                   value={formData.foreignDoc}
-                  onChange={(e) => setFormData({ ...formData, foreignDoc: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, foreignDoc: e.target.value });
+                    setCpfError('');
+                  }}
                 />
               )}
             </div>

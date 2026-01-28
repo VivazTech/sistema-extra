@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 
@@ -41,6 +41,91 @@ const ExtraBank: React.FC = () => {
     adultDate.setFullYear(adultDate.getFullYear() + 18);
     return adultDate <= today;
   }, [formData.birthDate]);
+
+  // Função para normalizar CPF (remover formatação)
+  const normalizeCpf = (cpf: string) => {
+    return cpf.replace(/\D/g, '');
+  };
+
+  // Verificar se CPF já existe
+  const cpfExists = (cpfToCheck: string) => {
+    if (!cpfToCheck) return false;
+    const normalizedCpf = normalizeCpf(cpfToCheck);
+    return extras.some(extra => {
+      if (!extra.cpf) return false;
+      return normalizeCpf(extra.cpf) === normalizedCpf;
+    });
+  };
+
+  // Validar contatos em tempo real
+  const validateContacts = () => {
+    if (formData.contactNumber && formData.emergencyContactNumber) {
+      const contactDigits = formData.contactNumber.replace(/\D/g, '');
+      const emergencyDigits = formData.emergencyContactNumber.replace(/\D/g, '');
+      if (contactDigits === emergencyDigits && formData.ddiContact === formData.ddiEmergency) {
+        setContactError('O contato e o contato de emergência não podem ser iguais.');
+        return false;
+      }
+    }
+    setContactError('');
+    return true;
+  };
+
+  // Validar CPF duplicado em tempo real
+  const validateCpfDuplicate = () => {
+    const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
+    
+    if (!cpfToCheck) {
+      setCpfError('');
+      return true;
+    }
+
+    // Verificar se é CPF brasileiro e validar formato primeiro
+    if (!formData.isForeign && formData.cpf) {
+      const cpfDigits = normalizeCpf(formData.cpf);
+      if (cpfDigits.length === 11) {
+        if (!isValidCpf(formData.cpf)) {
+          setCpfError('CPF inválido.');
+          return false;
+        }
+        // Se o formato é válido, verificar duplicidade
+        if (cpfExists(cpfToCheck)) {
+          setCpfError('Este CPF já está cadastrado no banco de extras.');
+          return false;
+        }
+      } else if (cpfDigits.length > 0) {
+        // CPF incompleto, não mostrar erro ainda
+        setCpfError('');
+        return true;
+      }
+    }
+
+    // Para documento estrangeiro ou CPF completo válido, verificar duplicidade
+    if (formData.isForeign && formData.foreignDoc) {
+      if (cpfExists(formData.foreignDoc)) {
+        setCpfError('Este documento já está cadastrado no banco de extras.');
+        return false;
+      }
+    }
+
+    // Se chegou aqui, está tudo ok
+    if (!cpfExists(cpfToCheck)) {
+      setCpfError('');
+    }
+    return true;
+  };
+
+  // Validar contatos em tempo real quando os campos mudarem
+  useEffect(() => {
+    validateContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.contactNumber, formData.emergencyContactNumber, formData.ddiContact, formData.ddiEmergency]);
+
+  // Validar CPF duplicado em tempo real quando os campos mudarem
+  useEffect(() => {
+    validateCpfDuplicate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras]);
 
   const maskCpf = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -212,6 +297,18 @@ const ExtraBank: React.FC = () => {
     })).filter(g => g.extras.length > 0);
   }, [filteredExtras, sectors]);
 
+  // Validar contatos em tempo real quando os campos mudarem
+  useEffect(() => {
+    validateContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.contactNumber, formData.emergencyContactNumber, formData.ddiContact, formData.ddiEmergency]);
+
+  // Validar CPF duplicado em tempo real quando os campos mudarem
+  useEffect(() => {
+    validateCpfDuplicate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -227,6 +324,13 @@ const ExtraBank: React.FC = () => {
 
     if (!formData.isForeign && formData.cpf && !isValidCpf(formData.cpf)) {
       setCpfError('CPF inválido.');
+      return;
+    }
+
+    // Verificar CPF duplicado
+    const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
+    if (cpfToCheck && cpfExists(cpfToCheck)) {
+      setCpfError('Este CPF já está cadastrado no banco de extras.');
       return;
     }
 
@@ -479,7 +583,10 @@ const ExtraBank: React.FC = () => {
                       placeholder="Documento estrangeiro"
                       className="mt-2 w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                       value={formData.foreignDoc}
-                      onChange={(e) => setFormData({ ...formData, foreignDoc: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, foreignDoc: e.target.value });
+                        setCpfError('');
+                      }}
                     />
                   )}
                 </div>

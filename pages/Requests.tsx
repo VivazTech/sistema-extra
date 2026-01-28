@@ -9,7 +9,12 @@ import {
   Check, 
   X, 
   Printer,
-  Ban
+  Ban,
+  Clock,
+  LogIn,
+  LogOut,
+  Coffee,
+  Edit
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,7 +23,7 @@ import RequestModal from '../components/RequestModal';
 import { formatDateBR } from '../utils/date';
 
 const Requests: React.FC = () => {
-  const { requests, updateStatus } = useExtras();
+  const { requests, updateStatus, updateTimeRecord } = useExtras();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -26,6 +31,13 @@ const Requests: React.FC = () => {
   const [isRejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [editingTimeRecord, setEditingTimeRecord] = useState<{ requestId: string; workDate: string } | null>(null);
+  const [timeRecordForm, setTimeRecordForm] = useState<{
+    arrival?: string;
+    breakStart?: string;
+    breakEnd?: string;
+    departure?: string;
+  }>({});
 
 
   const filteredRequests = requests.filter(r => {
@@ -105,6 +117,102 @@ const Requests: React.FC = () => {
 
   const handleExportList = () => {
     generateListPDF(filteredRequests, `Solicitações - Filtro: ${filterStatus}`);
+  };
+
+  // Verificar se há horários não informados em um workDay
+  const hasMissingTimes = (workDay: any) => {
+    const tr = workDay.timeRecord;
+    if (!tr) return true; // Se não há timeRecord, todos estão faltando
+    return !tr.arrival || !tr.breakStart || !tr.breakEnd || !tr.departure;
+  };
+
+  // Obter campos não informados
+  const getMissingFields = (workDay: any) => {
+    const tr = workDay.timeRecord || {};
+    const missing: Array<{ field: string; label: string; icon: any }> = [];
+    
+    if (!tr.arrival) missing.push({ field: 'arrival', label: 'Chegada', icon: LogIn });
+    if (!tr.breakStart) missing.push({ field: 'breakStart', label: 'Saída p/ Intervalo', icon: Coffee });
+    if (!tr.breakEnd) missing.push({ field: 'breakEnd', label: 'Volta do Intervalo', icon: Coffee });
+    if (!tr.departure) missing.push({ field: 'departure', label: 'Saída Final', icon: LogOut });
+    
+    return missing;
+  };
+
+  // Abrir modal de edição de horários
+  const handleOpenTimeEdit = (requestId: string, workDate: string, workDay: any) => {
+    const tr = workDay.timeRecord || {};
+    setEditingTimeRecord({ requestId, workDate });
+    setTimeRecordForm({
+      arrival: tr.arrival || '',
+      breakStart: tr.breakStart || '',
+      breakEnd: tr.breakEnd || '',
+      departure: tr.departure || '',
+    });
+  };
+
+  // Salvar horários preenchidos
+  const handleSaveTimeRecord = async () => {
+    if (!editingTimeRecord || !user) return;
+
+    // Apenas ADMIN pode salvar
+    if (user.role !== 'ADMIN') {
+      alert('Apenas administradores podem preencher horários não informados.');
+      return;
+    }
+
+    try {
+      // Buscar o workDay atual para preservar campos já preenchidos
+      const request = requests.find(r => r.id === editingTimeRecord.requestId);
+      if (!request) {
+        alert('Solicitação não encontrada.');
+        return;
+      }
+
+      const workDay = request.workDays.find(d => d.date === editingTimeRecord.workDate);
+      if (!workDay) {
+        alert('Dia de trabalho não encontrado.');
+        return;
+      }
+
+      const existing = workDay.timeRecord || {};
+
+      // Criar objeto combinando campos existentes com os novos preenchidos
+      // Apenas atualizar campos que estavam vazios e foram preenchidos
+      const updatedTimeRecord: any = {
+        arrival: existing.arrival || timeRecordForm.arrival || '',
+        breakStart: existing.breakStart || timeRecordForm.breakStart || '',
+        breakEnd: existing.breakEnd || timeRecordForm.breakEnd || '',
+        departure: existing.departure || timeRecordForm.departure || '',
+        photoUrl: existing.photoUrl,
+      };
+
+      // Verificar se pelo menos um campo foi preenchido
+      const hasNewData = 
+        (!existing.arrival && timeRecordForm.arrival) ||
+        (!existing.breakStart && timeRecordForm.breakStart) ||
+        (!existing.breakEnd && timeRecordForm.breakEnd) ||
+        (!existing.departure && timeRecordForm.departure);
+
+      if (!hasNewData) {
+        alert('Preencha pelo menos um horário que está faltando.');
+        return;
+      }
+
+      await updateTimeRecord(
+        editingTimeRecord.requestId,
+        editingTimeRecord.workDate,
+        updatedTimeRecord,
+        user.name || 'Admin'
+      );
+
+      setEditingTimeRecord(null);
+      setTimeRecordForm({});
+      alert('Horários salvos com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar horários:', error);
+      alert('Erro ao salvar horários. Verifique o console para mais detalhes.');
+    }
   };
 
   return (
@@ -220,79 +328,102 @@ const Requests: React.FC = () => {
                   const tr = workDay.timeRecord;
                   const hasTimes = !!(tr?.arrival || tr?.breakStart || tr?.breakEnd || tr?.departure);
                   const hasPhoto = !!tr?.photoUrl;
+                  const hasMissing = hasMissingTimes(workDay);
+                  const missingFields = getMissingFields(workDay);
 
                   return (
-                    <div key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${zebra} p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4`}>
-                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
-                          <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
-                          <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] font-bold text-gray-500 uppercase">Portaria</div>
-                          <div className="text-xs text-gray-700">
-                            {hasTimes ? (
-                              <span className="font-semibold">
-                                {tr?.arrival || '—'} • {tr?.breakStart || '—'} • {tr?.breakEnd || '—'} • {tr?.departure || '—'}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">Sem horários</span>
+                    <div key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${zebra} p-4 sm:p-5`}>
+                      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
+                            <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
+                            <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-500 uppercase">Portaria</div>
+                            <div className="text-xs text-gray-700">
+                              {hasTimes ? (
+                                <span className="font-semibold">
+                                  {tr?.arrival || '—'} • {tr?.breakStart || '—'} • {tr?.breakEnd || '—'} • {tr?.departure || '—'}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">Sem horários</span>
+                              )}
+                              {hasPhoto && <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Foto</span>}
+                            </div>
+                            {hasMissing && (
+                              <div className="mt-1">
+                                <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                  Horários não informados
+                                </span>
+                              </div>
                             )}
-                            {hasPhoto && <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Foto</span>}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-wrap items-center gap-2 justify-end">
-                        {/* Aprovar/Reprovar por dia (ação aplicada na solicitação, mas disponível em cada dia) */}
-                        {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
-                          <>
+                        <div className="flex flex-wrap items-center gap-2 justify-end">
+                          {/* Botão para preencher horários não informados (apenas ADMIN) */}
+                          {hasMissing && user?.role === 'ADMIN' && (
                             <button
-                              onClick={() => handleApprove(req.id)}
-                              className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
-                              title="Aprovar"
+                              onClick={() => handleOpenTimeEdit(req.id, workDay.date, workDay)}
+                              className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs"
+                              title="Preencher horários não informados"
                             >
-                              <Check size={16} />
-                              Aprovar
+                              <Edit size={16} />
+                              Preencher Horários
                             </button>
+                          )}
+
+                          {/* Aprovar/Reprovar por dia (ação aplicada na solicitação, mas disponível em cada dia) */}
+                          {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(req.id)}
+                                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
+                                title="Aprovar"
+                              >
+                                <Check size={16} />
+                                Aprovar
+                              </button>
+                              <button
+                                onClick={() => handleOpenReject(req.id)}
+                                className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
+                                title="Reprovar"
+                              >
+                                <X size={16} />
+                                Reprovar
+                              </button>
+                            </>
+                          )}
+
+                          {/* Imprimir por dia */}
+                          {req.status === 'APROVADO' && (
                             <button
-                              onClick={() => handleOpenReject(req.id)}
-                              className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
-                              title="Reprovar"
+                              onClick={() => handlePrintDay(req, workDay)}
+                              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
+                              title="Imprimir PDF do dia"
                             >
-                              <X size={16} />
-                              Reprovar
+                              <Printer size={16} />
+                              Imprimir dia
                             </button>
-                          </>
-                        )}
+                          )}
 
-                        {/* Imprimir por dia */}
-                        {req.status === 'APROVADO' && (
-                          <button
-                            onClick={() => handlePrintDay(req, workDay)}
-                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
-                            title="Imprimir PDF do dia"
-                          >
-                            <Printer size={16} />
-                            Imprimir dia
-                          </button>
-                        )}
-
-                        {/* Cancelar (líder) */}
-                        {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
-                          <button
-                            onClick={() => handleCancel(req.id)}
-                            className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
-                            title="Cancelar"
-                          >
-                            <Ban size={16} />
-                            Cancelar
-                          </button>
-                        )}
+                          {/* Cancelar (líder) */}
+                          {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
+                            <button
+                              onClick={() => handleCancel(req.id)}
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
+                              title="Cancelar"
+                            >
+                              <Ban size={16} />
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -321,6 +452,163 @@ const Requests: React.FC = () => {
               <button onClick={() => setRejectModalOpen(false)} className="flex-1 py-2 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200">Voltar</button>
               <button onClick={submitReject} className="flex-1 py-2 font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-md">Confirmar Reprovação</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Horários Não Informados */}
+      {editingTimeRecord && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Preencher Horários Não Informados</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Preencha apenas os horários que estão em branco
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingTimeRecord(null);
+                  setTimeRecordForm({});
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {(() => {
+              const request = requests.find(r => r.id === editingTimeRecord.requestId);
+              const workDay = request?.workDays.find(d => d.date === editingTimeRecord.workDate);
+              const missingFields = workDay ? getMissingFields(workDay) : [];
+              const tr = workDay?.timeRecord || {};
+
+              return (
+                <div className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                    <div className="flex items-center gap-2 text-amber-800">
+                      <Clock size={18} />
+                      <span className="text-sm font-bold">
+                        Preencha os horários que estão faltando para o dia {formatDateBR(editingTimeRecord.workDate)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Chegada */}
+                    <div className={`p-4 rounded-xl border ${!tr.arrival ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <LogIn size={16} className={!tr.arrival ? 'text-amber-600' : 'text-gray-400'} />
+                        Chegada
+                        {!tr.arrival && <span className="text-xs text-amber-600 font-bold">(Não informado)</span>}
+                      </label>
+                      <input
+                        type="time"
+                        value={timeRecordForm.arrival || ''}
+                        onChange={(e) => setTimeRecordForm({ ...timeRecordForm, arrival: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
+                          !tr.arrival 
+                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
+                            : 'border-gray-200 focus:ring-gray-400 bg-white'
+                        }`}
+                        disabled={!!tr.arrival}
+                      />
+                      {tr.arrival && (
+                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.arrival}</p>
+                      )}
+                    </div>
+
+                    {/* Saída para Intervalo */}
+                    <div className={`p-4 rounded-xl border ${!tr.breakStart ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <Coffee size={16} className={!tr.breakStart ? 'text-amber-600' : 'text-gray-400'} />
+                        Saída p/ Intervalo
+                        {!tr.breakStart && <span className="text-xs text-amber-600 font-bold">(Não informado)</span>}
+                      </label>
+                      <input
+                        type="time"
+                        value={timeRecordForm.breakStart || ''}
+                        onChange={(e) => setTimeRecordForm({ ...timeRecordForm, breakStart: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
+                          !tr.breakStart 
+                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
+                            : 'border-gray-200 focus:ring-gray-400 bg-white'
+                        }`}
+                        disabled={!!tr.breakStart}
+                      />
+                      {tr.breakStart && (
+                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.breakStart}</p>
+                      )}
+                    </div>
+
+                    {/* Volta do Intervalo */}
+                    <div className={`p-4 rounded-xl border ${!tr.breakEnd ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <Coffee size={16} className={!tr.breakEnd ? 'text-amber-600' : 'text-gray-400'} />
+                        Volta do Intervalo
+                        {!tr.breakEnd && <span className="text-xs text-amber-600 font-bold">(Não informado)</span>}
+                      </label>
+                      <input
+                        type="time"
+                        value={timeRecordForm.breakEnd || ''}
+                        onChange={(e) => setTimeRecordForm({ ...timeRecordForm, breakEnd: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
+                          !tr.breakEnd 
+                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
+                            : 'border-gray-200 focus:ring-gray-400 bg-white'
+                        }`}
+                        disabled={!!tr.breakEnd}
+                      />
+                      {tr.breakEnd && (
+                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.breakEnd}</p>
+                      )}
+                    </div>
+
+                    {/* Saída Final */}
+                    <div className={`p-4 rounded-xl border ${!tr.departure ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                        <LogOut size={16} className={!tr.departure ? 'text-amber-600' : 'text-gray-400'} />
+                        Saída Final
+                        {!tr.departure && <span className="text-xs text-amber-600 font-bold">(Não informado)</span>}
+                      </label>
+                      <input
+                        type="time"
+                        value={timeRecordForm.departure || ''}
+                        onChange={(e) => setTimeRecordForm({ ...timeRecordForm, departure: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
+                          !tr.departure 
+                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
+                            : 'border-gray-200 focus:ring-gray-400 bg-white'
+                        }`}
+                        disabled={!!tr.departure}
+                      />
+                      {tr.departure && (
+                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.departure}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setEditingTimeRecord(null);
+                        setTimeRecordForm({});
+                      }}
+                      className="flex-1 py-3 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveTimeRecord}
+                      className="flex-1 py-3 font-bold text-white bg-amber-600 rounded-xl hover:bg-amber-700 shadow-md transition-colors"
+                    >
+                      Salvar Horários
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
