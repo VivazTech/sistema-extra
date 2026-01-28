@@ -16,22 +16,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: false,
   });
   const [loading, setLoading] = useState(true);
+  const [debugStep, setDebugStep] = useState<string>('init');
+  const [debugStartedAt] = useState<number>(() => Date.now());
+
+  const debugEnabled = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const search = new URLSearchParams(window.location.search);
+      if (search.get('debug') === '1') return true;
+      // HashRouter: query pode estar dentro do hash (/#/rota?debug=1)
+      const hash = window.location.hash || '';
+      const qIndex = hash.indexOf('?');
+      if (qIndex >= 0) {
+        const hashQuery = new URLSearchParams(hash.slice(qIndex + 1));
+        if (hashQuery.get('debug') === '1') return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  })();
 
   // Verificar sessão existente ao carregar
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:start',message:'checkSession start',data:{loadingBefore:true},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        // Fallback (caso o envio de logs para 127.0.0.1 esteja bloqueado no navegador)
+        console.info('[AGENT_DEBUG][A] checkSession:start');
+        setDebugStep('checkSession:start');
         const { data: { session } } = await supabase.auth.getSession();
-        
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:gotSession',message:'checkSession gotSession',data:{hasSession:!!session,hasSessionUser:!!session?.user,eventUserRole:session?.user?undefined:undefined},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        console.info('[AGENT_DEBUG][A] checkSession:gotSession', { hasSession: !!session, hasSessionUser: !!session?.user });
+        setDebugStep(`checkSession:gotSession hasUser=${!!session?.user}`);
+
         if (session?.user) {
           // Buscar dados do usuário na tabela users
+          setDebugStep('checkSession:hasSessionUser -> loadUserData');
           await loadUserData(session.user.id);
         } else {
           setLoading(false);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'context/AuthContext.tsx:checkSession:noSession',message:'checkSession noSession -> setLoading(false)',data:{},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+          setDebugStep('checkSession:noSession -> setLoading(false)');
         }
       } catch (error) {
         console.error('Erro ao verificar sessão:', error);
         setLoading(false);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:catch',message:'checkSession catch -> setLoading(false)',data:{errorName:(error as any)?.name,errorMessage:(error as any)?.message},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        setDebugStep(`checkSession:catch ${(error as any)?.name || 'Error'}`);
       }
     };
 
@@ -39,6 +80,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Ouvir mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'context/AuthContext.tsx:onAuthStateChange',message:'onAuthStateChange',data:{event,hasSession:!!session,hasSessionUser:!!session?.user},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      console.info('[AGENT_DEBUG][C] onAuthStateChange', { event, hasSessionUser: !!session?.user });
+      setDebugStep(`onAuthStateChange:${event} hasUser=${!!session?.user}`);
       if (event === 'SIGNED_IN' && session?.user) {
         await loadUserData(session.user.id);
       } else if (event === 'SIGNED_OUT') {
@@ -54,6 +100,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserData = async (authUserId: string) => {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:start',message:'loadUserData start',data:{hasAuthUserId:!!authUserId},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      console.info('[AGENT_DEBUG][B] loadUserData:start', { hasAuthUserId: !!authUserId });
+      setDebugStep('loadUserData:start');
       // Buscar usuário na tabela users pelo ID do Auth (que deve ser o mesmo)
       let { data: userData, error } = await supabase
         .from('users')
@@ -61,6 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', authUserId)
         .eq('active', true)
         .single();
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:usersQuery',message:'loadUserData usersQuery result',data:{hasUserData:!!userData,errorCode:(error as any)?.code,errorMessage:(error as any)?.message},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      console.info('[AGENT_DEBUG][B] loadUserData:usersQuery', { hasUserData: !!userData, errorCode: (error as any)?.code, hasError: !!error });
+      setDebugStep(`loadUserData:usersQuery hasUser=${!!userData} err=${(error as any)?.code || 'none'}`);
 
       // Se não encontrou pelo ID, tentar buscar pelo email do Auth
       if (error && error.code === 'PGRST116') {
@@ -91,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Execute o script: node scripts/create-admin-user.js');
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
+        setDebugStep('loadUserData:notFound -> setLoading(false)');
         return;
       }
 
@@ -129,10 +187,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Ignorar erros de localStorage (pode estar desabilitado)
       }
       setLoading(false);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:success',message:'loadUserData success -> setLoading(false)',data:{userRole:user.role,isAuthenticated:true},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      setDebugStep('loadUserData:success -> setLoading(false)');
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
       setState({ user: null, isAuthenticated: false });
       setLoading(false);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:catch',message:'loadUserData catch -> setLoading(false)',data:{errorName:(error as any)?.name,errorMessage:(error as any)?.message},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      setDebugStep(`loadUserData:catch ${(error as any)?.name || 'Error'}`);
     }
   };
 
@@ -253,6 +319,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Carregando...</p>
+          {debugEnabled ? (
+            <div className="mt-3 text-xs text-gray-500 font-mono space-y-1">
+              <div>debugStep: {debugStep}</div>
+              <div>elapsed: {Math.floor((Date.now() - debugStartedAt) / 1000)}s</div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
