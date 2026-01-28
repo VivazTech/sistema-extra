@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
+import { AccessPageKey } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -30,15 +31,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/', page: 'dashboard' },
-    { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', page: 'requests' },
-    { icon: Clock, label: 'Portaria', path: '/portaria', page: 'portaria' },
-    { icon: Monitor, label: 'Painel 24h', path: '/tv', page: 'tv' },
-    { icon: FileText, label: 'Relatórios', path: '/relatorios', page: 'reports' },
-    { icon: Users, label: 'Usuários', path: '/admin/usuarios', page: 'users' },
-    { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', page: 'saldo' },
-    { icon: Database, label: 'Banco de Extras', path: '/admin/extras', page: 'extras' },
-    { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', page: 'catalogs' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/', page: 'dashboard' as AccessPageKey },
+    { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', page: 'requests' as AccessPageKey },
+    { icon: Clock, label: 'Portaria', path: '/portaria', page: 'portaria' as AccessPageKey },
+    { icon: Monitor, label: 'Painel 24h', path: '/tv', page: 'tv' as AccessPageKey },
+    { icon: FileText, label: 'Relatórios', path: '/relatorios', page: 'reports' as AccessPageKey },
+    { icon: Users, label: 'Usuários', path: '/admin/usuarios', page: 'users' as AccessPageKey },
+    { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', page: 'saldo' as AccessPageKey },
+    { icon: Database, label: 'Banco de Extras', path: '/admin/extras', page: 'extras' as AccessPageKey },
+    { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', page: 'catalogs' as AccessPageKey },
   ].filter(item => (user ? hasPageAccess(user.role, item.page) : false));
 
   const activeItem = menuItems.find(item => item.path === location.pathname) || menuItems[0];
@@ -60,12 +61,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-0 z-40 transform md:relative md:translate-x-0 transition-transform duration-300 ease-in-out
-        w-64 bg-emerald-950 text-white flex flex-col shadow-xl
+        fixed inset-0 z-40 transform md:fixed md:translate-x-0 transition-transform duration-300 ease-in-out
+        w-64 bg-emerald-950 text-white flex flex-col shadow-xl h-screen
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
+        <div className="p-6 flex-1 flex flex-col min-h-0">
+          <div className="flex items-center gap-3 mb-8 flex-shrink-0">
             <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white">V</div>
             <div>
               <h1 className="font-bold text-sm tracking-widest uppercase">Vivaz Resort</h1>
@@ -73,7 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
 
-          <nav className="space-y-1">
+          <nav className="space-y-1 flex-1 overflow-y-auto">
             {menuItems.map((item) => (
               <button
                 key={item.path}
@@ -90,7 +91,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </nav>
         </div>
 
-        <div className="mt-auto p-6 border-t border-emerald-900">
+        <div className="p-6 border-t border-emerald-900 flex-shrink-0">
           <div className="mb-4">
             <p className="text-xs text-emerald-500 uppercase font-bold tracking-tighter mb-1">Usuário</p>
             <p className="text-sm font-semibold truncate">{user.name}</p>
