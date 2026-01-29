@@ -60,25 +60,38 @@ export const mapExtraPerson = (dbExtra: any): ExtraPerson => ({
   createdAt: dbExtra.created_at,
 });
 
+// Normalizar TIME do Postgres (HH:MM:SS ou HH:MM:SS.ms) para HH:MM (input type="time")
+const normalizeTime = (v: unknown): string | undefined => {
+  if (v == null || v === '') return undefined;
+  const s = String(v).trim();
+  if (!s) return undefined;
+  return s.slice(0, 5);
+};
+
 // Converter ExtraRequest do Supabase (com work_days e time_records)
 export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest => {
   const mappedWorkDays: WorkDay[] = (workDays || []).map((wd: any) => {
-    const timeRecord = Array.isArray(wd.time_records) && wd.time_records.length > 0 
-      ? wd.time_records[0] 
-      : wd.time_records;
-    
+    const raw = wd.time_records ?? wd.time_record;
+    const timeRecord = Array.isArray(raw) && raw.length > 0
+      ? raw[0]
+      : raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw
+        : null;
+
     return {
       date: wd.work_date,
       shift: wd.shift,
-      timeRecord: timeRecord ? {
-        arrival: timeRecord.arrival,
-        breakStart: timeRecord.break_start,
-        breakEnd: timeRecord.break_end,
-        departure: timeRecord.departure,
-        photoUrl: timeRecord.photo_url,
-        registeredBy: timeRecord.registered_by,
-        registeredAt: timeRecord.registered_at,
-      } : undefined,
+      timeRecord: timeRecord && (timeRecord.arrival != null || timeRecord.break_start != null || timeRecord.break_end != null || timeRecord.departure != null || timeRecord.photo_url != null)
+        ? {
+            arrival: normalizeTime(timeRecord.arrival) ?? undefined,
+            breakStart: normalizeTime(timeRecord.break_start) ?? undefined,
+            breakEnd: normalizeTime(timeRecord.break_end) ?? undefined,
+            departure: normalizeTime(timeRecord.departure) ?? undefined,
+            photoUrl: timeRecord.photo_url ?? undefined,
+            registeredBy: timeRecord.registered_by,
+            registeredAt: timeRecord.registered_at,
+          }
+        : undefined,
     };
   });
 

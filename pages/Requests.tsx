@@ -333,16 +333,16 @@ const Requests: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dias (cada dia com ações próprias); "Ver mais" para expandir todos */}
+              {/* Dias (cada dia com ações próprias); "Ver mais" em todos os grupos */}
               {(() => {
                 const totalDays = req.workDays.length;
                 const initialVisible = 2;
                 const isExpanded = expandedGroups.has(req.id);
-                const showVerMais = totalDays > initialVisible;
-                const visibleDays = showVerMais && !isExpanded
+                const showVerMais = totalDays >= 1;
+                const visibleDays = totalDays > initialVisible && !isExpanded
                   ? req.workDays.slice(0, initialVisible)
                   : req.workDays;
-                const hiddenCount = totalDays - initialVisible;
+                const hiddenCount = totalDays > initialVisible ? totalDays - initialVisible : 0;
 
                 return (
                   <div className="divide-y divide-gray-100">
@@ -481,7 +481,7 @@ const Requests: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => toggleGroupExpanded(req.id)}
-                          className="flex items-center justify-center gap-2 w-full py-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
+                          className="flex items-center justify-start gap-2 w-full py-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
                         >
                           {isExpanded ? (
                             <>
@@ -491,7 +491,9 @@ const Requests: React.FC = () => {
                           ) : (
                             <>
                               Ver mais
-                              <span className="text-gray-500 font-normal">({hiddenCount} {hiddenCount === 1 ? 'dia' : 'dias'})</span>
+                              {hiddenCount > 0 && (
+                                <span className="text-gray-500 font-normal">({hiddenCount} {hiddenCount === 1 ? 'dia' : 'dias'})</span>
+                              )}
                               <ChevronDown size={18} className="shrink-0" />
                             </>
                           )}
