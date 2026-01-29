@@ -333,16 +333,12 @@ const Requests: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dias (cada dia com ações próprias); "Ver mais" em todos os grupos */}
+              {/* Dias (cada dia com ações próprias); ocultos até clicar em "Ver dias" */}
               {(() => {
                 const totalDays = req.workDays.length;
-                const initialVisible = 2;
                 const isExpanded = expandedGroups.has(req.id);
-                const showVerMais = totalDays >= 1;
-                const visibleDays = totalDays > initialVisible && !isExpanded
-                  ? req.workDays.slice(0, initialVisible)
-                  : req.workDays;
-                const hiddenCount = totalDays > initialVisible ? totalDays - initialVisible : 0;
+                const showVerDias = totalDays >= 1;
+                const visibleDays = isExpanded ? req.workDays : [];
 
                 return (
                   <div className="divide-y divide-gray-100">
@@ -476,7 +472,7 @@ const Requests: React.FC = () => {
                       );
                     })}
 
-                    {showVerMais && (
+                    {showVerDias && (
                       <div className="bg-gray-50/80 p-3 border-t border-gray-100">
                         <button
                           type="button"
@@ -485,15 +481,13 @@ const Requests: React.FC = () => {
                         >
                           {isExpanded ? (
                             <>
-                              Ver menos
+                              Ocultar dias
                               <ChevronUp size={18} className="shrink-0" />
                             </>
                           ) : (
                             <>
-                              Ver mais
-                              {hiddenCount > 0 && (
-                                <span className="text-gray-500 font-normal">({hiddenCount} {hiddenCount === 1 ? 'dia' : 'dias'})</span>
-                              )}
+                              Ver dias
+                              <span className="text-gray-500 font-normal">({totalDays} {totalDays === 1 ? 'dia' : 'dias'})</span>
                               <ChevronDown size={18} className="shrink-0" />
                             </>
                           )}
