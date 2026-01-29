@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -9,6 +9,7 @@ import {
   mapSector, 
   mapRequester, 
   mapReason, 
+  mapShift,
   mapExtraPerson, 
   mapExtraRequest, 
   mapExtraSaldoRecord, 
@@ -20,6 +21,7 @@ interface ExtraContextType {
   sectors: Sector[];
   requesters: RequesterItem[];
   reasons: ReasonItem[];
+  shifts: ShiftItem[];
   extras: ExtraPerson[];
   extraSaldoRecords: ExtraSaldoRecord[];
   extraSaldoSettings: ExtraSaldoSettings;
@@ -36,6 +38,9 @@ interface ExtraContextType {
   addReason: (reason: ReasonItem) => Promise<ReasonItem | null>;
   updateReason: (id: string, reason: ReasonItem) => Promise<void>;
   deleteReason: (id: string) => Promise<void>;
+  addShift: (shift: ShiftItem) => Promise<ShiftItem | null>;
+  updateShift: (id: string, shift: ShiftItem) => Promise<void>;
+  deleteShift: (id: string) => Promise<void>;
   addExtra: (extra: ExtraPerson) => void;
   deleteExtra: (id: string) => void;
   addExtraSaldoRecord: (input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
@@ -59,6 +64,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [sectors, setSectors] = useState<Sector[]>([]); // Carregado apenas do banco
   const [requesters, setRequesters] = useState<RequesterItem[]>([]); // Carregado apenas do banco
   const [reasons, setReasons] = useState<ReasonItem[]>([]); // Carregado apenas do banco
+  const [shifts, setShifts] = useState<ShiftItem[]>([]); // Carregado apenas do banco
   const [extras, setExtras] = useState<ExtraPerson[]>([]);
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
@@ -134,6 +140,18 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (!reasonsError && reasonsData) {
           setReasons(reasonsData.map(mapReason));
+        }
+
+        // Carregar Turnos
+        const { data: shiftsData, error: shiftsError } = await supabase
+          .from('shifts')
+          .select('*')
+          .eq('active', true)
+          .order('display_order', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (!shiftsError && shiftsData) {
+          setShifts(shiftsData.map(mapShift));
         }
 
         // Carregar Solicitações com work_days e time_records
@@ -936,6 +954,61 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const addShift = async (shift: ShiftItem): Promise<ShiftItem | null> => {
+    try {
+      const { data: newShift, error } = await supabase
+        .from('shifts')
+        .insert({
+          name: shift.name,
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (error || !newShift) {
+        console.error('Erro ao criar turno:', error);
+        return null;
+      }
+
+      const mappedShift = mapShift(newShift);
+      setShifts(prev => [...prev, mappedShift]);
+      return mappedShift;
+    } catch (error) {
+      console.error('Erro ao adicionar turno:', error);
+      return null;
+    }
+  };
+
+  const updateShift = async (id: string, shift: ShiftItem) => {
+    try {
+      const { error } = await supabase
+        .from('shifts')
+        .update({ name: shift.name, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao atualizar turno:', error);
+        return;
+      }
+      setShifts(prev => prev.map(s => s.id === id ? { ...shift, id } : s));
+    } catch (error) {
+      console.error('Erro ao atualizar turno:', error);
+    }
+  };
+
+  const deleteShift = async (id: string) => {
+    try {
+      const { error } = await supabase.from('shifts').update({ active: false }).eq('id', id);
+      if (error) {
+        console.error('Erro ao deletar turno:', error);
+        return;
+      }
+      setShifts(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Erro ao deletar turno:', error);
+    }
+  };
+
   const addExtra = async (extra: ExtraPerson) => {
     try {
       // Buscar ID do setor
@@ -1710,6 +1783,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       sectors: visibleSectors,
       requesters,
       reasons,
+      shifts,
       extras: visibleExtras,
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
@@ -1718,6 +1792,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,
+      addShift, updateShift, deleteShift,
       addExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,

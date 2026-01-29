@@ -56,6 +56,11 @@ export interface ReasonItem {
   name: string;
 }
 
+export interface ShiftItem {
+  id: string;
+  name: string;
+}
+
 export type RequestStatus = 'SOLICITADO' | 'APROVADO' | 'REPROVADO' | 'CANCELADO';
 
 export interface TimeRecord {
@@ -70,7 +75,7 @@ export interface TimeRecord {
 
 export interface WorkDay {
   date: string;
-  shift: 'Manhã' | 'Tarde' | 'Noite' | 'Madrugada';
+  shift: string;
   timeRecord?: TimeRecord;
 }
 

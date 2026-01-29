@@ -8,6 +8,7 @@ import {
   Sector, 
   RequesterItem, 
   ReasonItem, 
+  ShiftItem,
   ExtraPerson,
   ExtraSaldoRecord,
   ExtraSaldoSettings,
@@ -38,6 +39,12 @@ export const mapRequester = (dbRequester: any): RequesterItem => ({
 export const mapReason = (dbReason: any): ReasonItem => ({
   id: dbReason.id,
   name: dbReason.name,
+});
+
+// Converter ShiftItem do Supabase
+export const mapShift = (dbShift: any): ShiftItem => ({
+  id: dbShift.id,
+  name: dbShift.name,
 });
 
 // Converter ExtraPerson do Supabase

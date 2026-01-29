@@ -19,18 +19,20 @@ const getTodayDateString = () => {
 };
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
-  const { sectors, requesters, reasons, extras, addRequest, getSaldoForWeek } = useExtras();
+  const { sectors, requesters, reasons, shifts, extras, addRequest, getSaldoForWeek } = useExtras();
   const { user } = useAuth();
   const todayStr = getTodayDateString();
+  const shiftOptions = shifts.length > 0 ? shifts.map(s => s.name) : [...SHIFTS];
+  const defaultShift = shiftOptions[0] || 'Manhã';
+
   const [isSaving, setIsSaving] = useState(false);
-  
   const [formData, setFormData] = useState({
     sector: '',
     role: '',
     workDays: [
       {
         date: todayStr,
-        shift: 'Manhã' as any,
+        shift: defaultShift,
       },
     ],
     requester: '',
@@ -77,7 +79,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     
     const lastDay = formData.workDays[formData.workDays.length - 1];
     const nextDate = lastDay?.date ? addDays(lastDay.date, 1) : new Date().toISOString().split('T')[0];
-    const nextShift = lastDay?.shift || 'Manhã';
+    const nextShift = lastDay?.shift || defaultShift;
     setFormData({
       ...formData,
       workDays: [...formData.workDays, { date: nextDate, shift: nextShift }],
@@ -101,6 +103,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
+      const initialShift = shiftOptions[0] || 'Manhã';
       setFormData(prev => ({
         ...prev,
         sector: '',
@@ -108,12 +111,12 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         workDays: [
           {
             date: todayStr,
-            shift: 'Manhã' as any,
+            shift: initialShift,
           },
         ],
       }));
     }
-  }, [isOpen, todayStr]);
+  }, [isOpen, todayStr, shiftOptions.join(',')]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,7 +147,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         role: '',
         workDays: [{
           date: todayStr,
-          shift: 'Manhã' as any,
+          shift: defaultShift,
         }],
         requester: '',
         reason: '',
@@ -299,7 +302,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                         value={day.shift}
                         onChange={(e) => handleUpdateDay(idx, 'shift', e.target.value)}
                       >
-                        {SHIFTS.map(s => <option key={s} value={s}>{s}</option>)}
+                        {shiftOptions.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                     <div className="flex items-center justify-end">

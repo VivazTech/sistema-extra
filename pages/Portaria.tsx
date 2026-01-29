@@ -46,19 +46,26 @@ const Portaria: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Filtrar solicitações aprovadas por período
+  // Filtrar solicitações aprovadas por período (só aparecem as que ainda têm dia incompleto)
   const periodExtras = useMemo(() => {
     const startDate = dateStart || todayStr;
     const endDate = dateEnd || todayStr;
-    
+
     return requests.filter(req => {
       if (req.status !== 'APROVADO') return false;
-      
-      // Verificar se algum dia de trabalho está no período
-      return req.workDays.some(day => {
+
+      const inPeriod = req.workDays.some(day => {
         const dayDate = day.date;
         return dayDate >= startDate && dayDate <= endDate;
       });
+      if (!inPeriod) return false;
+
+      const hasIncomplete = req.workDays.some(day => {
+        if (day.date < startDate || day.date > endDate) return false;
+        const tr = day.timeRecord;
+        return !(tr?.arrival && tr?.departure && tr?.photoUrl);
+      });
+      return hasIncomplete;
     });
   }, [requests, dateStart, dateEnd, todayStr]);
 
@@ -182,9 +189,20 @@ const Portaria: React.FC = () => {
     return !!(timeRecord.arrival && timeRecord.breakStart && timeRecord.breakEnd && timeRecord.departure);
   };
 
+  // Campo de horário já foi registrado (salvo no banco) e não pode mais ser alterado
+  const isTimeFieldLocked = (
+    request: ExtraRequest,
+    workDate: string,
+    field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure'
+  ) => {
+    const tr = getTimeRecord(request, workDate);
+    return field in tr;
+  };
+
   const [capturingPhoto, setCapturingPhoto] = useState<string | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoSaveSuccessKey, setPhotoSaveSuccessKey] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -365,9 +383,11 @@ const Portaria: React.FC = () => {
       };
 
       await updateTimeRecord(requestId, workDate, updatedTimeRecord, user?.name || 'Portaria');
-      
+
       setPhotoPreview(null);
       setCapturedPhoto(`${requestId}-${workDate}`);
+      setPhotoSaveSuccessKey(`${requestId}-${workDate}`);
+      setTimeout(() => setPhotoSaveSuccessKey(null), 3000);
     } catch (error) {
       console.error('Erro ao salvar foto:', error);
       alert('Erro ao salvar foto. Tente novamente.');
@@ -644,18 +664,20 @@ const Portaria: React.FC = () => {
                         <span className="text-xs font-bold uppercase">Pendente</span>
                       </div>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${formatDateBR(workDayDate)}?`)) {
-                          removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-md"
-                      title="Marcar como faltou"
-                    >
-                      FALTOU
-                    </button>
+                    {!timeRecord.arrival && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${formatDateBR(workDayDate)}?`)) {
+                            removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
+                          }
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-md"
+                        title="Marcar como faltou"
+                      >
+                        FALTOU
+                      </button>
+                    )}
                     {isExpanded ? (
                       <ChevronUp className="text-gray-400" size={20} />
                     ) : (
@@ -674,167 +696,187 @@ const Portaria: React.FC = () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         {/* Chegada */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
+                        <div className={`bg-white p-4 rounded-xl border ${isTimeFieldLocked(request, workDayDate, 'arrival') ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200'}`}>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                             <LogIn size={16} className="text-emerald-600" />
                             Chegada
+                            {isTimeFieldLocked(request, workDayDate, 'arrival') && (
+                              <span className="text-xs font-normal text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">Registrado</span>
+                            )}
                           </label>
                           <input
                             type="time"
                             value={timeRecord.arrival || ''}
                             onChange={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'arrival')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'arrival', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'arrival', value);
                             }}
                             onBlur={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'arrival')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'arrival', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'arrival', value);
                             }}
-                            className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                            readOnly={isTimeFieldLocked(request, workDayDate, 'arrival')}
+                            disabled={isTimeFieldLocked(request, workDayDate, 'arrival')}
+                            className={`w-full px-4 py-3 rounded-lg border text-gray-900 font-bold text-lg outline-none ${isTimeFieldLocked(request, workDayDate, 'arrival') ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500'}`}
                           />
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleRegisterTime(request.id, workDayDate, 'arrival')}
-                              className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase hover:bg-emerald-700 transition-colors"
-                            >
-                              Registrar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleNotInformed(request.id, workDayDate, 'arrival', 'Chegada')}
-                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
-                            >
-                              Não informado
-                            </button>
-                          </div>
+                          {!isTimeFieldLocked(request, workDayDate, 'arrival') && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleRegisterTime(request.id, workDayDate, 'arrival')}
+                                className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase hover:bg-emerald-700 transition-colors"
+                              >
+                                Registrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleNotInformed(request.id, workDayDate, 'arrival', 'Chegada')}
+                                className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                              >
+                                Não informado
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Saída para Intervalo */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
+                        <div className={`bg-white p-4 rounded-xl border ${isTimeFieldLocked(request, workDayDate, 'breakStart') ? 'border-amber-200 bg-amber-50/30' : 'border-gray-200'}`}>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                             <Coffee size={16} className="text-amber-600" />
                             Saída p/ Intervalo
+                            {isTimeFieldLocked(request, workDayDate, 'breakStart') && (
+                              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Registrado</span>
+                            )}
                           </label>
                           <input
                             type="time"
                             value={timeRecord.breakStart || ''}
                             onChange={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'breakStart')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'breakStart', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'breakStart', value);
                             }}
                             onBlur={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'breakStart')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'breakStart', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'breakStart', value);
                             }}
-                            className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                            readOnly={isTimeFieldLocked(request, workDayDate, 'breakStart')}
+                            disabled={isTimeFieldLocked(request, workDayDate, 'breakStart')}
+                            className={`w-full px-4 py-3 rounded-lg border text-gray-900 font-bold text-lg outline-none ${isTimeFieldLocked(request, workDayDate, 'breakStart') ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500'}`}
                           />
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleRegisterTime(request.id, workDayDate, 'breakStart')}
-                              className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold uppercase hover:bg-amber-700 transition-colors"
-                            >
-                              Registrar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleNotInformed(request.id, workDayDate, 'breakStart', 'Saída p/ Intervalo')}
-                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
-                            >
-                              Não informado
-                            </button>
-                          </div>
+                          {!isTimeFieldLocked(request, workDayDate, 'breakStart') && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleRegisterTime(request.id, workDayDate, 'breakStart')}
+                                className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold uppercase hover:bg-amber-700 transition-colors"
+                              >
+                                Registrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleNotInformed(request.id, workDayDate, 'breakStart', 'Saída p/ Intervalo')}
+                                className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                              >
+                                Não informado
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Volta do Intervalo */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
+                        <div className={`bg-white p-4 rounded-xl border ${isTimeFieldLocked(request, workDayDate, 'breakEnd') ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200'}`}>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                             <Coffee size={16} className="text-emerald-600" />
                             Volta do Intervalo
+                            {isTimeFieldLocked(request, workDayDate, 'breakEnd') && (
+                              <span className="text-xs font-normal text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">Registrado</span>
+                            )}
                           </label>
                           <input
                             type="time"
                             value={timeRecord.breakEnd || ''}
                             onChange={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'breakEnd')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'breakEnd', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'breakEnd', value);
                             }}
                             onBlur={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'breakEnd')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'breakEnd', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'breakEnd', value);
                             }}
-                            className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                            readOnly={isTimeFieldLocked(request, workDayDate, 'breakEnd')}
+                            disabled={isTimeFieldLocked(request, workDayDate, 'breakEnd')}
+                            className={`w-full px-4 py-3 rounded-lg border text-gray-900 font-bold text-lg outline-none ${isTimeFieldLocked(request, workDayDate, 'breakEnd') ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500'}`}
                           />
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleRegisterTime(request.id, workDayDate, 'breakEnd')}
-                              className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase hover:bg-emerald-700 transition-colors"
-                            >
-                              Registrar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleNotInformed(request.id, workDayDate, 'breakEnd', 'Volta do Intervalo')}
-                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
-                            >
-                              Não informado
-                            </button>
-                          </div>
+                          {!isTimeFieldLocked(request, workDayDate, 'breakEnd') && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleRegisterTime(request.id, workDayDate, 'breakEnd')}
+                                className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase hover:bg-emerald-700 transition-colors"
+                              >
+                                Registrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleNotInformed(request.id, workDayDate, 'breakEnd', 'Volta do Intervalo')}
+                                className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                              >
+                                Não informado
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Saída Final */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
+                        <div className={`bg-white p-4 rounded-xl border ${isTimeFieldLocked(request, workDayDate, 'departure') ? 'border-red-200 bg-red-50/30' : 'border-gray-200'}`}>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                             <LogOut size={16} className="text-red-600" />
                             Saída Final
+                            {isTimeFieldLocked(request, workDayDate, 'departure') && (
+                              <span className="text-xs font-normal text-red-700 bg-red-100 px-2 py-0.5 rounded">Registrado</span>
+                            )}
                           </label>
                           <input
                             type="time"
                             value={timeRecord.departure || ''}
                             onChange={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'departure')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'departure', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'departure', value);
                             }}
                             onBlur={(e) => {
+                              if (isTimeFieldLocked(request, workDayDate, 'departure')) return;
                               const value = e.target.value;
-                              if (value) {
-                                handleTimeChange(request.id, workDayDate, 'departure', value);
-                              }
+                              if (value) handleTimeChange(request.id, workDayDate, 'departure', value);
                             }}
-                            className="w-full px-4 py-3 rounded-lg border bg-white border-gray-200 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                            readOnly={isTimeFieldLocked(request, workDayDate, 'departure')}
+                            disabled={isTimeFieldLocked(request, workDayDate, 'departure')}
+                            className={`w-full px-4 py-3 rounded-lg border text-gray-900 font-bold text-lg outline-none ${isTimeFieldLocked(request, workDayDate, 'departure') ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-red-500 focus:border-red-500'}`}
                           />
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleRegisterTime(request.id, workDayDate, 'departure')}
-                              className="flex-1 py-2 rounded-lg bg-red-600 text-white text-xs font-bold uppercase hover:bg-red-700 transition-colors"
-                            >
-                              Registrar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleNotInformed(request.id, workDayDate, 'departure', 'Saída Final')}
-                              className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
-                            >
-                              Não informado
-                            </button>
-                          </div>
+                          {!isTimeFieldLocked(request, workDayDate, 'departure') && (
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleRegisterTime(request.id, workDayDate, 'departure')}
+                                className="flex-1 py-2 rounded-lg bg-red-600 text-white text-xs font-bold uppercase hover:bg-red-700 transition-colors"
+                              >
+                                Registrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleNotInformed(request.id, workDayDate, 'departure', 'Saída Final')}
+                                className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold uppercase hover:bg-gray-200 transition-colors"
+                              >
+                                Não informado
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -901,6 +943,10 @@ const Portaria: React.FC = () => {
                                     alt="Preview"
                                     className="w-full h-auto max-h-96 object-contain"
                                   />
+                                  <div className="absolute inset-x-0 top-0 py-3 px-4 bg-emerald-600/95 text-white flex items-center justify-center gap-2 rounded-t-xl">
+                                    <CheckCircle size={22} className="shrink-0" />
+                                    <span className="font-bold text-sm">Foto capturada com sucesso</span>
+                                  </div>
                                 </div>
                                 <div className="flex gap-3">
                                   <button
@@ -928,6 +974,12 @@ const Portaria: React.FC = () => {
                       {hasPhoto && timeRecord.photoUrl && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                            {photoSaveSuccessKey === `${request.id}-${workDayDate}` && (
+                              <div className="mb-3 py-3 px-4 bg-emerald-600 text-white rounded-lg flex items-center justify-center gap-2 font-bold">
+                                <CheckCircle size={20} className="shrink-0" />
+                                Foto registrada com sucesso
+                              </div>
+                            )}
                             <div className="flex items-center gap-3 mb-3">
                               <CheckCircle className="text-emerald-600" size={20} />
                               <span className="font-bold text-emerald-900">Foto Confirmada</span>

@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
-import { RequesterItem, ReasonItem, Sector } from '../types';
+import { RequesterItem, ReasonItem, ShiftItem, Sector } from '../types';
 
-type ListItem = RequesterItem | ReasonItem;
+type ListItem = RequesterItem | ReasonItem | ShiftItem;
 
 interface EditableListProps {
   title: string;
@@ -119,6 +119,7 @@ const AdminCatalogs: React.FC = () => {
     sectors,
     requesters,
     reasons,
+    shifts,
     addSector,
     updateSector,
     deleteSector,
@@ -127,7 +128,10 @@ const AdminCatalogs: React.FC = () => {
     deleteRequester,
     addReason,
     updateReason,
-    deleteReason
+    deleteReason,
+    addShift,
+    updateShift,
+    deleteShift,
   } = useExtras();
 
   const [isEditingSector, setIsEditingSector] = useState<string | null>(null);
@@ -203,7 +207,7 @@ const AdminCatalogs: React.FC = () => {
         <h1 className="text-2xl font-bold">Cadastros do Sistema</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <EditableList
           title="Demandantes"
           items={requesters}
@@ -221,6 +225,14 @@ const AdminCatalogs: React.FC = () => {
           onUpdate={updateReason}
           onDelete={deleteReason}
           addLabel="Novo Motivo"
+        />
+        <EditableList
+          title="Turnos"
+          items={shifts}
+          onAdd={addShift}
+          onUpdate={updateShift}
+          onDelete={deleteShift}
+          addLabel="Novo Turno"
         />
       </div>
 

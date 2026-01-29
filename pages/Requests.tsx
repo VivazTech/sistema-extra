@@ -14,7 +14,9 @@ import {
   LogIn,
   LogOut,
   Coffee,
-  Edit
+  Edit,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -38,6 +40,16 @@ const Requests: React.FC = () => {
     breakEnd?: string;
     departure?: string;
   }>({});
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroupExpanded = (requestId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(requestId)) next.delete(requestId);
+      else next.add(requestId);
+      return next;
+    });
+  };
 
 
   const filteredRequests = requests.filter(r => {
@@ -321,114 +333,174 @@ const Requests: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dias (cada dia com ações próprias) */}
-              <div className="divide-y divide-gray-100">
-                {req.workDays.map((workDay: any, idx: number) => {
-                  const zebra = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                  const tr = workDay.timeRecord;
-                  const hasTimes = !!(tr?.arrival || tr?.breakStart || tr?.breakEnd || tr?.departure);
-                  const hasPhoto = !!tr?.photoUrl;
-                  const hasMissing = hasMissingTimes(workDay);
-                  const missingFields = getMissingFields(workDay);
+              {/* Dias (cada dia com ações próprias); "Ver mais" para expandir todos */}
+              {(() => {
+                const totalDays = req.workDays.length;
+                const initialVisible = 2;
+                const isExpanded = expandedGroups.has(req.id);
+                const showVerMais = totalDays > initialVisible;
+                const visibleDays = showVerMais && !isExpanded
+                  ? req.workDays.slice(0, initialVisible)
+                  : req.workDays;
+                const hiddenCount = totalDays - initialVisible;
 
-                  return (
-                    <div key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${zebra} p-4 sm:p-5`}>
-                      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
-                            <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
-                            <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-bold text-gray-500 uppercase">Portaria</div>
-                            <div className="text-xs text-gray-700">
-                              {hasTimes ? (
-                                <span className="font-semibold">
-                                  {tr?.arrival || '—'} • {tr?.breakStart || '—'} • {tr?.breakEnd || '—'} • {tr?.departure || '—'}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">Sem horários</span>
-                              )}
-                              {hasPhoto && <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Foto</span>}
+                return (
+                  <div className="divide-y divide-gray-100">
+                    {visibleDays.map((workDay: any, idx: number) => {
+                      const zebra = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                      const tr = workDay.timeRecord;
+                      const hasTimes = !!(tr?.arrival || tr?.breakStart || tr?.breakEnd || tr?.departure);
+                      const hasPhoto = !!tr?.photoUrl;
+                      const hasMissing = hasMissingTimes(workDay);
+                      const missingFields = getMissingFields(workDay);
+
+                      return (
+                        <div key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${zebra} p-4 sm:p-5`}>
+                          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
+                                <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
+                                <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-bold text-gray-500 uppercase">Portaria</div>
+                                <div className="text-xs text-gray-700">
+                                  {hasTimes ? (
+                                    <span className="font-semibold">
+                                      {tr?.arrival || '—'} • {tr?.breakStart || '—'} • {tr?.breakEnd || '—'} • {tr?.departure || '—'}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">Sem horários</span>
+                                  )}
+                                  {hasPhoto && <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Foto</span>}
+                                </div>
+                                {hasMissing && (
+                                  <div className="mt-1">
+                                    <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                      Horários não informados
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            {hasMissing && (
-                              <div className="mt-1">
-                                <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                                  Horários não informados
-                                </span>
+
+                            {hasPhoto && tr?.photoUrl && (
+                              <div className="shrink-0 flex flex-col items-center gap-1">
+                                <div className="text-[10px] font-bold text-gray-500 uppercase">Foto confirmação</div>
+                                <a
+                                  href={tr.photoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block w-16 h-16 rounded-lg overflow-hidden border-2 border-emerald-200 bg-gray-100 hover:border-emerald-500 transition-colors"
+                                  title="Abrir foto em nova aba"
+                                >
+                                  <img
+                                    src={tr.photoUrl}
+                                    alt="Foto do extra"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      if (tr?.photoUrl?.startsWith('data:')) target.src = tr.photoUrl;
+                                      else target.style.display = 'none';
+                                    }}
+                                  />
+                                </a>
                               </div>
                             )}
+
+                            <div className="flex flex-wrap items-center gap-2 justify-end">
+                              {/* Botão para preencher horários não informados (apenas ADMIN) */}
+                              {hasMissing && user?.role === 'ADMIN' && (
+                                <button
+                                  onClick={() => handleOpenTimeEdit(req.id, workDay.date, workDay)}
+                                  className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs"
+                                  title="Preencher horários não informados"
+                                >
+                                  <Edit size={16} />
+                                  Preencher Horários
+                                </button>
+                              )}
+
+                              {/* Aprovar/Reprovar por dia (ação aplicada na solicitação, mas disponível em cada dia) */}
+                              {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(req.id)}
+                                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
+                                    title="Aprovar"
+                                  >
+                                    <Check size={16} />
+                                    Aprovar
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenReject(req.id)}
+                                    className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
+                                    title="Reprovar"
+                                  >
+                                    <X size={16} />
+                                    Reprovar
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Imprimir por dia */}
+                              {req.status === 'APROVADO' && (
+                                <button
+                                  onClick={() => handlePrintDay(req, workDay)}
+                                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
+                                  title="Imprimir PDF do dia"
+                                >
+                                  <Printer size={16} />
+                                  Imprimir dia
+                                </button>
+                              )}
+
+                              {/* Cancelar (líder) */}
+                              {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
+                                <button
+                                  onClick={() => handleCancel(req.id)}
+                                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
+                                  title="Cancelar"
+                                >
+                                  <Ban size={16} />
+                                  Cancelar
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
+                      );
+                    })}
 
-                        <div className="flex flex-wrap items-center gap-2 justify-end">
-                          {/* Botão para preencher horários não informados (apenas ADMIN) */}
-                          {hasMissing && user?.role === 'ADMIN' && (
-                            <button
-                              onClick={() => handleOpenTimeEdit(req.id, workDay.date, workDay)}
-                              className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs"
-                              title="Preencher horários não informados"
-                            >
-                              <Edit size={16} />
-                              Preencher Horários
-                            </button>
-                          )}
-
-                          {/* Aprovar/Reprovar por dia (ação aplicada na solicitação, mas disponível em cada dia) */}
-                          {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                    {showVerMais && (
+                      <div className="bg-gray-50/80 p-3 border-t border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroupExpanded(req.id)}
+                          className="flex items-center justify-center gap-2 w-full py-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                          {isExpanded ? (
                             <>
-                              <button
-                                onClick={() => handleApprove(req.id)}
-                                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
-                                title="Aprovar"
-                              >
-                                <Check size={16} />
-                                Aprovar
-                              </button>
-                              <button
-                                onClick={() => handleOpenReject(req.id)}
-                                className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
-                                title="Reprovar"
-                              >
-                                <X size={16} />
-                                Reprovar
-                              </button>
+                              Ver menos
+                              <ChevronUp size={18} className="shrink-0" />
+                            </>
+                          ) : (
+                            <>
+                              Ver mais
+                              <span className="text-gray-500 font-normal">({hiddenCount} {hiddenCount === 1 ? 'dia' : 'dias'})</span>
+                              <ChevronDown size={18} className="shrink-0" />
                             </>
                           )}
-
-                          {/* Imprimir por dia */}
-                          {req.status === 'APROVADO' && (
-                            <button
-                              onClick={() => handlePrintDay(req, workDay)}
-                              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
-                              title="Imprimir PDF do dia"
-                            >
-                              <Printer size={16} />
-                              Imprimir dia
-                            </button>
-                          )}
-
-                          {/* Cancelar (líder) */}
-                          {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
-                            <button
-                              onClick={() => handleCancel(req.id)}
-                              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
-                              title="Cancelar"
-                            >
-                              <Ban size={16} />
-                              Cancelar
-                            </button>
-                          )}
-                        </div>
+                        </button>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))
         )}
