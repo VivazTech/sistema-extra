@@ -298,37 +298,31 @@ export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: stri
   doc.save(filename || `recibos-pagamento-${new Date().getTime()}.pdf`);
 };
 
+/** Formata período para tabela: "01/07/2025 - 07/07/2025" */
+function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
+  if (!workDays.length) return '';
+  const first = formatDateBR(workDays[0].date);
+  const last = formatDateBR(workDays[workDays.length - 1].date);
+  return first === last ? first : `${first} - ${last}`;
+}
+
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
 export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): string => {
   const doc = new jsPDF('l', 'mm', 'a4');
-  const formatWorkDaysSummary = (workDays: ExtraRequest['workDays']) => {
-    if (!workDays.length) return '';
-    const firstDate = formatDateBR(workDays[0].date);
-    const extraDays = workDays.length - 1;
-    return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
-  };
-  const formatShiftSummary = (workDays: ExtraRequest['workDays']) => {
-    if (!workDays.length) return '';
-    const firstShift = workDays[0].shift;
-    const extraDays = workDays.length - 1;
-    return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
-  };
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
   doc.setFontSize(10);
   doc.text(`Gerado em: ${formatDateTimeBR(new Date())}`, 148, 22, { align: 'center' });
   autoTable(doc, {
     startY: 30,
-    head: [['ID', 'Data', 'Turno', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
+    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body: requests.map(r => [
-      r.code,
-      formatWorkDaysSummary(r.workDays),
-      formatShiftSummary(r.workDays),
+      formatPeriodRange(r.workDays),
       r.sector,
       r.role,
       r.extraName,
       r.status,
-      r.approvedBy || '',
+      r.approvedBy || '—',
       r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     ]),
     styles: { fontSize: 8 },
@@ -340,19 +334,6 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
 
 export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   const doc = new jsPDF('l', 'mm', 'a4');
-  const formatWorkDaysSummary = (workDays: ExtraRequest['workDays']) => {
-    if (!workDays.length) return '';
-    const firstDate = formatDateBR(workDays[0].date);
-    const extraDays = workDays.length - 1;
-    return extraDays > 0 ? `${firstDate} +${extraDays} dias` : firstDate;
-  };
-
-  const formatShiftSummary = (workDays: ExtraRequest['workDays']) => {
-    if (!workDays.length) return '';
-    const firstShift = workDays[0].shift;
-    const extraDays = workDays.length - 1;
-    return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
-  };
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
   doc.setFontSize(10);
@@ -360,16 +341,14 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
 
   autoTable(doc, {
     startY: 30,
-    head: [['ID', 'Data', 'Turno', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
+    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body: requests.map(r => [
-      r.code,
-      formatWorkDaysSummary(r.workDays),
-      formatShiftSummary(r.workDays),
+      formatPeriodRange(r.workDays),
       r.sector,
       r.role,
       r.extraName,
       r.status,
-      r.approvedBy || '',
+      r.approvedBy || '—',
       r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     ]),
     styles: { fontSize: 8 },
