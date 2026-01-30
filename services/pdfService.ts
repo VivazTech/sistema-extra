@@ -306,28 +306,73 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
+/** Agrupa solicitações por setor e monta body da tabela com subtotal por setor e total geral. */
+function buildListBodyBySector(requests: ExtraRequest[]): { body: string[][]; summaryRowIndices: Set<number> } {
+  const body: string[][] = [];
+  const summaryRowIndices = new Set<number>();
+  const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
+  let totalGeral = 0;
+
+  for (const setor of sectors) {
+    const list = requests.filter(r => r.sector === setor);
+    let totalSetor = 0;
+    for (const r of list) {
+      body.push([
+        formatPeriodRange(r.workDays),
+        r.sector,
+        r.role,
+        r.extraName,
+        r.status,
+        r.approvedBy || '—',
+        r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      ]);
+      totalSetor += r.value;
+    }
+    body.push(['', '', `Subtotal (${setor})`, '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+    summaryRowIndices.add(body.length - 1);
+    totalGeral += totalSetor;
+  }
+
+  body.push(['', '', 'TOTAL GERAL', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  summaryRowIndices.add(body.length - 1);
+
+  return { body, summaryRowIndices };
+}
+
+/** Adiciona paginação no canto inferior direito (fonte pequena). */
+function addListPagination(doc: jsPDF) {
+  const totalPages = doc.getNumberOfPages();
+  doc.setFontSize(6);
+  doc.setTextColor(120, 120, 120);
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.text(`${i} / ${totalPages}`, 290, 205, { align: 'right' });
+  }
+  doc.setTextColor(0, 0, 0);
+}
+
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
 export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): string => {
   const doc = new jsPDF('l', 'mm', 'a4');
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text(`Gerado em: ${formatDateTimeBR(new Date())}`, 148, 22, { align: 'center' });
+  const { body, summaryRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
-    startY: 30,
+    startY: 22,
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
-    body: requests.map(r => [
-      formatPeriodRange(r.workDays),
-      r.sector,
-      r.role,
-      r.extraName,
-      r.status,
-      r.approvedBy || '—',
-      r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    ]),
+    body,
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [20, 83, 45] }
+    headStyles: { fillColor: [20, 83, 45] },
+    didParseCell: (data) => {
+      if (data.section === 'body' && summaryRowIndices.has(data.row.index)) {
+        data.cell.styles.fontStyle = 'bold';
+        if (data.row.index === body.length - 1) {
+          data.cell.styles.fillColor = [230, 245, 230];
+        }
+      }
+    }
   });
+  addListPagination(doc);
   const blob = doc.output('blob');
   return URL.createObjectURL(blob);
 };
@@ -336,24 +381,24 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   const doc = new jsPDF('l', 'mm', 'a4');
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text(`Gerado em: ${formatDateTimeBR(new Date())}`, 148, 22, { align: 'center' });
 
+  const { body, summaryRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
-    startY: 30,
+    startY: 22,
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
-    body: requests.map(r => [
-      formatPeriodRange(r.workDays),
-      r.sector,
-      r.role,
-      r.extraName,
-      r.status,
-      r.approvedBy || '—',
-      r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    ]),
+    body,
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [20, 83, 45] }
+    headStyles: { fillColor: [20, 83, 45] },
+    didParseCell: (data) => {
+      if (data.section === 'body' && summaryRowIndices.has(data.row.index)) {
+        data.cell.styles.fontStyle = 'bold';
+        if (data.row.index === body.length - 1) {
+          data.cell.styles.fillColor = [230, 245, 230];
+        }
+      }
+    }
   });
 
+  addListPagination(doc);
   doc.save(`listagem-extras-${new Date().getTime()}.pdf`);
 };
