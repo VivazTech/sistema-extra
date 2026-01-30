@@ -306,17 +306,23 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Agrupa solicitações por setor e monta body da tabela com subtotal, separador verde e total geral. */
+/** Padding do divisor em mm (~5px). */
+const DIVIDER_PADDING_MM = 1.5;
+/** Altura da linha verde do divisor em mm (~1px). */
+const DIVIDER_LINE_HEIGHT_MM = 0.35;
+
+/** Agrupa solicitações por setor e monta body da tabela com subtotal, espaçamento (padding) e total geral. A linha verde é desenhada fora da tabela. */
 function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
   summaryRowIndices: Set<number>;
-  greenBarRowIndices: Set<number>;
   spacerRowIndices: Set<number>;
+  /** Índices das linhas em cuja borda superior desenhamos o divisor verde (segunda linha de padding). */
+  dividerLineAtTopOfRowIndices: Set<number>;
 } {
   const body: string[][] = [];
   const summaryRowIndices = new Set<number>();
-  const greenBarRowIndices = new Set<number>();
   const spacerRowIndices = new Set<number>();
+  const dividerLineAtTopOfRowIndices = new Set<number>();
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
   let totalGeral = 0;
   const emptyRow = ['', '', '', '', '', '', ''];
@@ -345,16 +351,15 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
       body.push([...emptyRow]);
       spacerRowIndices.add(body.length - 1);
       body.push([...emptyRow]);
-      greenBarRowIndices.add(body.length - 1);
-      body.push([...emptyRow]);
       spacerRowIndices.add(body.length - 1);
+      dividerLineAtTopOfRowIndices.add(body.length - 1);
     }
   }
 
   body.push(['TOTAL GERAL', '', '', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
   summaryRowIndices.add(body.length - 1);
 
-  return { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices };
+  return { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices };
 }
 
 /** Adiciona paginação no canto inferior direito (fonte pequena). */
@@ -369,15 +374,23 @@ function addListPagination(doc: jsPDF) {
   doc.setTextColor(0, 0, 0);
 }
 
+/** Desenha o divisor verde (linha 1px) do início ao fim da área da tabela. */
+function drawDividerLine(doc: jsPDF, y: number) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 10;
+  doc.setFillColor(20, 83, 45);
+  doc.rect(margin, y, pageW - margin * 2, DIVIDER_LINE_HEIGHT_MM, 'F');
+}
+
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
 export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): string => {
   const doc = new jsPDF('l', 'mm', 'a4');
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
-  const { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
-  const GREEN_LINE_HEIGHT_MM = 0.35;
+  const { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
+    margin: { left: 10, right: 10 },
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body,
     styles: { fontSize: 8 },
@@ -391,24 +404,16 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
         if (idx === body.length - 1) {
           data.cell.styles.fillColor = [230, 245, 230];
         }
-      } else if (greenBarRowIndices.has(idx)) {
-        data.cell.styles.fillColor = [255, 255, 255];
-        data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = GREEN_LINE_HEIGHT_MM;
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 1.5;
+        data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
       }
     },
     didDrawCell: (data) => {
-      if (data.section === 'body' && greenBarRowIndices.has(data.row.index) && data.column.index === 0) {
-        const pageW = doc.internal.pageSize.getWidth();
-        const margin = 10;
-        const x = margin;
-        const w = pageW - margin * 2;
-        const cellY = (data as any).cell?.y ?? data.cursor.y - GREEN_LINE_HEIGHT_MM;
-        doc.setFillColor(20, 83, 45);
-        doc.rect(x, cellY, w, GREEN_LINE_HEIGHT_MM, 'F');
+      if (data.section !== 'body' || data.column.index !== 0) return;
+      if (dividerLineAtTopOfRowIndices.has(data.row.index)) {
+        const y = (data as any).cell?.y ?? data.cursor.y;
+        drawDividerLine(doc, y);
       }
     }
   });
@@ -422,10 +427,10 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
 
-  const { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
-  const GREEN_LINE_HEIGHT_MM = 0.35;
+  const { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
+    margin: { left: 10, right: 10 },
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body,
     styles: { fontSize: 8 },
@@ -439,24 +444,16 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
         if (idx === body.length - 1) {
           data.cell.styles.fillColor = [230, 245, 230];
         }
-      } else if (greenBarRowIndices.has(idx)) {
-        data.cell.styles.fillColor = [255, 255, 255];
-        data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = GREEN_LINE_HEIGHT_MM;
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 1.5;
+        data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
       }
     },
     didDrawCell: (data) => {
-      if (data.section === 'body' && greenBarRowIndices.has(data.row.index) && data.column.index === 0) {
-        const pageW = doc.internal.pageSize.getWidth();
-        const margin = 10;
-        const x = margin;
-        const w = pageW - margin * 2;
-        const cellY = (data as any).cell?.y ?? data.cursor.y - GREEN_LINE_HEIGHT_MM;
-        doc.setFillColor(20, 83, 45);
-        doc.rect(x, cellY, w, GREEN_LINE_HEIGHT_MM, 'F');
+      if (data.section !== 'body' || data.column.index !== 0) return;
+      if (dividerLineAtTopOfRowIndices.has(data.row.index)) {
+        const y = (data as any).cell?.y ?? data.cursor.y;
+        drawDividerLine(doc, y);
       }
     }
   });
