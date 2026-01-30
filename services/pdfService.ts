@@ -375,6 +375,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
   const { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
+  const GREEN_LINE_HEIGHT_MM = 0.35;
   autoTable(doc, {
     startY: 22,
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
@@ -391,12 +392,22 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
           data.cell.styles.fillColor = [230, 245, 230];
         }
       } else if (greenBarRowIndices.has(idx)) {
-        data.cell.styles.fillColor = [20, 83, 45];
+        data.cell.styles.fillColor = [255, 255, 255];
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 0.5;
+        data.cell.styles.minCellHeight = GREEN_LINE_HEIGHT_MM;
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
         data.cell.styles.minCellHeight = 1.5;
+      }
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && greenBarRowIndices.has(data.row.index) && data.column.index === 0) {
+        const table = (data as any).table;
+        const x = table?.x ?? 14;
+        const w = table?.width ?? 269;
+        const cellY = (data as any).cell?.y ?? data.cursor.y - GREEN_LINE_HEIGHT_MM;
+        doc.setFillColor(20, 83, 45);
+        doc.rect(x, cellY, w, GREEN_LINE_HEIGHT_MM, 'F');
       }
     }
   });
@@ -411,6 +422,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
 
   const { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
+  const GREEN_LINE_HEIGHT_MM = 0.35;
   autoTable(doc, {
     startY: 22,
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
@@ -427,12 +439,22 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
           data.cell.styles.fillColor = [230, 245, 230];
         }
       } else if (greenBarRowIndices.has(idx)) {
-        data.cell.styles.fillColor = [20, 83, 45];
+        data.cell.styles.fillColor = [255, 255, 255];
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 0.5;
+        data.cell.styles.minCellHeight = GREEN_LINE_HEIGHT_MM;
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
         data.cell.styles.minCellHeight = 1.5;
+      }
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && greenBarRowIndices.has(data.row.index) && data.column.index === 0) {
+        const table = (data as any).table;
+        const x = table?.x ?? 14;
+        const w = table?.width ?? 269;
+        const cellY = (data as any).cell?.y ?? data.cursor.y - GREEN_LINE_HEIGHT_MM;
+        doc.setFillColor(20, 83, 45);
+        doc.rect(x, cellY, w, GREEN_LINE_HEIGHT_MM, 'F');
       }
     }
   });
