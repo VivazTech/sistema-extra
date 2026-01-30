@@ -306,23 +306,18 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Padding do divisor em mm (~5px). */
+/** Espaçamento entre grupos de setor em mm. */
 const DIVIDER_PADDING_MM = 1.5;
-/** Altura da linha verde do divisor em mm (~1px). */
-const DIVIDER_LINE_HEIGHT_MM = 0.35;
 
-/** Agrupa solicitações por setor e monta body da tabela com subtotal, espaçamento (padding) e total geral. A linha verde é desenhada fora da tabela. */
+/** Agrupa solicitações por setor e monta body da tabela com subtotal, espaçamento e total geral (sem linha). */
 function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
   summaryRowIndices: Set<number>;
   spacerRowIndices: Set<number>;
-  /** Índices das linhas em cuja borda superior desenhamos o divisor verde (segunda linha de padding). */
-  dividerLineAtTopOfRowIndices: Set<number>;
 } {
   const body: string[][] = [];
   const summaryRowIndices = new Set<number>();
   const spacerRowIndices = new Set<number>();
-  const dividerLineAtTopOfRowIndices = new Set<number>();
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
   let totalGeral = 0;
   const emptyRow = ['', '', '', '', '', '', ''];
@@ -352,14 +347,13 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
       spacerRowIndices.add(body.length - 1);
       body.push([...emptyRow]);
       spacerRowIndices.add(body.length - 1);
-      dividerLineAtTopOfRowIndices.add(body.length - 1);
     }
   }
 
   body.push(['TOTAL GERAL', '', '', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
   summaryRowIndices.add(body.length - 1);
 
-  return { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices };
+  return { body, summaryRowIndices, spacerRowIndices };
 }
 
 /** Adiciona paginação no canto inferior direito (fonte pequena). */
@@ -374,25 +368,14 @@ function addListPagination(doc: jsPDF) {
   doc.setTextColor(0, 0, 0);
 }
 
-/** A4 paisagem: largura 297mm. Margem 10mm cada lado = linha de 277mm. */
-const A4_LANDSCAPE_WIDTH_MM = 297;
 const LIST_TABLE_MARGIN_MM = 10;
-const LIST_TABLE_LINE_WIDTH_MM = A4_LANDSCAPE_WIDTH_MM - LIST_TABLE_MARGIN_MM * 2;
-
-/** Desenha o divisor verde (linha 1px) do início ao fim da página. */
-function drawDividerLine(doc: jsPDF, y: number) {
-  doc.setFillColor(20, 83, 45);
-  doc.rect(LIST_TABLE_MARGIN_MM, y, LIST_TABLE_LINE_WIDTH_MM, DIVIDER_LINE_HEIGHT_MM, 'F');
-}
 
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
 export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): string => {
   const doc = new jsPDF('l', 'mm', 'a4');
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
-  const { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices } = buildListBodyBySector(requests);
-  const dividerPositions: { page: number; y: number }[] = [];
-  let currentPage = 1;
+  const { body, summaryRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
@@ -400,9 +383,6 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
-    didDrawPage: () => {
-      currentPage += 1;
-    },
     didParseCell: (data) => {
       if (data.section !== 'body') return;
       const idx = data.row.index;
@@ -416,18 +396,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
         data.cell.styles.cellPadding = 0;
         data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
       }
-    },
-    didDrawCell: (data) => {
-      if (data.section !== 'body' || data.column.index !== 0) return;
-      if (dividerLineAtTopOfRowIndices.has(data.row.index)) {
-        const y = (data as any).cell?.y ?? data.cursor.y;
-        dividerPositions.push({ page: currentPage, y });
-      }
     }
-  });
-  dividerPositions.forEach(({ page, y }) => {
-    doc.setPage(page);
-    drawDividerLine(doc, y);
   });
   addListPagination(doc);
   const blob = doc.output('blob');
@@ -439,9 +408,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
 
-  const { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices } = buildListBodyBySector(requests);
-  const dividerPositions: { page: number; y: number }[] = [];
-  let currentPage = 1;
+  const { body, summaryRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
@@ -449,9 +416,6 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
-    didDrawPage: () => {
-      currentPage += 1;
-    },
     didParseCell: (data) => {
       if (data.section !== 'body') return;
       const idx = data.row.index;
@@ -465,18 +429,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
         data.cell.styles.cellPadding = 0;
         data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
       }
-    },
-    didDrawCell: (data) => {
-      if (data.section !== 'body' || data.column.index !== 0) return;
-      if (dividerLineAtTopOfRowIndices.has(data.row.index)) {
-        const y = (data as any).cell?.y ?? data.cursor.y;
-        dividerPositions.push({ page: currentPage, y });
-      }
     }
-  });
-  dividerPositions.forEach(({ page, y }) => {
-    doc.setPage(page);
-    drawDividerLine(doc, y);
   });
   addListPagination(doc);
   doc.save(`listagem-extras-${new Date().getTime()}.pdf`);
