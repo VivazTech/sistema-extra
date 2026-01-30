@@ -8,7 +8,7 @@ import {
   MoreHorizontal, 
   Check, 
   X, 
-  Printer,
+  DollarSign,
   Ban,
   Clock,
   LogIn,
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
-import { generateIndividualPDF, generateListPDF } from '../services/pdfService';
+import { generateSingleReciboPDF, generateListPDF } from '../services/pdfService';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR } from '../utils/date';
 
@@ -118,13 +118,8 @@ const Requests: React.FC = () => {
     generateIndividualPDF(r);
   };
 
-  const handlePrintDay = (req: any, workDay: any) => {
-    // Gerar PDF apenas para o dia selecionado (já inclui horários/foto se existirem no timeRecord)
-    const requestForDay = {
-      ...req,
-      workDays: [workDay],
-    };
-    generateIndividualPDF(requestForDay);
+  const handleRecibo = (req: any) => {
+    generateSingleReciboPDF(req);
   };
 
   const handleExportList = () => {
@@ -443,15 +438,15 @@ const Requests: React.FC = () => {
                                 </>
                               )}
 
-                              {/* Imprimir por dia */}
+                              {/* Recibo (um único recibo da solicitação) */}
                               {req.status === 'APROVADO' && (
                                 <button
-                                  onClick={() => handlePrintDay(req, workDay)}
+                                  onClick={() => handleRecibo(req)}
                                   className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
-                                  title="Imprimir PDF do dia"
+                                  title="Abrir recibo de pagamento (PDF)"
                                 >
-                                  <Printer size={16} />
-                                  Imprimir dia
+                                  <DollarSign size={16} />
+                                  Recibo
                                 </button>
                               )}
 

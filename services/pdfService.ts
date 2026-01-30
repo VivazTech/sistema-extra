@@ -3,10 +3,16 @@ import autoTable from 'jspdf-autotable';
 import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR, formatDateTimeBR } from '../utils/date';
 
-/** Altura de um bloco "recibo" para caber 3 por folha A4 (~99mm). */
-const CARD_HEIGHT_MM = 99;
-/** Margem entre recibos (acima do divisor tracejado). */
-const CARD_GAP_MM = 2;
+/** Margem superior da página (mm). */
+const PAGE_TOP_MARGIN = 10;
+/** Margem após cada recibo antes do divisor (mm). */
+const MARGIN_AFTER_CARD = 4;
+/** Espaço entre divisor e próximo recibo (mm). */
+const GAP_BEFORE_NEXT_CARD = 6;
+/** Altura mínima necessária para iniciar um novo recibo na página (mm). */
+const MIN_CARD_HEIGHT_MM = 70;
+/** Altura da página A4 (mm). */
+const A4_HEIGHT_MM = 297;
 
 /** Converte "HH:MM" em minutos desde meia-noite. */
 function timeToMinutes(t?: string): number | null {
@@ -53,8 +59,11 @@ function totalHoursWorked(workDays: WorkDay[]): string {
   return `${hours.toFixed(1).replace('.', ',')}h`;
 }
 
-/** Gera o conteúdo de um bloco individual (1/3 da folha). offsetY = 0, 99 ou 198 para 3 por página. */
-function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number = 0) {
+/**
+ * Gera o conteúdo de um recibo. Retorna a coordenada Y (mm) do fim do recibo
+ * (abaixo dos rótulos de assinatura) para o próximo recibo começar sem sobrepor.
+ */
+function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number = 0): number {
   const col1 = 20;
   const col2 = 110;
 
@@ -142,20 +151,21 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   const finalY = tableEndY + 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  // Três campos lado a lado, separados visualmente: CPF do Funcionário Extra | Data do Recebimento | Assinatura
+  // Linha primeiro (escreve em cima), rótulos ABAIXO da linha
   const totalW = 190 - 20;
   const gap = 4;
   const w = (totalW - 2 * gap) / 3;
   const x1 = 20;
   const x2 = 20 + gap + w;
   const x3 = 20 + 2 * (gap + w);
-  doc.text('CPF do Funcionário Extra', x1 + w / 2, finalY, { align: 'center' });
-  doc.text('Data do Recebimento', x2 + w / 2, finalY, { align: 'center' });
-  doc.text('Assinatura do Funcionário Extra', x3 + w / 2, finalY, { align: 'center' });
   const lineY = finalY + 2;
   doc.line(x1, lineY, x1 + w, lineY);
   doc.line(x2, lineY, x2 + w, lineY);
   doc.line(x3, lineY, x3 + w, lineY);
+  doc.text('CPF do Funcionário Extra', x1 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('Data do Recebimento', x2 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('Assinatura do Funcionário Extra', x3 + w / 2, lineY + 4, { align: 'center' });
+  return lineY + 10;
 }
 
 /** Desenha divisor tracejado (corte da folha) entre recibos: - - - - - */
@@ -175,24 +185,103 @@ function drawDashedDivider(doc: jsPDF, y: number) {
 
 export const generateIndividualPDF = (request: ExtraRequest) => {
   const doc = new jsPDF();
-  buildIndividualPDF(doc, request, 0);
-  drawDashedDivider(doc, CARD_HEIGHT_MM);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM + CARD_GAP_MM);
-  drawDashedDivider(doc, CARD_HEIGHT_MM * 2);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM * 2 + CARD_GAP_MM);
+  let offsetY = PAGE_TOP_MARGIN;
+  for (let i = 0; i < 3; i++) {
+    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
+      doc.addPage();
+      offsetY = PAGE_TOP_MARGIN;
+    }
+    const cardBottom = buildIndividualPDF(doc, request, offsetY);
+    if (i < 2) {
+      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
+      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
+    }
+  }
   doc.save(`recibo-pagamento-${request.code}.pdf`);
 };
 
-/** Retorna URL do PDF individual (3 por folha) para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
+/** Gera e baixa um único recibo (1 cópia) para uma solicitação. Usado na lista de Solicitações. */
+export const generateSingleReciboPDF = (request: ExtraRequest) => {
+  const doc = new jsPDF();
+  buildIndividualPDF(doc, request, PAGE_TOP_MARGIN);
+  doc.save(`recibo-pagamento-${request.code}.pdf`);
+};
+
+/** Retorna URL do PDF com um único recibo (1 cópia) para exibir em iframe. */
+export const getSingleReciboPDFBlobUrl = (request: ExtraRequest): string => {
+  const doc = new jsPDF();
+  buildIndividualPDF(doc, request, PAGE_TOP_MARGIN);
+  return URL.createObjectURL(doc.output('blob'));
+};
+
+/** Retorna URL do PDF individual (3 cópias, quantas couberem por página) para exibir em iframe. */
 export const getIndividualPDFBlobUrl = (request: ExtraRequest): string => {
   const doc = new jsPDF();
-  buildIndividualPDF(doc, request, 0);
-  drawDashedDivider(doc, CARD_HEIGHT_MM);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM + CARD_GAP_MM);
-  drawDashedDivider(doc, CARD_HEIGHT_MM * 2);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM * 2 + CARD_GAP_MM);
+  let offsetY = PAGE_TOP_MARGIN;
+  for (let i = 0; i < 3; i++) {
+    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
+      doc.addPage();
+      offsetY = PAGE_TOP_MARGIN;
+    }
+    const cardBottom = buildIndividualPDF(doc, request, offsetY);
+    if (i < 2) {
+      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
+      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
+    }
+  }
   const blob = doc.output('blob');
   return URL.createObjectURL(blob);
+};
+
+/** Desenha 3 cópias de um recibo no doc (posição dinâmica e quebra de página). */
+function drawThreeRecibos(doc: jsPDF, request: ExtraRequest): void {
+  let offsetY = PAGE_TOP_MARGIN;
+  for (let i = 0; i < 3; i++) {
+    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
+      doc.addPage();
+      offsetY = PAGE_TOP_MARGIN;
+    }
+    const cardBottom = buildIndividualPDF(doc, request, offsetY);
+    if (i < 2) {
+      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
+      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
+    }
+  }
+}
+
+/** Gera PDF com recibos em massa: cada solicitação gera 3 cópias, sem sobreposição. */
+export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
+  const doc = new jsPDF();
+  const approved = requests.filter(r => r.status === 'APROVADO');
+  if (approved.length === 0) {
+    doc.setFontSize(12);
+    doc.text('Nenhuma solicitação aprovada no período selecionado.', 20, 30);
+    return URL.createObjectURL(doc.output('blob'));
+  }
+  approved.forEach((req, index) => {
+    if (index > 0) {
+      doc.addPage();
+    }
+    drawThreeRecibos(doc, req);
+  });
+  return URL.createObjectURL(doc.output('blob'));
+};
+
+/** Gera e baixa PDF de recibos em massa. */
+export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: string) => {
+  const approved = requests.filter(r => r.status === 'APROVADO');
+  const doc = new jsPDF();
+  if (approved.length === 0) {
+    doc.setFontSize(12);
+    doc.text('Nenhuma solicitação aprovada no período selecionado.', 20, 30);
+    doc.save(filename || 'recibos-pagamento.pdf');
+    return;
+  }
+  approved.forEach((req, index) => {
+    if (index > 0) doc.addPage();
+    drawThreeRecibos(doc, req);
+  });
+  doc.save(filename || `recibos-pagamento-${new Date().getTime()}.pdf`);
 };
 
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */

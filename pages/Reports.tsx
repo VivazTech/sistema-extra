@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   TrendingDown, 
@@ -32,6 +32,7 @@ import RequesterReport from '../components/reports/RequesterReport';
 import IncompleteRecordsReport from '../components/reports/IncompleteRecordsReport';
 import AuditReport from '../components/reports/AuditReport';
 import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
+import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
 
 interface ReportTab {
   id: string;
@@ -43,11 +44,18 @@ interface ReportTab {
 
 const Reports: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('executive');
+  const [activeTab, setActiveTab] = useState('recibos');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
   const reportTabs: ReportTab[] = [
+    { 
+      id: 'recibos', 
+      label: 'Recibos de Extras', 
+      icon: FileText, 
+      component: RecibosExtrasReport,
+      roles: ['ADMIN', 'MANAGER', 'LEADER']
+    },
     { 
       id: 'executive', 
       label: 'Dashboard Executivo', 
@@ -138,7 +146,14 @@ const Reports: React.FC = () => {
     tab.roles.includes(user?.role || '')
   );
 
-  const ActiveComponent = availableTabs.find(tab => tab.id === activeTab)?.component || ExecutiveDashboard;
+  useEffect(() => {
+    const hasActive = availableTabs.some(tab => tab.id === activeTab);
+    if (!hasActive && availableTabs.length > 0) {
+      setActiveTab(availableTabs[0].id);
+    }
+  }, [availableTabs, activeTab]);
+
+  const ActiveComponent = availableTabs.find(tab => tab.id === activeTab)?.component ?? availableTabs[0]?.component ?? RecibosExtrasReport;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
