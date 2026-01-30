@@ -63,18 +63,18 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
     doc.text(`${value || 'N/A'}`, xPos + 32, yPos + offsetY);
   };
 
-  // Título menor – alinhado à esquerda
+  // Título – mesma linha: esquerda e direita
   doc.setFontSize(12);
   doc.setTextColor(20, 83, 45);
   doc.text('VIVAZ CATARATAS RESORT', 20, 8 + offsetY, { align: 'left' });
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text('RECIBO DE PAGAMENTO', 20, 14 + offsetY, { align: 'left' });
+  doc.text('RECIBO DE PAGAMENTO', 190, 8 + offsetY, { align: 'right' });
   doc.setLineWidth(0.3);
-  doc.line(20, 17 + offsetY, 190, 17 + offsetY);
+  doc.line(20, 12 + offsetY, 190, 12 + offsetY);
 
   doc.setFontSize(9);
-  let y = 24;
+  let y = 18;
 
   addField('Status', request.status, col1, y);
   addField('Demandante', request.requester, col2, y);
@@ -121,23 +121,33 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.setFont('helvetica', 'bold');
   doc.text('CONTROLE DE PONTO (PORTARIA)', 105, y + offsetY, { align: 'center' });
   y += 4;
+  const totalRowIndex = body.length - 1;
   autoTable(doc, {
     startY: y + offsetY,
     head: [head],
     body,
     theme: 'grid',
     styles: { minCellHeight: 6, halign: 'center', valign: 'middle', fontSize: 8 },
-    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8 }
+    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8 },
+    didParseCell: (data) => {
+      if (data.row.index === totalRowIndex && data.column.index === 6) {
+        data.cell.styles.fontStyle = 'bold';
+      }
+    }
   });
 
   const tableEndY = (doc as any).lastAutoTable.finalY;
-  const finalY = tableEndY + 8;
-  doc.line(20, finalY, 90, finalY);
+  const finalY = tableEndY + 6;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Assinatura do Funcionário Extra', 55, finalY + 4, { align: 'center' });
-  doc.text(`CPF do Funcionário Extra: ${request.extraCpf || '_________________________'}`, 95, finalY + 4);
-  doc.text(`Data: ${formatDateBR(new Date())}`, 95, finalY + 9);
+  // Três campos lado a lado para o funcionário preencher: CPF | Data | Assinatura
+  const w = (190 - 20) / 3;
+  doc.text('CPF', 20 + w / 2, finalY, { align: 'center' });
+  doc.text('Data', 20 + w + w / 2, finalY, { align: 'center' });
+  doc.text('Assinatura', 20 + w * 2 + w / 2, finalY, { align: 'center' });
+  doc.line(20, finalY + 2, 20 + w, finalY + 2);
+  doc.line(20 + w, finalY + 2, 20 + w * 2, finalY + 2);
+  doc.line(20 + w * 2, finalY + 2, 190, finalY + 2);
 }
 
 export const generateIndividualPDF = (request: ExtraRequest) => {
