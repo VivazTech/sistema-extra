@@ -374,12 +374,14 @@ function addListPagination(doc: jsPDF) {
   doc.setTextColor(0, 0, 0);
 }
 
-/** Desenha o divisor verde (linha 1px) do início ao fim da área da tabela. */
+/** Desenha o divisor verde (linha 1px) do início ao fim da tabela. Em paisagem A4 a largura é 297mm. */
 function drawDividerLine(doc: jsPDF, y: number) {
-  const pageW = doc.internal.pageSize.getWidth();
+  const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
+  const pageWidth = Math.max(w, h);
   const margin = 10;
   doc.setFillColor(20, 83, 45);
-  doc.rect(margin, y, pageW - margin * 2, DIVIDER_LINE_HEIGHT_MM, 'F');
+  doc.rect(margin, y, pageWidth - margin * 2, DIVIDER_LINE_HEIGHT_MM, 'F');
 }
 
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
