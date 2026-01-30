@@ -249,7 +249,7 @@ function drawThreeRecibos(doc: jsPDF, request: ExtraRequest): void {
   }
 }
 
-/** Gera PDF com recibos em massa: um recibo por solicitação (1 por extra). */
+/** Gera PDF com recibos em massa: um recibo por extra, em sequência na mesma página, separados por linha tracejada. */
 export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
   const doc = new jsPDF();
   const approved = requests.filter(r => r.status === 'APROVADO');
@@ -258,14 +258,22 @@ export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
     doc.text('Nenhuma solicitação aprovada no período selecionado.', 20, 30);
     return URL.createObjectURL(doc.output('blob'));
   }
+  let offsetY = PAGE_TOP_MARGIN;
   approved.forEach((req, index) => {
-    if (index > 0) doc.addPage();
-    buildIndividualPDF(doc, req, PAGE_TOP_MARGIN);
+    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
+      doc.addPage();
+      offsetY = PAGE_TOP_MARGIN;
+    }
+    const cardBottom = buildIndividualPDF(doc, req, offsetY);
+    if (index < approved.length - 1) {
+      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
+      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
+    }
   });
   return URL.createObjectURL(doc.output('blob'));
 };
 
-/** Gera e baixa PDF de recibos em massa: um recibo por solicitação (1 por extra). */
+/** Gera e baixa PDF de recibos em massa: um recibo por extra, em sequência, separados por linha tracejada. */
 export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: string) => {
   const approved = requests.filter(r => r.status === 'APROVADO');
   const doc = new jsPDF();
@@ -275,9 +283,17 @@ export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: stri
     doc.save(filename || 'recibos-pagamento.pdf');
     return;
   }
+  let offsetY = PAGE_TOP_MARGIN;
   approved.forEach((req, index) => {
-    if (index > 0) doc.addPage();
-    buildIndividualPDF(doc, req, PAGE_TOP_MARGIN);
+    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
+      doc.addPage();
+      offsetY = PAGE_TOP_MARGIN;
+    }
+    const cardBottom = buildIndividualPDF(doc, req, offsetY);
+    if (index < approved.length - 1) {
+      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
+      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
+    }
   });
   doc.save(filename || `recibos-pagamento-${new Date().getTime()}.pdf`);
 };
