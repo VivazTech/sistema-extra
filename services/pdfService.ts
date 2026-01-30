@@ -306,8 +306,8 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Espaçamento entre grupos de setor em mm. */
-const DIVIDER_PADDING_MM = 1.5;
+/** Espaçamento entre grupos de setor em mm (linhas vazias sem borda). */
+const DIVIDER_PADDING_MM = 2.5;
 
 /** Agrupa solicitações por setor e monta body da tabela com subtotal, espaçamento e total geral (sem linha). */
 function buildListBodyBySector(requests: ExtraRequest[]): {
@@ -395,6 +395,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
         data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
+        data.cell.styles.lineWidth = 0;
       }
     }
   });
@@ -428,6 +429,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
         data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
+        data.cell.styles.lineWidth = 0;
       }
     }
   });
