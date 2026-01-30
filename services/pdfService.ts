@@ -374,14 +374,15 @@ function addListPagination(doc: jsPDF) {
   doc.setTextColor(0, 0, 0);
 }
 
-/** Desenha o divisor verde (linha 1px) do início ao fim da tabela. Em paisagem A4 a largura é 297mm. */
+/** A4 paisagem: largura 297mm. Margem 10mm cada lado = linha de 277mm. */
+const A4_LANDSCAPE_WIDTH_MM = 297;
+const LIST_TABLE_MARGIN_MM = 10;
+const LIST_TABLE_LINE_WIDTH_MM = A4_LANDSCAPE_WIDTH_MM - LIST_TABLE_MARGIN_MM * 2;
+
+/** Desenha o divisor verde (linha 1px) do início ao fim da página. */
 function drawDividerLine(doc: jsPDF, y: number) {
-  const w = doc.internal.pageSize.getWidth();
-  const h = doc.internal.pageSize.getHeight();
-  const pageWidth = Math.max(w, h);
-  const margin = 10;
   doc.setFillColor(20, 83, 45);
-  doc.rect(margin, y, pageWidth - margin * 2, DIVIDER_LINE_HEIGHT_MM, 'F');
+  doc.rect(LIST_TABLE_MARGIN_MM, y, LIST_TABLE_LINE_WIDTH_MM, DIVIDER_LINE_HEIGHT_MM, 'F');
 }
 
 /** Retorna URL do PDF de listagem para exibir em iframe (revogue com URL.revokeObjectURL quando não precisar mais). */
@@ -390,13 +391,18 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
   const { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices } = buildListBodyBySector(requests);
+  const dividerPositions: { page: number; y: number }[] = [];
+  let currentPage = 1;
   autoTable(doc, {
     startY: 22,
-    margin: { left: 10, right: 10 },
+    margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
+    didDrawPage: () => {
+      currentPage += 1;
+    },
     didParseCell: (data) => {
       if (data.section !== 'body') return;
       const idx = data.row.index;
@@ -415,9 +421,13 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
       if (data.section !== 'body' || data.column.index !== 0) return;
       if (dividerLineAtTopOfRowIndices.has(data.row.index)) {
         const y = (data as any).cell?.y ?? data.cursor.y;
-        drawDividerLine(doc, y);
+        dividerPositions.push({ page: currentPage, y });
       }
     }
+  });
+  dividerPositions.forEach(({ page, y }) => {
+    doc.setPage(page);
+    drawDividerLine(doc, y);
   });
   addListPagination(doc);
   const blob = doc.output('blob');
@@ -430,13 +440,18 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
 
   const { body, summaryRowIndices, spacerRowIndices, dividerLineAtTopOfRowIndices } = buildListBodyBySector(requests);
+  const dividerPositions: { page: number; y: number }[] = [];
+  let currentPage = 1;
   autoTable(doc, {
     startY: 22,
-    margin: { left: 10, right: 10 },
+    margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
+    didDrawPage: () => {
+      currentPage += 1;
+    },
     didParseCell: (data) => {
       if (data.section !== 'body') return;
       const idx = data.row.index;
@@ -455,11 +470,14 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
       if (data.section !== 'body' || data.column.index !== 0) return;
       if (dividerLineAtTopOfRowIndices.has(data.row.index)) {
         const y = (data as any).cell?.y ?? data.cursor.y;
-        drawDividerLine(doc, y);
+        dividerPositions.push({ page: currentPage, y });
       }
     }
   });
-
+  dividerPositions.forEach(({ page, y }) => {
+    doc.setPage(page);
+    drawDividerLine(doc, y);
+  });
   addListPagination(doc);
   doc.save(`listagem-extras-${new Date().getTime()}.pdf`);
 };
