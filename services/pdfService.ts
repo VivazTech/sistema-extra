@@ -314,7 +314,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
     return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
   };
   doc.setFontSize(16);
-  doc.text(`VIVAZ CATARATAS - ${title.toUpperCase()}`, 148, 15, { align: 'center' });
+  doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
   doc.setFontSize(10);
   doc.text(`Gerado em: ${formatDateTimeBR(new Date())}`, 148, 22, { align: 'center' });
   autoTable(doc, {
@@ -354,7 +354,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
     return extraDays > 0 ? `${firstShift} +${extraDays}` : firstShift;
   };
   doc.setFontSize(16);
-  doc.text(`VIVAZ CATARATAS - ${title.toUpperCase()}`, 148, 15, { align: 'center' });
+  doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
   doc.setFontSize(10);
   doc.text(`Gerado em: ${formatDateTimeBR(new Date())}`, 148, 22, { align: 'center' });
 
