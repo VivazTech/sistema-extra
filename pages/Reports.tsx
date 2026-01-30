@@ -163,25 +163,27 @@ const Reports: React.FC = () => {
           <p className="text-gray-500">Análises e estatísticas do sistema de controle de extras</p>
         </div>
         
-        {/* Filtros de Período */}
-        <div className="flex items-center gap-3">
-          <Calendar size={18} className="text-gray-400" />
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-            placeholder="Data inicial"
-          />
-          <span className="text-gray-400">até</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-            placeholder="Data final"
-          />
-        </div>
+        {/* Filtros de Período (oculto na sessão Recibos de Extras) */}
+        {activeTab !== 'recibos' && (
+          <div className="flex items-center gap-3">
+            <Calendar size={18} className="text-gray-400" />
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+              placeholder="Data inicial"
+            />
+            <span className="text-gray-400">até</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+              placeholder="Data final"
+            />
+          </div>
+        )}
       </header>
 
       {/* Tabs Navigation */}

@@ -249,7 +249,7 @@ function drawThreeRecibos(doc: jsPDF, request: ExtraRequest): void {
   }
 }
 
-/** Gera PDF com recibos em massa: cada solicitação gera 3 cópias, sem sobreposição. */
+/** Gera PDF com recibos em massa: um recibo por solicitação (1 por extra). */
 export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
   const doc = new jsPDF();
   const approved = requests.filter(r => r.status === 'APROVADO');
@@ -259,15 +259,13 @@ export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
     return URL.createObjectURL(doc.output('blob'));
   }
   approved.forEach((req, index) => {
-    if (index > 0) {
-      doc.addPage();
-    }
-    drawThreeRecibos(doc, req);
+    if (index > 0) doc.addPage();
+    buildIndividualPDF(doc, req, PAGE_TOP_MARGIN);
   });
   return URL.createObjectURL(doc.output('blob'));
 };
 
-/** Gera e baixa PDF de recibos em massa. */
+/** Gera e baixa PDF de recibos em massa: um recibo por solicitação (1 por extra). */
 export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: string) => {
   const approved = requests.filter(r => r.status === 'APROVADO');
   const doc = new jsPDF();
@@ -279,7 +277,7 @@ export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: stri
   }
   approved.forEach((req, index) => {
     if (index > 0) doc.addPage();
-    drawThreeRecibos(doc, req);
+    buildIndividualPDF(doc, req, PAGE_TOP_MARGIN);
   });
   doc.save(filename || `recibos-pagamento-${new Date().getTime()}.pdf`);
 };
