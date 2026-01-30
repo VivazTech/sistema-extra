@@ -3,8 +3,10 @@ import autoTable from 'jspdf-autotable';
 import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR, formatDateTimeBR } from '../utils/date';
 
-/** Altura de um bloco "solicitação" para caber 3 por folha A4 (~99mm). */
+/** Altura de um bloco "recibo" para caber 3 por folha A4 (~99mm). */
 const CARD_HEIGHT_MM = 99;
+/** Margem entre recibos (acima do divisor tracejado). */
+const CARD_GAP_MM = 2;
 
 /** Converte "HH:MM" em minutos desde meia-noite. */
 function timeToMinutes(t?: string): number | null {
@@ -117,10 +119,10 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   });
   body.push(['TOTAL', '', '', '', '', totalHours, request.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
 
-  doc.setFontSize(9);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.text('CONTROLE DE PONTO (PORTARIA)', 105, y + offsetY, { align: 'center' });
-  y += 4;
+  y += 3;
   const totalRowIndex = body.length - 1;
   autoTable(doc, {
     startY: y + offsetY,
@@ -137,29 +139,47 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   });
 
   const tableEndY = (doc as any).lastAutoTable.finalY;
-  const finalY = tableEndY + 6;
+  const finalY = tableEndY + 5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  // Três campos lado a lado para o funcionário preencher: CPF | Data | Assinatura
-  const w = (190 - 20) / 3;
-  doc.text('CPF', 20 + w / 2, finalY, { align: 'center' });
-  doc.text('Data', 20 + w + w / 2, finalY, { align: 'center' });
-  doc.text('Assinatura', 20 + w * 2 + w / 2, finalY, { align: 'center' });
-  doc.line(20, finalY + 2, 20 + w, finalY + 2);
-  doc.line(20 + w, finalY + 2, 20 + w * 2, finalY + 2);
-  doc.line(20 + w * 2, finalY + 2, 190, finalY + 2);
+  doc.setFontSize(7);
+  // Três campos lado a lado, separados visualmente: CPF do Funcionário Extra | Data do Recebimento | Assinatura
+  const totalW = 190 - 20;
+  const gap = 4;
+  const w = (totalW - 2 * gap) / 3;
+  const x1 = 20;
+  const x2 = 20 + gap + w;
+  const x3 = 20 + 2 * (gap + w);
+  doc.text('CPF do Funcionário Extra', x1 + w / 2, finalY, { align: 'center' });
+  doc.text('Data do Recebimento', x2 + w / 2, finalY, { align: 'center' });
+  doc.text('Assinatura do Funcionário Extra', x3 + w / 2, finalY, { align: 'center' });
+  const lineY = finalY + 2;
+  doc.line(x1, lineY, x1 + w, lineY);
+  doc.line(x2, lineY, x2 + w, lineY);
+  doc.line(x3, lineY, x3 + w, lineY);
+}
+
+/** Desenha divisor tracejado (corte da folha) entre recibos: - - - - - */
+function drawDashedDivider(doc: jsPDF, y: number) {
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.25);
+  const x1 = 20;
+  const x2 = 190;
+  const dashLen = 4;
+  const gapLen = 3;
+  let x = x1;
+  while (x < x2) {
+    doc.line(x, y, Math.min(x + dashLen, x2), y);
+    x += dashLen + gapLen;
+  }
 }
 
 export const generateIndividualPDF = (request: ExtraRequest) => {
   const doc = new jsPDF();
   buildIndividualPDF(doc, request, 0);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM * 2);
-  // Linhas de guia para recorte (entre os 3 blocos)
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(20, CARD_HEIGHT_MM, 190, CARD_HEIGHT_MM);
-  doc.line(20, CARD_HEIGHT_MM * 2, 190, CARD_HEIGHT_MM * 2);
+  drawDashedDivider(doc, CARD_HEIGHT_MM);
+  buildIndividualPDF(doc, request, CARD_HEIGHT_MM + CARD_GAP_MM);
+  drawDashedDivider(doc, CARD_HEIGHT_MM * 2);
+  buildIndividualPDF(doc, request, CARD_HEIGHT_MM * 2 + CARD_GAP_MM);
   doc.save(`recibo-pagamento-${request.code}.pdf`);
 };
 
@@ -167,12 +187,10 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
 export const getIndividualPDFBlobUrl = (request: ExtraRequest): string => {
   const doc = new jsPDF();
   buildIndividualPDF(doc, request, 0);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM);
-  buildIndividualPDF(doc, request, CARD_HEIGHT_MM * 2);
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(20, CARD_HEIGHT_MM, 190, CARD_HEIGHT_MM);
-  doc.line(20, CARD_HEIGHT_MM * 2, 190, CARD_HEIGHT_MM * 2);
+  drawDashedDivider(doc, CARD_HEIGHT_MM);
+  buildIndividualPDF(doc, request, CARD_HEIGHT_MM + CARD_GAP_MM);
+  drawDashedDivider(doc, CARD_HEIGHT_MM * 2);
+  buildIndividualPDF(doc, request, CARD_HEIGHT_MM * 2 + CARD_GAP_MM);
   const blob = doc.output('blob');
   return URL.createObjectURL(blob);
 };
