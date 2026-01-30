@@ -19,6 +19,7 @@ import ExtraBank from './pages/ExtraBank';
 import ExtraBankForm from './pages/ExtraBankForm';
 import ExtraSaldo from './pages/ExtraSaldo';
 import Reports from './pages/Reports';
+import PDFPreview from './pages/PDFPreview';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; page?: AccessPageKey }> = ({ children, page }) => {
   const { isAuthenticated, user } = useAuth();
@@ -41,6 +42,7 @@ const AppRoutes = () => {
       <Route path="/solicitacoes" element={<PrivateRoute page="requests"><Requests /></PrivateRoute>} />
       <Route path="/portaria" element={<PrivateRoute page="portaria"><Portaria /></PrivateRoute>} />
       <Route path="/test-supabase" element={<PrivateRoute page="test"><TestSupabase /></PrivateRoute>} />
+      <Route path="/preview-pdf" element={<PrivateRoute><PDFPreview /></PrivateRoute>} />
       <Route path="/admin/cadastros" element={<PrivateRoute page="catalogs"><AdminCatalogs /></PrivateRoute>} />
       <Route path="/admin/usuarios" element={<PrivateRoute page="users"><AdminUsers /></PrivateRoute>} />
       <Route path="/admin/saldo-extras" element={<PrivateRoute page="saldo"><ExtraSaldo /></PrivateRoute>} />

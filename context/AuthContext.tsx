@@ -242,17 +242,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Ignorar erros de localStorage (pode estar desabilitado)
       }
       setLoading(false);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:success',message:'loadUserData success -> setLoading(false)',data:{userRole:user.role,isAuthenticated:true},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setDebugStep('loadUserData:success -> setLoading(false)');
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
       setState({ user: null, isAuthenticated: false });
       setLoading(false);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/46453aa1-542a-4700-9266-b4d0c7aab459',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:catch',message:'loadUserData catch -> setLoading(false)',data:{errorName:(error as any)?.name,errorMessage:(error as any)?.message},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setDebugStep(`loadUserData:catch ${(error as any)?.name || 'Error'}`);
     }
   };
