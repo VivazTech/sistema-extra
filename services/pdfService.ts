@@ -346,6 +346,8 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
       spacerRowIndices.add(body.length - 1);
       body.push([...emptyRow]);
       greenBarRowIndices.add(body.length - 1);
+      body.push([...emptyRow]);
+      spacerRowIndices.add(body.length - 1);
     }
   }
 
@@ -391,10 +393,10 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
       } else if (greenBarRowIndices.has(idx)) {
         data.cell.styles.fillColor = [20, 83, 45];
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 2;
+        data.cell.styles.minCellHeight = 0.5;
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 3;
+        data.cell.styles.minCellHeight = 1.5;
       }
     }
   });
@@ -427,10 +429,10 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
       } else if (greenBarRowIndices.has(idx)) {
         data.cell.styles.fillColor = [20, 83, 45];
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 2;
+        data.cell.styles.minCellHeight = 0.5;
       } else if (spacerRowIndices.has(idx)) {
         data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = 3;
+        data.cell.styles.minCellHeight = 1.5;
       }
     }
   });
