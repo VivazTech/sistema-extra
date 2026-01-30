@@ -106,6 +106,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     requester: dbRequest.requester_name,
     reason: dbRequest.reason_name,
     extraName: dbRequest.extra_name,
+    extraCpf: dbRequest.extra_persons?.cpf,
     value: parseFloat(dbRequest.value) || 0,
     status: dbRequest.status,
     needsManagerApproval: dbRequest.needs_manager_approval || false,
@@ -116,7 +117,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     cancellationReason: dbRequest.cancellation_reason,
     createdAt: dbRequest.created_at,
     updatedAt: dbRequest.updated_at,
-    approvedBy: dbRequest.approved_by,
+    approvedBy: dbRequest.approved_by_name ?? dbRequest.users?.name ?? dbRequest.approved_by,
     approvedAt: dbRequest.approved_at,
   };
 };

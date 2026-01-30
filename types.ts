@@ -90,6 +90,8 @@ export interface ExtraRequest {
   requester: string;
   reason: string;
   extraName: string;
+  /** CPF do funcionário extra (quando vinculado a extra_persons). */
+  extraCpf?: string;
   value: number;
   status: RequestStatus;
   needsManagerApproval?: boolean;

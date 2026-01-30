@@ -160,6 +160,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .select(`
             *,
             sectors(name),
+            users!extra_requests_approved_by_fkey(name),
+            extra_persons(cpf),
             work_days(
               *,
               time_records(*)
@@ -358,6 +360,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .select(`
           *,
           sectors(name),
+          users!extra_requests_approved_by_fkey(name),
+          extra_persons(cpf),
           work_days(
             *,
             time_records(*)
@@ -438,6 +442,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           *,
           sectors(name),
           users!extra_requests_approved_by_fkey(name),
+          extra_persons(cpf),
           work_days(
             *,
             time_records(*)
@@ -1285,6 +1290,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           *,
           sectors(name),
           users!extra_requests_approved_by_fkey(name),
+          extra_persons(cpf),
           work_days(
             *,
             time_records(*)
