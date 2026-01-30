@@ -306,14 +306,23 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Agrupa solicitações por setor e monta body da tabela com subtotal por setor e total geral. */
-function buildListBodyBySector(requests: ExtraRequest[]): { body: string[][]; summaryRowIndices: Set<number> } {
+/** Agrupa solicitações por setor e monta body da tabela com subtotal, separador verde e total geral. */
+function buildListBodyBySector(requests: ExtraRequest[]): {
+  body: string[][];
+  summaryRowIndices: Set<number>;
+  greenBarRowIndices: Set<number>;
+  spacerRowIndices: Set<number>;
+} {
   const body: string[][] = [];
   const summaryRowIndices = new Set<number>();
+  const greenBarRowIndices = new Set<number>();
+  const spacerRowIndices = new Set<number>();
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
   let totalGeral = 0;
+  const emptyRow = ['', '', '', '', '', '', ''];
 
-  for (const setor of sectors) {
+  for (let i = 0; i < sectors.length; i++) {
+    const setor = sectors[i];
     const list = requests.filter(r => r.sector === setor);
     let totalSetor = 0;
     for (const r of list) {
@@ -328,15 +337,22 @@ function buildListBodyBySector(requests: ExtraRequest[]): { body: string[][]; su
       ]);
       totalSetor += r.value;
     }
-    body.push(['', '', `Subtotal (${setor})`, '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+    body.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
     summaryRowIndices.add(body.length - 1);
     totalGeral += totalSetor;
+
+    if (i < sectors.length - 1) {
+      body.push([...emptyRow]);
+      spacerRowIndices.add(body.length - 1);
+      body.push([...emptyRow]);
+      greenBarRowIndices.add(body.length - 1);
+    }
   }
 
-  body.push(['', '', 'TOTAL GERAL', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  body.push(['TOTAL GERAL', '', '', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
   summaryRowIndices.add(body.length - 1);
 
-  return { body, summaryRowIndices };
+  return { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices };
 }
 
 /** Adiciona paginação no canto inferior direito (fonte pequena). */
@@ -356,7 +372,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   const doc = new jsPDF('l', 'mm', 'a4');
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
-  const { body, summaryRowIndices } = buildListBodyBySector(requests);
+  const { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
@@ -364,11 +380,21 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
     didParseCell: (data) => {
-      if (data.section === 'body' && summaryRowIndices.has(data.row.index)) {
+      if (data.section !== 'body') return;
+      const idx = data.row.index;
+      if (summaryRowIndices.has(idx)) {
         data.cell.styles.fontStyle = 'bold';
-        if (data.row.index === body.length - 1) {
+        if (data.column.index === 0) data.cell.styles.halign = 'left';
+        if (idx === body.length - 1) {
           data.cell.styles.fillColor = [230, 245, 230];
         }
+      } else if (greenBarRowIndices.has(idx)) {
+        data.cell.styles.fillColor = [20, 83, 45];
+        data.cell.styles.cellPadding = 0;
+        data.cell.styles.minCellHeight = 2;
+      } else if (spacerRowIndices.has(idx)) {
+        data.cell.styles.cellPadding = 0;
+        data.cell.styles.minCellHeight = 3;
       }
     }
   });
@@ -382,7 +408,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
 
-  const { body, summaryRowIndices } = buildListBodyBySector(requests);
+  const { body, summaryRowIndices, greenBarRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
     head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
@@ -390,11 +416,21 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
     didParseCell: (data) => {
-      if (data.section === 'body' && summaryRowIndices.has(data.row.index)) {
+      if (data.section !== 'body') return;
+      const idx = data.row.index;
+      if (summaryRowIndices.has(idx)) {
         data.cell.styles.fontStyle = 'bold';
-        if (data.row.index === body.length - 1) {
+        if (data.column.index === 0) data.cell.styles.halign = 'left';
+        if (idx === body.length - 1) {
           data.cell.styles.fillColor = [230, 245, 230];
         }
+      } else if (greenBarRowIndices.has(idx)) {
+        data.cell.styles.fillColor = [20, 83, 45];
+        data.cell.styles.cellPadding = 0;
+        data.cell.styles.minCellHeight = 2;
+      } else if (spacerRowIndices.has(idx)) {
+        data.cell.styles.cellPadding = 0;
+        data.cell.styles.minCellHeight = 3;
       }
     }
   });
