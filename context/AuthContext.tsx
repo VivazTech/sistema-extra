@@ -289,6 +289,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             error: 'Usuário ou senha incorretos' 
           };
         }
+        if (authError.message.includes('Email not confirmed')) {
+          return {
+            success: false,
+            error: 'Email não confirmado. Verifique sua caixa de entrada e a pasta de spam.',
+          };
+        }
         return { success: false, error: authError.message };
       }
 

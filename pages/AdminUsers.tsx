@@ -141,6 +141,12 @@ const AdminUsers: React.FC = () => {
         await updateUser(editingId, userData);
       } else {
         await addUser(userData as User);
+        if (formData.email) {
+          alert(
+            `Usuário criado. Se a confirmação de email estiver habilitada no Supabase, ` +
+            `foi enviado um email de confirmação para ${formData.email}.`
+          );
+        }
       }
 
       handleCloseModal();
