@@ -162,45 +162,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.info('[AGENT_DEBUG][B] loadUserData:start', { hasAuthUserId: !!authUserId });
       setDebugStep('loadUserData:start');
       // Buscar usuário na tabela users pelo ID do Auth (que deve ser o mesmo)
+      // maybeSingle() evita HTTP 406 quando não há linha (single() exige exatamente 1 linha)
       setDebugStep('loadUserData:usersQuery:start');
       let { data: userData, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUserId)
         .eq('active', true)
-        .single();
+        .maybeSingle();
 
       agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:usersQuery',message:'loadUserData usersQuery result',data:{hasUserData:!!userData,errorCode:(error as any)?.code,errorMessage:(error as any)?.message},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][B] loadUserData:usersQuery', { hasUserData: !!userData, errorCode: (error as any)?.code, hasError: !!error });
       setDebugStep(`loadUserData:usersQuery hasUser=${!!userData} err=${(error as any)?.code || 'none'}`);
 
-      // Se não encontrou pelo ID, tentar buscar pelo email do Auth
-      if (error && error.code === 'PGRST116') {
-        console.warn('Usuário não encontrado pelo ID, tentando buscar pelo email...');
-        
-        // Buscar email do usuário no Auth
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        
-        if (authUser?.email) {
-          const { data: userByEmail, error: emailError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', authUser.email)
-            .eq('active', true)
-            .single();
+      // Se não encontrou pelo ID, tentar buscar pelo email do Auth (fallback para ID dessincronizado)
+      if (!userData && !error) {
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser?.email) {
+            const { data: userByEmail, error: emailError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('email', authUser.email)
+              .eq('active', true)
+              .maybeSingle();
 
-          if (!emailError && userByEmail) {
-            console.warn('⚠️ Usuário encontrado por email, mas ID não corresponde. Execute o script create-admin-user.js para sincronizar.');
-            userData = userByEmail;
-            error = null;
+            if (!emailError && userByEmail) {
+              const alreadyWarned = sessionStorage.getItem('vivaz_sync_id_warn') === '1';
+              if (!alreadyWarned) {
+                console.warn('Usuário encontrado por email, mas ID do Auth não corresponde ao ID na tabela users. Para sincronizar: node scripts/create-admin-user.js');
+                sessionStorage.setItem('vivaz_sync_id_warn', '1');
+              }
+              userData = userByEmail;
+            }
           }
+        } catch (_) {
+          // ignora falha no fallback
         }
       }
 
       if (error || !userData) {
-        console.error('Erro ao buscar dados do usuário:', error);
-        console.error('⚠️ O usuário existe no Supabase Auth mas não foi encontrado na tabela users.');
-        console.error('Execute o script: node scripts/create-admin-user.js');
+        if (error) console.error('Erro ao buscar dados do usuário:', error);
+        else console.error('Usuário do Auth não encontrado na tabela users. Execute: node scripts/create-admin-user.js');
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
         setDebugStep('loadUserData:notFound -> setLoading(false)');
@@ -255,13 +258,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Primeiro, buscar o usuário na tabela users para obter o email
+      // Primeiro, buscar o usuário na tabela users para obter o email (maybeSingle evita 406 se não houver linha)
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email, username')
         .eq('username', username.toLowerCase())
         .eq('active', true)
-        .single();
+        .maybeSingle();
 
       if (userError || !userData) {
         setLoading(false);
@@ -337,13 +340,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Verificar se o email existe na tabela users
+      // Verificar se o email existe na tabela users (maybeSingle evita 406 se não houver linha)
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
         .eq('email', email.toLowerCase())
         .eq('active', true)
-        .single();
+        .maybeSingle();
 
       if (userError || !userData || !userData.email) {
         return { success: false, error: 'Email não encontrado ou usuário inativo' };
