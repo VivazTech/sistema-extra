@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
@@ -8,7 +8,9 @@ import {
   AlertCircle, 
   ArrowUpRight,
   TrendingUp,
-  Clock
+  Clock,
+  Search,
+  X
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { RequestStatus } from '../types';
@@ -17,6 +19,7 @@ import { formatDateBR } from '../utils/date';
 const Dashboard: React.FC = () => {
   const { requests } = useExtras();
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRequests = requests.filter(r => r.workDays.some(d => d.date === todayStr));
@@ -28,7 +31,21 @@ const Dashboard: React.FC = () => {
     { label: 'Reprovados', value: requests.filter(r => r.status === 'REPROVADO').length, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
   ];
 
-  const recentRequests = requests.slice(0, 5);
+  const filteredRequests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return requests;
+    return requests.filter(
+      (r) =>
+        r.extraName?.toLowerCase().includes(q) ||
+        r.sector?.toLowerCase().includes(q) ||
+        r.role?.toLowerCase().includes(q) ||
+        r.status?.toLowerCase().includes(q) ||
+        r.requester?.toLowerCase().includes(q) ||
+        r.leaderName?.toLowerCase().includes(q)
+    );
+  }, [requests, searchQuery]);
+
+  const recentRequests = searchQuery.trim() ? filteredRequests.slice(0, 20) : filteredRequests.slice(0, 5);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -55,16 +72,45 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Activity */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="font-bold text-gray-900 flex items-center gap-2">
-              <Clock size={20} className="text-emerald-600" />
-              Solicitações Recentes
-            </h2>
-            <button className="text-sm text-emerald-600 font-semibold hover:underline">Ver todas</button>
+          <div className="p-6 border-b border-gray-100 space-y-4">
+            <div className="flex flex-wrap justify-between items-center gap-4">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Clock size={20} className="text-emerald-600" />
+                Solicitações Recentes
+              </h2>
+              <button
+                onClick={() => navigate('/solicitacoes')}
+                className="text-sm text-emerald-600 font-semibold hover:underline"
+              >
+                Ver todas
+              </button>
+            </div>
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nome, setor, função, status ou demandante..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full pl-10 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${searchQuery ? 'pr-10' : 'pr-4'}`}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-200"
+                  aria-label="Limpar busca"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="divide-y divide-gray-50">
             {recentRequests.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">Nenhuma solicitação encontrada.</div>
+              <div className="p-8 text-center text-gray-400">
+                {searchQuery.trim() ? 'Nenhuma solicitação corresponde à busca.' : 'Nenhuma solicitação encontrada.'}
+              </div>
             ) : (
               recentRequests.map((req) => (
                 <div key={req.id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between">
