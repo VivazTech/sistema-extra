@@ -84,8 +84,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [managerSectorSet]);
 
+  const sortSectorsByName = (list: Sector[]) =>
+    [...list].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
   const visibleSectors = useMemo(
-    () => filterByManagerSector(sectors, sector => sector.name),
+    () => sortSectorsByName(filterByManagerSector(sectors, sector => sector.name)),
     [filterByManagerSector, sectors]
   );
 
@@ -117,7 +120,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (!sectorsError && sectorsData) {
           const mappedSectors = sectorsData.map(s => mapSector(s, s.sector_roles));
-          setSectors(mappedSectors);
+          setSectors(sortSectorsByName(mappedSectors));
         }
 
         // Carregar Solicitantes
@@ -540,7 +543,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (fullSector) {
         const mappedSector = mapSector(fullSector, fullSector.sector_roles);
-        setSectors(prev => [...prev, mappedSector]);
+        setSectors(prev => sortSectorsByName([...prev, mappedSector]));
       }
     } catch (error) {
       console.error('Erro ao adicionar setor:', error);
@@ -630,7 +633,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (fullSector) {
         const mappedSector = mapSector(fullSector, fullSector.sector_roles);
-        setSectors(prev => prev.map(s => s.id === id ? mappedSector : s));
+        setSectors(prev => sortSectorsByName(prev.map(s => s.id === id ? mappedSector : s)));
       }
     } catch (error) {
       console.error('Erro ao atualizar setor:', error);

@@ -1,9 +1,29 @@
 import React, { useMemo, useState } from 'react';
-import { Save, Trash2, Edit2, Filter } from 'lucide-react';
+import { Save, Trash2, Edit2, Filter, Plus } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { ExtraSaldoInput } from '../types';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { formatDateBR } from '../utils/date';
+
+type CadastroRow = {
+  setor: string;
+  quadroAprovado: string;
+  quadroEfetivo: string;
+  folgas: string;
+  domingos: string;
+  demanda: string;
+  atestado: string;
+};
+
+const emptyRow = (): CadastroRow => ({
+  setor: '',
+  quadroAprovado: '',
+  quadroEfetivo: '',
+  folgas: '',
+  domingos: '',
+  demanda: '',
+  atestado: ''
+});
 
 const ExtraSaldo: React.FC = () => {
   const {
@@ -18,17 +38,9 @@ const ExtraSaldo: React.FC = () => {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filters, setFilters] = useState({ setor: '', inicio: '', fim: '' });
-  const [formData, setFormData] = useState({
-    setor: '',
-    periodoInicio: '',
-    periodoFim: '',
-    quadroAprovado: '',
-    quadroEfetivo: '',
-    folgas: '',
-    domingos: '',
-    demanda: '',
-    atestado: ''
-  });
+  const [periodoInicio, setPeriodoInicio] = useState('');
+  const [periodoFim, setPeriodoFim] = useState('');
+  const [cadastros, setCadastros] = useState<CadastroRow[]>(() => [emptyRow()]);
 
   const toNumber = (value: string) => {
     if (value === '' || value === null || value === undefined) return 0;
@@ -36,38 +48,108 @@ const ExtraSaldo: React.FC = () => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const handleAddCadastro = () => {
+    setCadastros(prev => [...prev, emptyRow()]);
+  };
+
+  const handleRemoveCadastro = (idx: number) => {
+    if (cadastros.length <= 1) return;
+    setCadastros(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateCadastro = (idx: number, field: keyof CadastroRow, value: string) => {
+    setCadastros(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  };
+
   const handleSave = async () => {
-    if (!formData.setor || !formData.periodoInicio || !formData.periodoFim) {
-      alert('Setor e período são obrigatórios.');
-      return;
-    }
-    const input: ExtraSaldoInput = {
-      setor: formData.setor,
-      periodoInicio: formData.periodoInicio,
-      periodoFim: formData.periodoFim,
-      quadroAprovado: toNumber(formData.quadroAprovado),
-      quadroEfetivo: toNumber(formData.quadroEfetivo),
-      folgas: toNumber(formData.folgas),
-      domingos: toNumber(formData.domingos),
-      demanda: toNumber(formData.demanda),
-      atestado: toNumber(formData.atestado),
-      extrasSolicitados: 0
-    };
-
-    const existing = editingId ? extraSaldoRecords.find(r => r.id === editingId) : null;
-    const valorDiariaSnapshot = existing?.valorDiariaSnapshot ?? extraSaldoSettings.valorDiaria;
-
-    try {
-      calculateExtraSaldo(input, valorDiariaSnapshot);
-    } catch (err: any) {
-      alert(err?.message || 'Erro ao calcular o saldo.');
+    if (!periodoInicio || !periodoFim) {
+      alert('Período início e fim são obrigatórios.');
       return;
     }
 
-    try {
-      if (editingId) {
+    if (editingId) {
+      const row = cadastros[0];
+      if (!row.setor) {
+        alert('Setor é obrigatório.');
+        return;
+      }
+      const input: ExtraSaldoInput = {
+        setor: row.setor,
+        periodoInicio,
+        periodoFim,
+        quadroAprovado: toNumber(row.quadroAprovado),
+        quadroEfetivo: toNumber(row.quadroEfetivo),
+        folgas: toNumber(row.quadroEfetivo),
+        domingos: toNumber(row.domingos),
+        demanda: toNumber(row.demanda),
+        atestado: toNumber(row.atestado),
+        extrasSolicitados: 0
+      };
+      const existing = extraSaldoRecords.find(r => r.id === editingId)!;
+      const valorDiariaSnapshot = existing?.valorDiariaSnapshot ?? extraSaldoSettings.valorDiaria;
+      try {
+        calculateExtraSaldo(input, valorDiariaSnapshot);
+      } catch (err: any) {
+        alert(err?.message || 'Erro ao calcular o saldo.');
+        return;
+      }
+      try {
         await updateExtraSaldoRecord(editingId, input, valorDiariaSnapshot);
-      } else {
+      } catch (error: any) {
+        alert(error?.message || 'Erro ao salvar no banco de dados.');
+        return;
+      }
+      setEditingId(null);
+      setCadastros([emptyRow()]);
+      return;
+    }
+
+    const toSave = cadastros.filter(r => r.setor.trim());
+    if (toSave.length === 0) {
+      alert('Preencha pelo menos um setor para salvar.');
+      return;
+    }
+
+    const valorDiariaSnapshot = extraSaldoSettings.valorDiaria;
+    for (const row of toSave) {
+      const input: ExtraSaldoInput = {
+        setor: row.setor.trim(),
+        periodoInicio,
+        periodoFim,
+        quadroAprovado: toNumber(row.quadroAprovado),
+        quadroEfetivo: toNumber(row.quadroEfetivo),
+        folgas: toNumber(row.quadroEfetivo),
+        domingos: toNumber(row.domingos),
+        demanda: toNumber(row.demanda),
+        atestado: toNumber(row.atestado),
+        extrasSolicitados: 0
+      };
+      try {
+        calculateExtraSaldo(input, valorDiariaSnapshot);
+      } catch (err: any) {
+        alert(err?.message || 'Erro ao calcular o saldo.');
+        return;
+      }
+    }
+
+    try {
+      for (const row of toSave) {
+        const input: ExtraSaldoInput = {
+          setor: row.setor.trim(),
+          periodoInicio,
+          periodoFim,
+          quadroAprovado: toNumber(row.quadroAprovado),
+          quadroEfetivo: toNumber(row.quadroEfetivo),
+          folgas: toNumber(row.quadroEfetivo),
+          domingos: toNumber(row.domingos),
+          demanda: toNumber(row.demanda),
+          atestado: toNumber(row.atestado),
+          extrasSolicitados: 0
+        };
         await addExtraSaldoRecord(input, valorDiariaSnapshot);
       }
     } catch (error: any) {
@@ -75,35 +157,29 @@ const ExtraSaldo: React.FC = () => {
       return;
     }
 
-    setEditingId(null);
-    setFormData({
-      setor: '',
-      periodoInicio: '',
-      periodoFim: '',
-      quadroAprovado: '',
-      quadroEfetivo: '',
-      folgas: '',
-      domingos: '',
-      demanda: '',
-      atestado: ''
-    });
+    setCadastros([emptyRow()]);
   };
 
   const handleEdit = (id: string) => {
     const record = extraSaldoRecords.find(r => r.id === id);
     if (!record) return;
     setEditingId(id);
-    setFormData({
+    setPeriodoInicio(record.periodoInicio);
+    setPeriodoFim(record.periodoFim);
+    setCadastros([{
       setor: record.setor,
-      periodoInicio: record.periodoInicio,
-      periodoFim: record.periodoFim,
       quadroAprovado: String(record.quadroAprovado),
       quadroEfetivo: String(record.quadroEfetivo),
       folgas: String(record.folgas),
       domingos: String(record.domingos),
       demanda: String(record.demanda),
       atestado: String(record.atestado)
-    });
+    }]);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setCadastros([emptyRow()]);
   };
 
   const filteredRecords = useMemo(() => {
@@ -137,25 +213,15 @@ const ExtraSaldo: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase">Setor *</label>
-              <select
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.setor}
-                onChange={(e) => setFormData({ ...formData, setor: e.target.value })}
-              >
-                <option value="">Selecione o setor</option>
-                {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
-            </div>
+          {/* Período único para todos os cadastros */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b border-gray-100">
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase">Período início *</label>
               <input
                 type="date"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.periodoInicio}
-                onChange={(e) => setFormData({ ...formData, periodoInicio: e.target.value })}
+                value={periodoInicio}
+                onChange={(e) => setPeriodoInicio(e.target.value)}
               />
             </div>
             <div>
@@ -163,41 +229,101 @@ const ExtraSaldo: React.FC = () => {
               <input
                 type="date"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.periodoFim}
-                onChange={(e) => setFormData({ ...formData, periodoFim: e.target.value })}
+                value={periodoFim}
+                onChange={(e) => setPeriodoFim(e.target.value)}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              ['Quadro aprovado', 'quadroAprovado'],
-              ['Quadro efetivo', 'quadroEfetivo'],
-              ['Folgas', 'folgas'],
-              ['Domingos', 'domingos'],
-              ['Demanda', 'demanda'],
-              ['Atestado', 'atestado']
-            ].map(([label, key]) => (
-              <div key={key}>
-                <label className="text-[10px] font-bold text-gray-500 uppercase">{label}</label>
-                <input
-                  type="number"
-                  min={0}
-                  className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={(formData as any)[key]}
-                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                />
+          {/* Lista de cadastros (setor + números) */}
+          <div className="space-y-4">
+            {cadastros.map((row, idx) => (
+              <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Cadastro {cadastros.length > 1 ? idx + 1 : ''}</span>
+                  {!editingId && cadastros.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCadastro(idx)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover cadastro"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Setor *</label>
+                    <select
+                      className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                      value={row.setor}
+                      onChange={(e) => handleUpdateCadastro(idx, 'setor', e.target.value)}
+                    >
+                      <option value="">Selecione o setor</option>
+                      {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  {[
+                    ['Quadro aprovado', 'quadroAprovado'],
+                    ['Quadro efetivo', 'quadroEfetivo'],
+                    ['Domingos', 'domingos'],
+                    ['Demanda', 'demanda'],
+                    ['Atestado', 'atestado']
+                  ].map(([label, key]) => (
+                    <div key={key}>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">{label}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                        value={row[key as keyof CadastroRow]}
+                        onChange={(e) => handleUpdateCadastro(idx, key as keyof CadastroRow, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Folgas <span className="text-gray-400 font-normal">(= Quadro efetivo)</span></label>
+                    <input
+                      type="number"
+                      min={0}
+                      readOnly
+                      tabIndex={-1}
+                      className="w-full border border-gray-200 rounded-xl p-2.5 bg-gray-100 text-gray-600 cursor-default"
+                      value={row.quadroEfetivo}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
+
+            {!editingId && (
+              <button
+                type="button"
+                onClick={handleAddCadastro}
+                className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-bold text-gray-500 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50/50 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={18} /> Adicionar cadastro
+              </button>
+            )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-2">
             <button
               onClick={handleSave}
               className="flex-1 py-3 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all"
             >
-              <Save size={18} /> {editingId ? 'Atualizar' : 'Salvar'} período
+              <Save size={18} /> {editingId ? 'Atualizar' : cadastros.filter(r => r.setor.trim()).length > 1 ? 'Salvar todos' : 'Salvar'} período
             </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="py-3 px-6 font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2 transition-all"
+              >
+                Cancelar
+              </button>
+            )}
           </div>
         </div>
 

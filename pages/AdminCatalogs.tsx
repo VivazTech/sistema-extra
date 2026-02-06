@@ -138,6 +138,9 @@ const AdminCatalogs: React.FC = () => {
   const [editSector, setEditSector] = useState<Sector | null>(null);
   const [searchSector, setSearchSector] = useState('');
   const [expandedSectors, setExpandedSectors] = useState<Set<string>>(new Set());
+  const [isModalNewSectorOpen, setIsModalNewSectorOpen] = useState(false);
+  const [newSectorName, setNewSectorName] = useState('');
+  const [newSectorRoles, setNewSectorRoles] = useState<string[]>(['']);
 
   const handleStartEditSector = (sector: Sector) => {
     setIsEditingSector(sector.id);
@@ -152,11 +155,45 @@ const AdminCatalogs: React.FC = () => {
     }
   };
 
-  const handleAddSector = () => {
-    const newId = Math.random().toString(36).substr(2, 9);
-    const newSector: Sector = { id: newId, name: 'Novo Setor', roles: ['Exemplo'] };
-    addSector(newSector);
-    handleStartEditSector(newSector);
+  const handleOpenNewSectorModal = () => {
+    setNewSectorName('');
+    setNewSectorRoles(['']);
+    setIsModalNewSectorOpen(true);
+  };
+
+  const handleCloseNewSectorModal = () => {
+    setIsModalNewSectorOpen(false);
+    setNewSectorName('');
+    setNewSectorRoles(['']);
+  };
+
+  const handleAddNewSectorRole = () => {
+    setNewSectorRoles(prev => [...prev, '']);
+  };
+
+  const handleUpdateNewSectorRole = (idx: number, val: string) => {
+    setNewSectorRoles(prev => {
+      const next = [...prev];
+      next[idx] = val;
+      return next;
+    });
+  };
+
+  const handleRemoveNewSectorRole = (idx: number) => {
+    setNewSectorRoles(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveNewSector = async () => {
+    const name = newSectorName.trim();
+    if (!name) return;
+    const roles = newSectorRoles.map(r => r.trim()).filter(Boolean);
+    const newSector: Sector = {
+      id: Math.random().toString(36).substr(2, 9),
+      name,
+      roles: roles.length > 0 ? roles : [],
+    };
+    await addSector(newSector);
+    handleCloseNewSectorModal();
   };
 
   const handleAddRole = () => {
@@ -240,7 +277,7 @@ const AdminCatalogs: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900">Setores e Funções</h2>
           <button 
-            onClick={handleAddSector}
+            onClick={handleOpenNewSectorModal}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-md"
           >
             <Plus size={18} /> Novo Setor
@@ -379,6 +416,81 @@ const AdminCatalogs: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Modal Novo Setor */}
+      {isModalNewSectorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Novo Setor</h3>
+              <button
+                onClick={handleCloseNewSectorModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Nome do Setor *</label>
+              <input
+                type="text"
+                placeholder="Ex.: Restaurante, Governança..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                value={newSectorName}
+                onChange={(e) => setNewSectorName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Funções</label>
+              <div className="space-y-2">
+                {newSectorRoles.map((role, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nome da função"
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500"
+                      value={role}
+                      onChange={(e) => handleUpdateNewSectorRole(idx, e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveNewSectorRole(idx)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleAddNewSectorRole}
+                  className="w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-xs font-bold text-gray-400 hover:border-emerald-300 hover:text-emerald-500 transition-all"
+                >
+                  + Adicionar Função
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveNewSector}
+                disabled={!newSectorName.trim()}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700"
+              >
+                <Save size={16} /> Salvar
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseNewSectorModal}
+                className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
