@@ -42,19 +42,22 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     observations: ''
   });
 
-  const availableRoles = sectors.find(s => s.name === formData.sector)?.roles || [];
-  // Mostrar todos os extras do banco, mas priorizar os do setor selecionado
-  const availableExtras = formData.sector 
-    ? extras.filter(e => e.sector === formData.sector)
+  const isLeaderWithSector = user?.role === 'LEADER' && user.sectors?.length;
+  const leaderSector = isLeaderWithSector ? user.sectors![0] : null;
+  const effectiveSector = formData.sector || leaderSector || '';
+  const availableRoles = sectors.find(s => s.name === effectiveSector)?.roles || [];
+  // Extras do setor selecionado (para líder, usar setor do líder desde o início)
+  const availableExtras = effectiveSector
+    ? extras.filter(e => e.sector === effectiveSector)
     : extras;
 
   // Calcular saldo disponível para a semana da primeira data selecionada
   const saldoDisponivel = useMemo(() => {
-    if (!formData.sector || !formData.workDays.length || !formData.workDays[0].date) {
+    if (!effectiveSector || !formData.workDays.length || !formData.workDays[0].date) {
       return null;
     }
-    return getSaldoForWeek(formData.sector, formData.workDays[0].date);
-  }, [formData.sector, formData.workDays, getSaldoForWeek]);
+    return getSaldoForWeek(effectiveSector, formData.workDays[0].date);
+  }, [effectiveSector, formData.workDays, getSaldoForWeek]);
 
   const addDays = (dateStr: string, days: number) => {
     const date = new Date(`${dateStr}T00:00:00`);
@@ -100,9 +103,6 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     updated[idx] = { ...updated[idx], [field]: normalizedValue };
     setFormData({ ...formData, workDays: updated });
   };
-
-  const isLeaderWithSector = user?.role === 'LEADER' && user.sectors?.length;
-  const leaderSector = isLeaderWithSector ? user.sectors![0] : null;
 
   useEffect(() => {
     if (isOpen) {
@@ -185,7 +185,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Saldo de Extras Disponível */}
-          {formData.sector && formData.workDays.length > 0 && formData.workDays[0].date && saldoDisponivel !== null && (
+          {effectiveSector && formData.workDays.length > 0 && formData.workDays[0].date && saldoDisponivel !== null && (
             <div className={`rounded-xl p-4 border-2 ${
               saldoDisponivel === 'no-record'
                 ? 'bg-gray-50 border-gray-200'
@@ -225,13 +225,13 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                           : 'text-red-700'
                   }`}>
                     {saldoDisponivel === 'no-record' ? (
-                      <>Não há registro de saldo cadastrado para o setor <strong>{formData.sector}</strong> nesta semana. Cadastre um registro em "Saldo de Extras" para acompanhar a disponibilidade.</>
+                      <>Não há registro de saldo cadastrado para o setor <strong>{effectiveSector}</strong> nesta semana. Cadastre um registro em "Saldo de Extras" para acompanhar a disponibilidade.</>
                     ) : saldoDisponivel > 0 ? (
-                      <>Você pode contratar <strong>{saldoDisponivel}</strong> {saldoDisponivel === 1 ? 'extra' : 'extras'} nesta semana para o setor <strong>{formData.sector}</strong>.</>
+                      <>Você pode contratar <strong>{saldoDisponivel}</strong> {saldoDisponivel === 1 ? 'extra' : 'extras'} nesta semana para o setor <strong>{effectiveSector}</strong>.</>
                     ) : saldoDisponivel === 0 ? (
-                      <>O saldo de extras está zerado para o setor <strong>{formData.sector}</strong> nesta semana. A solicitação ainda pode ser feita, mas será necessário revisar o saldo.</>
+                      <>O saldo de extras está zerado para o setor <strong>{effectiveSector}</strong> nesta semana. A solicitação ainda pode ser feita, mas será necessário revisar o saldo.</>
                     ) : (
-                      <>O saldo de extras está negativo (<strong>{saldoDisponivel}</strong>) para o setor <strong>{formData.sector}</strong> nesta semana. A solicitação ainda pode ser feita, mas será necessário revisar o saldo.</>
+                      <>O saldo de extras está negativo (<strong>{saldoDisponivel}</strong>) para o setor <strong>{effectiveSector}</strong> nesta semana. A solicitação ainda pode ser feita, mas será necessário revisar o saldo.</>
                     )}
                   </p>
                 </div>

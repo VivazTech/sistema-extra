@@ -211,9 +211,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Buscar setores do usuário (se for manager)
+      // Buscar setores do usuário (MANAGER e LEADER têm setor(es) atribuído(s) em user_sectors)
       let sectors: string[] = [];
-      if (userData.role === 'MANAGER') {
+      if (userData.role === 'MANAGER' || userData.role === 'LEADER') {
         const { data: userSectors } = await supabase
           .from('user_sectors')
           .select('sectors(name)')
