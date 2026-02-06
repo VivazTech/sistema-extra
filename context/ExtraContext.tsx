@@ -42,6 +42,7 @@ interface ExtraContextType {
   updateShift: (id: string, shift: ShiftItem) => Promise<void>;
   deleteShift: (id: string) => Promise<void>;
   addExtra: (extra: ExtraPerson) => void;
+  updateExtra: (extra: ExtraPerson) => Promise<void>;
   deleteExtra: (id: string) => void;
   addExtraSaldoRecord: (input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
   updateExtraSaldoRecord: (id: string, input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
@@ -1081,6 +1082,37 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const updateExtra = async (extra: ExtraPerson) => {
+    try {
+      const sectorId = await getSectorIdByName(extra.sector);
+      const { data: updated, error } = await supabase
+        .from('extra_persons')
+        .update({
+          full_name: extra.fullName,
+          birth_date: extra.birthDate || null,
+          cpf: extra.cpf || null,
+          contact: extra.contact || null,
+          address: extra.address || null,
+          emergency_contact: extra.emergencyContact || null,
+          sector_id: sectorId || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', extra.id)
+        .select('*, sectors(name)')
+        .single();
+
+      if (error || !updated) {
+        console.error('Erro ao atualizar extra:', error);
+        return;
+      }
+
+      const mapped = mapExtraPerson(updated);
+      setExtras(prev => prev.map(e => (e.id === extra.id ? mapped : e)));
+    } catch (err) {
+      console.error('Erro ao atualizar extra:', err);
+    }
+  };
+
   const getSectorIdByName = async (sectorName: string): Promise<string> => {
     const local = sectors.find(s => s.name === sectorName);
     if (local?.id) return local.id;
@@ -1817,7 +1849,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,
       addShift, updateShift, deleteShift,
-      addExtra, deleteExtra,
+      addExtra, updateExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,
       updateTimeRecord,

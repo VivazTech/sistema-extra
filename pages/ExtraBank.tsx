@@ -1,11 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown } from 'lucide-react';
+import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown, Pencil } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
+import type { ExtraPerson } from '../types';
 
 const ExtraBank: React.FC = () => {
-  const { extras, sectors, deleteExtra, addExtra } = useExtras();
+  const { extras, sectors, deleteExtra, addExtra, updateExtra } = useExtras();
   const link = useMemo(() => `${window.location.origin}/#/banco-extras`, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExtraId, setEditingExtraId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
   const [selectedSector, setSelectedSector] = useState('TODOS');
@@ -26,7 +28,8 @@ const ExtraBank: React.FC = () => {
     neighborhood: '',
     city: '',
     state: '',
-    sector: ''
+    sector: '',
+    address: '' // usado no modo edição (endereço completo em uma linha)
   });
   const [cpfError, setCpfError] = useState('');
   const [cepError, setCepError] = useState('');
@@ -47,11 +50,12 @@ const ExtraBank: React.FC = () => {
     return cpf.replace(/\D/g, '');
   };
 
-  // Verificar se CPF já existe
-  const cpfExists = (cpfToCheck: string) => {
+  // Verificar se CPF já existe (excludeId = id do extra em edição para permitir manter o mesmo CPF)
+  const cpfExists = (cpfToCheck: string, excludeId?: string) => {
     if (!cpfToCheck) return false;
     const normalizedCpf = normalizeCpf(cpfToCheck);
     return extras.some(extra => {
+      if (excludeId && extra.id === excludeId) return false;
       if (!extra.cpf) return false;
       return normalizeCpf(extra.cpf) === normalizedCpf;
     });
@@ -88,8 +92,8 @@ const ExtraBank: React.FC = () => {
           setCpfError('CPF inválido.');
           return false;
         }
-        // Se o formato é válido, verificar duplicidade
-        if (cpfExists(cpfToCheck)) {
+        // Se o formato é válido, verificar duplicidade (excluir o próprio extra ao editar)
+        if (cpfExists(cpfToCheck, editingExtraId || undefined)) {
           setCpfError('Este CPF já está cadastrado no banco de extras.');
           return false;
         }
@@ -102,14 +106,14 @@ const ExtraBank: React.FC = () => {
 
     // Para documento estrangeiro ou CPF completo válido, verificar duplicidade
     if (formData.isForeign && formData.foreignDoc) {
-      if (cpfExists(formData.foreignDoc)) {
+      if (cpfExists(formData.foreignDoc, editingExtraId || undefined)) {
         setCpfError('Este documento já está cadastrado no banco de extras.');
         return false;
       }
     }
 
     // Se chegou aqui, está tudo ok
-    if (!cpfExists(cpfToCheck)) {
+    if (!cpfExists(cpfToCheck, editingExtraId || undefined)) {
       setCpfError('');
     }
     return true;
@@ -125,7 +129,7 @@ const ExtraBank: React.FC = () => {
   useEffect(() => {
     validateCpfDuplicate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras]);
+  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras, editingExtraId]);
 
   const maskCpf = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -264,6 +268,73 @@ const ExtraBank: React.FC = () => {
     }
   };
 
+  const parseContact = (value: string): { ddi: string; number: string } => {
+    if (!value || !value.trim()) return { ddi: '+55', number: '' };
+    const match = value.trim().match(/^(\+\d+)\s+(.*)$/);
+    if (match) return { ddi: match[1], number: match[2].trim() };
+    return { ddi: '+55', number: value.trim() };
+  };
+
+  const openForEdit = (extra: ExtraPerson) => {
+    const contactParsed = parseContact(extra.contact);
+    const emergencyParsed = parseContact(extra.emergencyContact);
+    const cpfDigits = normalizeCpf(extra.cpf || '');
+    const isForeign = cpfDigits.length !== 11;
+    setFormData({
+      fullName: extra.fullName,
+      birthDate: extra.birthDate || '',
+      cpf: isForeign ? '' : maskCpf(extra.cpf || ''),
+      isForeign,
+      foreignDoc: isForeign ? (extra.cpf || '') : '',
+      ddiContact: contactParsed.ddi,
+      contactNumber: contactParsed.number,
+      ddiEmergency: emergencyParsed.ddi,
+      emergencyContactNumber: emergencyParsed.number,
+      cep: '',
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      sector: extra.sector || '',
+      address: extra.address || '',
+    });
+    setCpfError('');
+    setCepError('');
+    setContactError('');
+    setEditingExtraId(extra.id);
+    setIsModalOpen(true);
+  };
+
+  const resetFormAndClose = () => {
+    setFormData({
+      fullName: '',
+      birthDate: '',
+      cpf: '',
+      isForeign: false,
+      foreignDoc: '',
+      ddiContact: '+55',
+      contactNumber: '',
+      ddiEmergency: '+55',
+      emergencyContactNumber: '',
+      cep: '',
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      sector: '',
+      address: '',
+    });
+    setCpfError('');
+    setCepError('');
+    setContactError('');
+    setEditingExtraId(null);
+    setIsModalOpen(false);
+  };
+
   const filteredExtras = useMemo(() => {
     let filtered = extras;
 
@@ -307,9 +378,9 @@ const ExtraBank: React.FC = () => {
   useEffect(() => {
     validateCpfDuplicate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras]);
+  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras, editingExtraId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.fullName || !formData.sector) {
@@ -327,9 +398,9 @@ const ExtraBank: React.FC = () => {
       return;
     }
 
-    // Verificar CPF duplicado
+    // Verificar CPF duplicado (ao editar, excluir o próprio extra)
     const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
-    if (cpfToCheck && cpfExists(cpfToCheck)) {
+    if (cpfToCheck && cpfExists(cpfToCheck, editingExtraId || undefined)) {
       setCpfError('Este CPF já está cadastrado no banco de extras.');
       return;
     }
@@ -365,42 +436,40 @@ const ExtraBank: React.FC = () => {
       address = parts.join(' - ');
     }
 
+    const contactStr = formData.contactNumber ? `${formData.ddiContact} ${formData.contactNumber}` : '';
+    const emergencyStr = formData.emergencyContactNumber ? `${formData.ddiEmergency} ${formData.emergencyContactNumber}` : '';
+    const addressStr = editingExtraId ? (formData.address || '') : address;
+
+    if (editingExtraId) {
+      const extraToUpdate: ExtraPerson = {
+        id: editingExtraId,
+        fullName: formData.fullName,
+        birthDate: formData.birthDate || '',
+        cpf: formData.isForeign ? formData.foreignDoc : (formData.cpf || ''),
+        contact: contactStr,
+        address: addressStr,
+        emergencyContact: emergencyStr,
+        sector: formData.sector,
+        createdAt: '', // não alterado na atualização
+      };
+      await updateExtra(extraToUpdate);
+      resetFormAndClose();
+      return;
+    }
+
     addExtra({
       id: Math.random().toString(36).substr(2, 9),
       fullName: formData.fullName,
       birthDate: formData.birthDate || '',
       cpf: formData.isForeign ? formData.foreignDoc : (formData.cpf || ''),
-      contact: formData.contactNumber ? `${formData.ddiContact} ${formData.contactNumber}` : '',
-      address: address,
-      emergencyContact: formData.emergencyContactNumber ? `${formData.ddiEmergency} ${formData.emergencyContactNumber}` : '',
+      contact: contactStr,
+      address: addressStr,
+      emergencyContact: emergencyStr,
       sector: formData.sector,
       createdAt: new Date().toISOString(),
     });
 
-    // Limpar formulário
-    setFormData({
-      fullName: '',
-      birthDate: '',
-      cpf: '',
-      isForeign: false,
-      foreignDoc: '',
-      ddiContact: '+55',
-      contactNumber: '',
-      ddiEmergency: '+55',
-      emergencyContactNumber: '',
-      cep: '',
-      street: '',
-      number: '',
-      complement: '',
-      neighborhood: '',
-      city: '',
-      state: '',
-      sector: ''
-    });
-    setCpfError('');
-    setCepError('');
-    setContactError('');
-    setIsModalOpen(false);
+    resetFormAndClose();
   };
 
   return (
@@ -412,7 +481,16 @@ const ExtraBank: React.FC = () => {
             <p className="text-gray-500 mt-1">Compartilhe o link abaixo com os extras para cadastro ou cadastre diretamente.</p>
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setEditingExtraId(null);
+              setFormData({
+                fullName: '', birthDate: '', cpf: '', isForeign: false, foreignDoc: '',
+                ddiContact: '+55', contactNumber: '', ddiEmergency: '+55', emergencyContactNumber: '',
+                cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', sector: '', address: '',
+              });
+              setCpfError(''); setCepError(''); setContactError('');
+              setIsModalOpen(true);
+            }}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-md"
           >
             <Plus size={18} /> Cadastrar Extra
@@ -487,13 +565,22 @@ const ExtraBank: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-800">{extra.fullName}</p>
                       <p className="text-xs text-gray-500">{extra.contact} • {extra.cpf}</p>
                     </div>
-                    <button
-                      onClick={() => deleteExtra(extra.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      title="Remover"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openForEdit(extra)}
+                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                        title="Editar"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => deleteExtra(extra.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Remover"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -508,11 +595,11 @@ const ExtraBank: React.FC = () => {
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-in slide-in-from-bottom duration-300">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-emerald-900 text-white rounded-t-2xl">
               <div>
-                <h2 className="text-xl font-bold">Cadastrar Novo Extra</h2>
-                <p className="text-xs text-emerald-300 opacity-80">Preencha os dados do funcionário extra</p>
+                <h2 className="text-xl font-bold">{editingExtraId ? 'Editar Extra' : 'Cadastrar Novo Extra'}</h2>
+                <p className="text-xs text-emerald-300 opacity-80">{editingExtraId ? 'Altere os dados do funcionário extra' : 'Preencha os dados do funcionário extra'}</p>
               </div>
               <button 
-                onClick={() => setIsModalOpen(false)} 
+                onClick={resetFormAndClose} 
                 className="p-2 hover:bg-emerald-800 rounded-full transition-colors"
               >
                 <X size={24} />
@@ -696,6 +783,19 @@ const ExtraBank: React.FC = () => {
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="text-sm font-bold text-gray-700 mb-3">Endereço (Opcional)</h3>
                 
+                {editingExtraId ? (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Endereço completo</label>
+                    <textarea
+                      rows={3}
+                      className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      placeholder="Rua, número, bairro, cidade..."
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                <>
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase">CEP</label>
                   <input
@@ -775,12 +875,14 @@ const ExtraBank: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                   />
                 </div>
+                </>
+                )}
               </div>
 
               <div className="flex gap-4 pt-4 sticky bottom-0 bg-white">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={resetFormAndClose}
                   className="flex-1 py-3 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
                 >
                   Cancelar
