@@ -26,18 +26,33 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    if (!supabaseAnonKey) {
+      return new Response(
+        JSON.stringify({ error: 'Configuração do servidor: SUPABASE_ANON_KEY ausente.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: 'Token inválido.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Validar JWT do usuário com o client anon (service_role não valida JWT de usuário)
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data: { user: caller }, error: userError } = await supabaseAuth.auth.getUser();
+    const { data: { user: caller }, error: userError } = await supabaseAuth.auth.getUser(token);
     if (userError || !caller) {
       return new Response(
-        JSON.stringify({ error: 'Sessão inválida ou expirada. Faça login novamente.' }),
+        JSON.stringify({ error: userError?.message || 'Sessão inválida ou expirada. Faça login novamente.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

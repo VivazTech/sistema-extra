@@ -210,9 +210,10 @@ const AdminUsers: React.FC = () => {
     }
     setAdminPasswordLoading(true);
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) {
         setAdminPasswordError('Sessão expirada. Faça login novamente.');
         setAdminPasswordLoading(false);
         return;
@@ -222,6 +223,7 @@ const AdminUsers: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
+          ...(supabaseAnonKey ? { 'apikey': supabaseAnonKey } : {}),
         },
         body: JSON.stringify({
           user_id: userToResetPassword.id,
