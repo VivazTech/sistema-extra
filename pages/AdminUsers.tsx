@@ -152,7 +152,8 @@ const AdminUsers: React.FC = () => {
       handleCloseModal();
     } catch (error) {
       console.error('Erro ao salvar usuário:', error);
-      alert('Erro ao salvar usuário. Verifique o console para mais detalhes.');
+      const message = error instanceof Error ? error.message : 'Erro ao salvar usuário. Verifique o console para mais detalhes.';
+      alert(message);
     }
   };
 

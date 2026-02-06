@@ -1519,6 +1519,21 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       if (authError) {
+        const isAlreadyRegistered = authError.message?.toLowerCase().includes('already registered') || authError.message?.toLowerCase().includes('já registrado');
+        if (isAlreadyRegistered) {
+          // E-mail já existe no Auth: verificar se já temos na tabela users e atualizar ou orientar
+          const { data: existingByEmail } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', userData.email)
+            .eq('active', true)
+            .maybeSingle();
+
+          if (existingByEmail) {
+            throw new Error('Já existe um usuário cadastrado com este e-mail. Use "Editar" para alterar os dados ou "Redefinir senha" na tela de login para enviar um novo link.');
+          }
+          throw new Error('Este e-mail já está no sistema de autenticação. Para vincular ao cadastro, execute no servidor: node scripts/create-admin-user.js');
+        }
         console.error('Erro ao criar usuário no Auth:', authError);
         throw new Error(`Erro ao criar usuário: ${authError.message}`);
       }
