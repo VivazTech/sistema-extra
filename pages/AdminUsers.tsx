@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, Edit2, Trash2, X, UserPlus, KeyRound } from 'lucide-react';
+import { Plus, Save, Edit2, Trash2, X, UserPlus, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -34,6 +34,8 @@ const AdminUsers: React.FC = () => {
   const [adminConfirmPassword, setAdminConfirmPassword] = useState('');
   const [adminPasswordError, setAdminPasswordError] = useState('');
   const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showAdminConfirmPassword, setShowAdminConfirmPassword] = useState(false);
 
   // Verificar se é ADMIN
   useEffect(() => {
@@ -593,23 +595,43 @@ const AdminUsers: React.FC = () => {
             </p>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nova senha</label>
-              <input
-                type="password"
-                value={adminNewPassword}
-                onChange={(e) => { setAdminNewPassword(e.target.value); setAdminPasswordError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="Mínimo 6 caracteres"
-              />
+              <div className="relative">
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  value={adminNewPassword}
+                  onChange={(e) => { setAdminNewPassword(e.target.value); setAdminPasswordError(''); }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
+                  title={showAdminPassword ? 'Ocultar senha' : 'Ver senha'}
+                >
+                  {showAdminPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Confirmar senha</label>
-              <input
-                type="password"
-                value={adminConfirmPassword}
-                onChange={(e) => { setAdminConfirmPassword(e.target.value); setAdminPasswordError(''); }}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="Repita a nova senha"
-              />
+              <div className="relative">
+                <input
+                  type={showAdminConfirmPassword ? 'text' : 'password'}
+                  value={adminConfirmPassword}
+                  onChange={(e) => { setAdminConfirmPassword(e.target.value); setAdminPasswordError(''); }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Repita a nova senha"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminConfirmPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
+                  title={showAdminConfirmPassword ? 'Ocultar senha' : 'Ver senha'}
+                >
+                  {showAdminConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             {adminPasswordError && <p className="text-sm text-red-600">{adminPasswordError}</p>}
             <div className="flex flex-col gap-2">

@@ -2,6 +2,14 @@
 
 Permite que um administrador redefina a senha de outro usuário **dentro do sistema**, sem enviar email.
 
+## CORS
+
+A função envia cabeçalhos CORS (`Access-Control-Allow-Origin: *`) para permitir chamadas do front em qualquer domínio (ex.: `https://extras.vivazcataratas.com.br`). Se aparecer "blocked by CORS policy" no console:
+
+1. Faça o **redeploy** da função após qualquer alteração: `supabase functions deploy admin-set-password`
+2. No **Supabase Dashboard** → seu projeto → **Project Settings** → **API**: confira se não há restrição de origem que bloqueie o domínio do front.
+3. Em **Edge Functions**, alguns projetos exigem que a função responda ao preflight `OPTIONS` com status 200 e os headers já estão configurados neste código.
+
 ## Deploy
 
 Na raiz do projeto (onde está o `supabase/`), com o [Supabase CLI](https://supabase.com/docs/guides/cli) instalado e logado:
