@@ -26,20 +26,25 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Validar JWT do usuário com o client anon (service_role não valida JWT de usuário)
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: { user: caller }, error: userError } = await supabaseAuth.auth.getUser();
+    if (userError || !caller) {
+      return new Response(
+        JSON.stringify({ error: 'Sessão inválida ou expirada. Faça login novamente.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-
-    const token = authHeader.replace(/^Bearer\s+/i, '');
-    const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token);
-    if (!caller) {
-      return new Response(
-        JSON.stringify({ error: 'Sessão inválida ou expirada.' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const { data: callerRow } = await supabaseAdmin
       .from('users')
