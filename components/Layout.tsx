@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -13,7 +13,8 @@ import {
   Database,
   Calculator,
   Clock,
-  FileText
+  FileText,
+  KeyRound
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
@@ -24,8 +25,13 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [isSidebarOpen, setSidebarOpen] = React.useState(false);
-  const { user, logout } = useAuth();
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const { user, logout, updatePassword } = useAuth();
   const { hasPageAccess } = useAccess();
   const navigate = useNavigate();
   const location = useLocation();
@@ -98,6 +104,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <p className="text-[10px] bg-emerald-500 text-white inline-block px-1.5 py-0.5 rounded mt-1">{user.role}</p>
           </div>
           <button 
+            onClick={() => { setPasswordError(''); setNewPassword(''); setConfirmPassword(''); setIsPasswordModalOpen(true); }}
+            className="w-full flex items-center gap-3 px-4 py-2 text-emerald-400 hover:text-white transition-colors"
+          >
+            <KeyRound size={18} />
+            <span className="text-sm">Alterar senha</span>
+          </button>
+          <button 
             onClick={async () => {
               await logout();
               navigate('/login');
@@ -109,6 +122,78 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
         </div>
       </aside>
+
+      {/* Modal Alterar minha senha */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Alterar minha senha</h3>
+              <button onClick={() => setIsPasswordModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500">Informe a nova senha. Não é necessário enviar email.</p>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nova senha</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Confirmar senha</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Repita a nova senha"
+              />
+            </div>
+            {passwordError && <p className="text-sm text-red-600">{passwordError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  setPasswordError('');
+                  if (newPassword.length < 6) {
+                    setPasswordError('A senha deve ter no mínimo 6 caracteres.');
+                    return;
+                  }
+                  if (newPassword !== confirmPassword) {
+                    setPasswordError('As senhas não coincidem.');
+                    return;
+                  }
+                  setPasswordLoading(true);
+                  const result = await updatePassword(newPassword);
+                  setPasswordLoading(false);
+                  if (result.success) {
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setIsPasswordModalOpen(false);
+                    alert('Senha alterada com sucesso.');
+                  } else {
+                    setPasswordError(result.error || 'Erro ao alterar senha.');
+                  }
+                }}
+                disabled={passwordLoading}
+                className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {passwordLoading ? 'Salvando...' : 'Alterar senha'}
+              </button>
+              <button
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="py-2.5 px-4 font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">

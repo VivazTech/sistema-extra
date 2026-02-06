@@ -29,6 +29,11 @@ const AdminUsers: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+  const [userToResetPassword, setUserToResetPassword] = useState<User | null>(null);
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [adminConfirmPassword, setAdminConfirmPassword] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
 
   // Verificar se é ADMIN
   useEffect(() => {
@@ -179,33 +184,89 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  const handleResetPassword = async (user: User) => {
-    // Verificar se é ADMIN
+  const handleOpenResetPasswordModal = (user: User) => {
     if (currentUser?.role !== 'ADMIN') {
       alert('Apenas administradores podem redefinir senhas.');
       return;
     }
+    setUserToResetPassword(user);
+    setAdminNewPassword('');
+    setAdminConfirmPassword('');
+    setAdminPasswordError('');
+  };
 
-    if (!user.email) {
-      alert('Este usuário não possui email cadastrado. É necessário ter email para redefinir a senha.');
+  const handleSubmitAdminSetPassword = async () => {
+    if (!userToResetPassword) return;
+    setAdminPasswordError('');
+    if (adminNewPassword.length < 6) {
+      setAdminPasswordError('A senha deve ter no mínimo 6 caracteres.');
       return;
     }
-
-    if (confirm(`Deseja enviar um email de recuperação de senha para ${user.email}?`)) {
-      setResettingPassword(user.id);
-      try {
-        const result = await resetPassword(user.email);
-        if (result.success) {
-          alert(`Email de recuperação de senha enviado para ${user.email}`);
-        } else {
-          alert(`Erro ao enviar email: ${result.error}`);
-        }
-      } catch (error) {
-        console.error('Erro ao redefinir senha:', error);
-        alert('Erro ao redefinir senha.');
-      } finally {
-        setResettingPassword(null);
+    if (adminNewPassword !== adminConfirmPassword) {
+      setAdminPasswordError('As senhas não coincidem.');
+      return;
+    }
+    setAdminPasswordLoading(true);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setAdminPasswordError('Sessão expirada. Faça login novamente.');
+        setAdminPasswordLoading(false);
+        return;
       }
+      const res = await fetch(`${supabaseUrl}/functions/v1/admin-set-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          user_id: userToResetPassword.id,
+          new_password: adminNewPassword,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 404) {
+          setAdminPasswordError(
+            'Função de redefinição não disponível. Faça o deploy da Edge Function "admin-set-password" no Supabase ou use "Enviar email" na tela de login.'
+          );
+        } else {
+          setAdminPasswordError(data?.error || `Erro ${res.status}`);
+        }
+        setAdminPasswordLoading(false);
+        return;
+      }
+      setUserToResetPassword(null);
+      setAdminNewPassword('');
+      setAdminConfirmPassword('');
+      alert(`Senha de ${userToResetPassword.name} alterada com sucesso.`);
+    } catch (err: any) {
+      setAdminPasswordError(err?.message || 'Erro de conexão. Verifique se a Edge Function está publicada.');
+    } finally {
+      setAdminPasswordLoading(false);
+    }
+  };
+
+  const handleSendPasswordEmail = async () => {
+    if (!userToResetPassword?.email) {
+      alert('Este usuário não possui email cadastrado.');
+      return;
+    }
+    setAdminPasswordLoading(true);
+    try {
+      const result = await resetPassword(userToResetPassword.email);
+      if (result.success) {
+        alert(`Email de recuperação enviado para ${userToResetPassword.email}`);
+        setUserToResetPassword(null);
+      } else {
+        setAdminPasswordError(result.error || 'Erro ao enviar email');
+      }
+    } catch (error) {
+      setAdminPasswordError('Erro ao enviar email de recuperação.');
+    } finally {
+      setAdminPasswordLoading(false);
     }
   };
 
@@ -335,7 +396,7 @@ const AdminUsers: React.FC = () => {
                       </button>
                       {user.email && (
                         <button
-                          onClick={() => handleResetPassword(user)}
+                          onClick={() => handleOpenResetPasswordModal(user)}
                           disabled={resettingPassword === user.id}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Redefinir Senha"
@@ -510,6 +571,72 @@ const AdminUsers: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Redefinir senha (admin define nova senha no sistema, sem email) */}
+      {userToResetPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Redefinir senha</h3>
+              <button
+                onClick={() => { setUserToResetPassword(null); setAdminPasswordError(''); }}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500">
+              Definir nova senha para <strong>{userToResetPassword.name}</strong> (sem enviar email).
+            </p>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nova senha</label>
+              <input
+                type="password"
+                value={adminNewPassword}
+                onChange={(e) => { setAdminNewPassword(e.target.value); setAdminPasswordError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Confirmar senha</label>
+              <input
+                type="password"
+                value={adminConfirmPassword}
+                onChange={(e) => { setAdminConfirmPassword(e.target.value); setAdminPasswordError(''); }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Repita a nova senha"
+              />
+            </div>
+            {adminPasswordError && <p className="text-sm text-red-600">{adminPasswordError}</p>}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleSubmitAdminSetPassword}
+                disabled={adminPasswordLoading}
+                className="w-full py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {adminPasswordLoading ? 'Salvando...' : 'Definir nova senha'}
+              </button>
+              {userToResetPassword.email && (
+                <button
+                  type="button"
+                  onClick={handleSendPasswordEmail}
+                  disabled={adminPasswordLoading}
+                  className="w-full py-2.5 text-emerald-600 border border-emerald-600 font-bold rounded-xl hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  Enviar email de recuperação
+                </button>
+              )}
+              <button
+                onClick={() => { setUserToResetPassword(null); setAdminPasswordError(''); }}
+                className="w-full py-2.5 text-gray-600 bg-gray-100 font-bold rounded-xl hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
