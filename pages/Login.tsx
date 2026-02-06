@@ -89,8 +89,8 @@ const Login: React.FC = () => {
 
       <div className="w-full max-w-md space-y-8 relative z-10">
         <div className="text-center">
-          <div className="w-20 h-20 bg-emerald-500 rounded-3xl mx-auto flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-6 border-4 border-emerald-400/30">
-            <span className="text-white text-4xl font-black">V</span>
+          <div className="w-20 h-20 rounded-3xl mx-auto flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-6 border-4 border-emerald-400/30 overflow-hidden bg-white">
+            <img src="/favicon.png" alt="Vivaz Cataratas" className="w-full h-full object-contain p-1" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">Portal Vivaz Extras</h1>
           <p className="text-emerald-300 mt-2 font-medium">Controle de Funcionários Extras</p>
@@ -240,7 +240,15 @@ const Login: React.FC = () => {
         )}
 
         <p className="text-center text-emerald-400/50 text-xs font-bold uppercase tracking-widest mt-8">
-          © 2024 Vivaz Cataratas Resort • TI & RH
+          © 2026 Vivaz Cataratas Resort • Dev by{' '}
+          <a
+            href="https://pedroriquelme.com.br"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2 normal-case tracking-normal"
+          >
+            Pedro Riquelme
+          </a>
         </p>
       </div>
     </div>
