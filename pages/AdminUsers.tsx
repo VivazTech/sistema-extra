@@ -212,6 +212,8 @@ const AdminUsers: React.FC = () => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     try {
+      // Atualizar sessão para garantir um access_token válido (evita "Invalid JWT" por token expirado)
+      await supabase.auth.refreshSession();
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !session?.access_token) {
         setAdminPasswordError('Sessão expirada. Faça login novamente.');
@@ -236,8 +238,12 @@ const AdminUsers: React.FC = () => {
           setAdminPasswordError(
             'Função de redefinição não disponível. Faça o deploy da Edge Function "admin-set-password" no Supabase ou use "Enviar email" na tela de login.'
           );
+        } else if (res.status === 401 && (data?.message === 'Invalid JWT' || data?.error?.includes('JWT'))) {
+          setAdminPasswordError(
+            'Token inválido. Saia do sistema, faça login novamente e tente outra vez. Se persistir, confira em Vercel se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY são do mesmo projeto do Supabase onde a função foi publicada.'
+          );
         } else {
-          setAdminPasswordError(data?.error || `Erro ${res.status}`);
+          setAdminPasswordError(data?.error || data?.message || `Erro ${res.status}`);
         }
         setAdminPasswordLoading(false);
         return;

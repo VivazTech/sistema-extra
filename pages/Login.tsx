@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
-import { Eye, EyeOff, Mail, X } from 'lucide-react';
+import { Eye, EyeOff, Mail, X, AlertCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -136,8 +136,14 @@ const Login: React.FC = () => {
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-                  <p className="text-red-600 text-sm font-medium">{error}</p>
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3">
+                  <AlertCircle className="flex-shrink-0 text-red-500 mt-0.5" size={20} />
+                  <div>
+                    <p className="text-red-800 text-sm font-bold">Não foi possível entrar</p>
+                    <p className="text-red-600 text-sm mt-0.5">
+                      {error.includes('incorretos') ? 'Usuário ou senha incorretos. Verifique e tente novamente.' : error}
+                    </p>
+                  </div>
                 </div>
               )}
 
