@@ -44,15 +44,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validar JWT do usuário com o client anon (service_role não valida JWT de usuário)
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { autoRefreshToken: false, persistSession: false },
+    // Validar JWT chamando a API de Auth do Supabase (mais confiável em Edge)
+    const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        'Authorization': authHeader,
+        'apikey': supabaseAnonKey,
+      },
     });
-    const { data: { user: caller }, error: userError } = await supabaseAuth.auth.getUser(token);
-    if (userError || !caller) {
+    if (!authRes.ok) {
+      const errBody = await authRes.text();
+      let errMsg = 'Sessão inválida ou expirada. Faça login novamente.';
+      try {
+        const parsed = JSON.parse(errBody);
+        if (parsed?.msg) errMsg = parsed.msg;
+      } catch (_) {}
       return new Response(
-        JSON.stringify({ error: userError?.message || 'Sessão inválida ou expirada. Faça login novamente.' }),
+        JSON.stringify({ error: errMsg }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const authData = await authRes.json();
+    const caller = authData?.id ? { id: authData.id } : null;
+    if (!caller) {
+      return new Response(
+        JSON.stringify({ error: 'Resposta do Auth inválida.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
