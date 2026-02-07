@@ -54,6 +54,14 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
   const effectiveSector = formData.sector || leaderSector || '';
   const availableRoles = sectors.find(s => s.name === effectiveSector)?.roles || [];
   const isAdmin = user?.role === 'ADMIN';
+
+  // Setores disponíveis no dropdown: admin vê todos; demais usuários só os setores vinculados a eles
+  const availableSectors = useMemo(() => {
+    if (isAdmin) return sectors;
+    const userSectorNames = user?.sectors;
+    if (!userSectorNames?.length) return sectors;
+    return sectors.filter(s => userSectorNames.includes(s.name));
+  }, [sectors, isAdmin, user?.sectors]);
   const availableRequesters = useMemo(() => {
     if (isAdmin) return requesters;
     const leaderName = user?.name;
@@ -319,23 +327,19 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Setor *</label>
-              {isLeaderWithSector ? (
-                <input
-                  type="text"
-                  readOnly
-                  className="w-full border border-gray-200 rounded-xl p-2.5 bg-gray-50 text-gray-700 cursor-not-allowed"
-                  value={formData.sector || leaderSector}
-                />
-              ) : (
-                <select 
-                  required
-                  className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.sector}
-                  onChange={(e) => setFormData({ ...formData, sector: e.target.value, role: '', extraName: '' })}
-                >
-                  <option value="">Selecione o setor</option>
-                  {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
+              <select
+                required
+                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.sector || leaderSector || ''}
+                onChange={(e) => setFormData({ ...formData, sector: e.target.value, role: '', extraName: '' })}
+              >
+                <option value="">Selecione o setor</option>
+                {availableSectors.map(s => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+              {!isAdmin && availableSectors.length > 0 && (
+                <p className="text-xs text-gray-500">Setores vinculados ao seu usuário.</p>
               )}
             </div>
 
