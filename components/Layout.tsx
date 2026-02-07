@@ -14,6 +14,7 @@ import {
   Calculator,
   Clock,
   FileText,
+  User,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
@@ -97,6 +98,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <p className="text-sm font-semibold truncate">{user.name}</p>
             <p className="text-[10px] bg-emerald-500 text-white inline-block px-1.5 py-0.5 rounded mt-1">{user.role}</p>
           </div>
+          <button
+            onClick={() => { navigate('/perfil'); setSidebarOpen(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2 text-emerald-400 hover:text-white transition-colors mb-1"
+          >
+            <User size={18} />
+            <span className="text-sm">Meu perfil</span>
+          </button>
           <button 
             onClick={async () => {
               await logout();

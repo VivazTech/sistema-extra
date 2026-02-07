@@ -20,6 +20,7 @@ import ExtraBankForm from './pages/ExtraBankForm';
 import ExtraSaldo from './pages/ExtraSaldo';
 import Reports from './pages/Reports';
 import PDFPreview from './pages/PDFPreview';
+import Profile from './pages/Profile';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; page?: AccessPageKey }> = ({ children, page }) => {
   const { isAuthenticated, user } = useAuth();
@@ -48,6 +49,7 @@ const AppRoutes = () => {
       <Route path="/admin/saldo-extras" element={<PrivateRoute page="saldo"><ExtraSaldo /></PrivateRoute>} />
       <Route path="/admin/extras" element={<PrivateRoute page="extras"><ExtraBank /></PrivateRoute>} />
       <Route path="/relatorios" element={<PrivateRoute page="reports"><Reports /></PrivateRoute>} />
+      <Route path="/perfil" element={<PrivateRoute><Profile /></PrivateRoute>} />
       <Route path="/banco-extras" element={<ExtraBankForm />} />
       <Route path="/tv" element={<PrivateRoute page="tv"><TVDashboard /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
