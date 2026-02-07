@@ -28,8 +28,8 @@ const ExtraBank: React.FC = () => {
     neighborhood: '',
     city: '',
     state: '',
-    sector: '',
-    address: '' // usado no modo edição (endereço completo em uma linha)
+    sectors: [] as string[],
+    address: ''
   });
   const [cpfError, setCpfError] = useState('');
   const [cepError, setCepError] = useState('');
@@ -297,7 +297,7 @@ const ExtraBank: React.FC = () => {
       neighborhood: '',
       city: '',
       state: '',
-      sector: extra.sector || '',
+      sectors: extra.sectors?.length ? [...extra.sectors] : (extra.sector ? [extra.sector] : []),
       address: extra.address || '',
     });
     setCpfError('');
@@ -305,6 +305,15 @@ const ExtraBank: React.FC = () => {
     setContactError('');
     setEditingExtraId(extra.id);
     setIsModalOpen(true);
+  };
+
+  const toggleSector = (sectorName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      sectors: prev.sectors.includes(sectorName)
+        ? prev.sectors.filter(s => s !== sectorName)
+        : [...prev.sectors, sectorName],
+    }));
   };
 
   const resetFormAndClose = () => {
@@ -325,7 +334,7 @@ const ExtraBank: React.FC = () => {
       neighborhood: '',
       city: '',
       state: '',
-      sector: '',
+      sectors: [],
       address: '',
     });
     setCpfError('');
@@ -339,7 +348,9 @@ const ExtraBank: React.FC = () => {
     let filtered = extras;
 
     if (selectedSector !== 'TODOS') {
-      filtered = filtered.filter(extra => extra.sector === selectedSector);
+      filtered = filtered.filter(extra =>
+        extra.sectors?.includes(selectedSector) || extra.sector === selectedSector
+      );
     }
 
     if (searchTerm.trim()) {
@@ -364,7 +375,9 @@ const ExtraBank: React.FC = () => {
   const grouped = useMemo(() => {
     return sectors.map(sector => ({
       sector: sector.name,
-      extras: filteredExtras.filter(e => e.sector === sector.name)
+      extras: filteredExtras.filter(e =>
+        e.sectors?.includes(sector.name) || e.sector === sector.name
+      ),
     })).filter(g => g.extras.length > 0);
   }, [filteredExtras, sectors]);
 
@@ -383,8 +396,8 @@ const ExtraBank: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.fullName || !formData.sector) {
-      alert('Preencha pelo menos o nome e o setor.');
+    if (!formData.fullName || formData.sectors.length === 0) {
+      alert('Preencha pelo menos o nome e selecione ao menos um setor.');
       return;
     }
 
@@ -449,7 +462,8 @@ const ExtraBank: React.FC = () => {
         contact: contactStr,
         address: addressStr,
         emergencyContact: emergencyStr,
-        sector: formData.sector,
+        sector: formData.sectors[0] || '',
+        sectors: formData.sectors,
         createdAt: '', // não alterado na atualização
       };
       await updateExtra(extraToUpdate);
@@ -465,7 +479,8 @@ const ExtraBank: React.FC = () => {
       contact: contactStr,
       address: addressStr,
       emergencyContact: emergencyStr,
-      sector: formData.sector,
+      sector: formData.sectors[0] || '',
+      sectors: formData.sectors,
       createdAt: new Date().toISOString(),
     });
 
@@ -486,7 +501,7 @@ const ExtraBank: React.FC = () => {
               setFormData({
                 fullName: '', birthDate: '', cpf: '', isForeign: false, foreignDoc: '',
                 ddiContact: '+55', contactNumber: '', ddiEmergency: '+55', emergencyContactNumber: '',
-                cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', sector: '', address: '',
+                cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', sectors: [], address: '',
               });
               setCpfError(''); setCepError(''); setContactError('');
               setIsModalOpen(true);
@@ -564,6 +579,9 @@ const ExtraBank: React.FC = () => {
                     <div>
                       <p className="text-sm font-semibold text-gray-800">{extra.fullName}</p>
                       <p className="text-xs text-gray-500">{extra.contact} • {extra.cpf}</p>
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        {(extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean).join(' • ')}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -767,16 +785,24 @@ const ExtraBank: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Setor *</label>
-                <select
-                  required
-                  className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  value={formData.sector}
-                  onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                >
-                  <option value="">Selecione o setor</option>
-                  {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
+                <label className="text-xs font-bold text-gray-500 uppercase">Setores *</label>
+                <p className="text-xs text-gray-500 mb-2">Selecione um ou mais setores em que o extra pode atuar.</p>
+                <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50">
+                  {sectors.map(s => (
+                    <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                        checked={formData.sectors.includes(s.name)}
+                        onChange={() => toggleSector(s.name)}
+                      />
+                      <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+                {formData.sectors.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Selecione ao menos um setor.</p>
+                )}
               </div>
 
               {/* Seção de Endereço (Opcional) */}

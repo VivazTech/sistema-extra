@@ -7,23 +7,28 @@ import { UserX, TrendingDown, Calendar } from 'lucide-react';
 interface FrequencyReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const FrequencyReport: React.FC<FrequencyReportProps> = ({ startDate, endDate }) => {
+const FrequencyReport: React.FC<FrequencyReportProps> = ({ startDate, endDate, sector }) => {
   const { requests } = useExtras();
 
   const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const hasWorkDayInRange = req.workDays.some(day => {
-        const dayDate = new Date(day.date);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        return (!start || dayDate >= start) && (!end || dayDate <= end);
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const hasWorkDayInRange = req.workDays.some(day => {
+          const dayDate = new Date(day.date);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          return (!start || dayDate >= start) && (!end || dayDate <= end);
+        });
+        return hasWorkDayInRange;
       });
-      return hasWorkDayInRange;
-    });
-  }, [requests, startDate, endDate]);
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   // Detectar faltas através de observações
   const absences = useMemo(() => {

@@ -7,23 +7,28 @@ import { TrendingUp, TrendingDown, DollarSign, Users, AlertCircle, CheckCircle2 
 interface ExecutiveDashboardProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ startDate, endDate }) => {
+const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ startDate, endDate, sector }) => {
   const { requests, sectors, extraSaldoRecords } = useExtras();
 
   const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const hasWorkDayInRange = req.workDays.some(day => {
-        const dayDate = new Date(day.date);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        return (!start || dayDate >= start) && (!end || dayDate <= end);
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const hasWorkDayInRange = req.workDays.some(day => {
+          const dayDate = new Date(day.date);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          return (!start || dayDate >= start) && (!end || dayDate <= end);
+        });
+        return hasWorkDayInRange;
       });
-      return hasWorkDayInRange;
-    });
-  }, [requests, startDate, endDate]);
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   // KPIs Principais
   const totalRequests = filteredRequests.length;

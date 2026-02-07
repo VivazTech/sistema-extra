@@ -27,6 +27,7 @@ interface ExtraContextType {
   extraSaldoSettings: ExtraSaldoSettings;
   users: User[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
+  updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>>) => Promise<void>;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
   deleteRequest: (id: string) => void;
   addSector: (sector: Sector) => void;
@@ -98,10 +99,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [filterByManagerSector, requests]
   );
 
-  const visibleExtras = useMemo(
-    () => filterByManagerSector(extras, extra => extra.sector),
-    [filterByManagerSector, extras]
-  );
+  const visibleExtras = useMemo(() => {
+    if (!managerSectorSet || managerSectorSet.size === 0) return extras;
+    return extras.filter(extra => {
+      const list = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+      return list.some(s => managerSectorSet.has(s));
+    });
+  }, [extras, managerSectorSet]);
 
   const visibleExtraSaldoRecords = useMemo(
     () => filterByManagerSector(extraSaldoRecords, record => record.setor),
@@ -269,7 +273,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const countWorkDaysInWeek = (workDays: { date: string }[], start: Date, end: Date) =>
     workDays.filter(d => isDateInRange(d.date, start, end)).length;
 
+  /** Setor sem limite de saldo: pode solicitar mesmo sem registro ou com saldo zerado. */
+  const SECTOR_NO_SALDO_LIMIT = 'AQUAMANIA';
+
   const getRemainingSaldoForWeek = (sector: string, weekStart: Date, weekEnd: Date) => {
+    if (sector === SECTOR_NO_SALDO_LIMIT) return 999;
     const weekStartStr = weekStart.toISOString().split('T')[0];
     const weekEndStr = weekEnd.toISOString().split('T')[0];
     const record = extraSaldoRecords.find(r =>
@@ -279,8 +287,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
     if (!record) return 0;
     const result = calculateExtraSaldo(record, record.valorDiariaSnapshot);
+    // Solicitações com motivo EVENTO não descontam saldo
     const usedDiarias = requests
-      .filter(r => r.sector === sector && r.status === 'APROVADO')
+      .filter(r => r.sector === sector && r.status === 'APROVADO' && r.reason !== 'EVENTO')
       .reduce((acc, r) => acc + countWorkDaysInWeek(r.workDays, weekStart, weekEnd), 0);
     return result.saldo - usedDiarias;
   };
@@ -303,7 +312,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { start: weekStart, end: weekEnd } = getWeekRange(firstDay);
     const requestedDiarias = countWorkDaysInWeek(data.workDays || [], weekStart, weekEnd);
     const remainingSaldo = getRemainingSaldoForWeek(data.sector, weekStart, weekEnd);
-    const canAutoApprove = remainingSaldo > 0 && remainingSaldo >= requestedDiarias;
+    const isEvento = (data.reason || '').toUpperCase() === 'EVENTO';
+    // EVENTO: não desconta saldo e sempre exige aprovação do gerente
+    const canAutoApprove = !isEvento && remainingSaldo > 0 && remainingSaldo >= requestedDiarias;
 
       // Validar se leaderId é UUID válido
       if (!data.leaderId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.leaderId)) {
@@ -327,6 +338,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           urgency: data.urgency || false,
           observations: data.observations,
           contact: data.contact,
+          event_name: isEvento ? (data.eventName || null) : null,
           needs_manager_approval: !canAutoApprove,
           approved_at: canAutoApprove ? new Date().toISOString() : null,
           approved_by: canAutoApprove ? data.leaderId : null,
@@ -480,6 +492,58 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       throw error; // Re-throw para que o componente possa tratar
+    }
+  };
+
+  const updateRequest = async (
+    id: string,
+    data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>>
+  ) => {
+    try {
+      const updatePayload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (data.sector !== undefined) {
+        const { data: sectorRow } = await supabase.from('sectors').select('id').eq('name', data.sector).single();
+        if (sectorRow) updatePayload.sector_id = sectorRow.id;
+      }
+      if (data.role !== undefined) updatePayload.role_name = data.role;
+      if (data.requester !== undefined) updatePayload.requester_name = data.requester;
+      if (data.reason !== undefined) updatePayload.reason_name = data.reason;
+      if (data.extraName !== undefined) updatePayload.extra_name = data.extraName;
+      if (data.value !== undefined) updatePayload.value = data.value;
+      if (data.observations !== undefined) updatePayload.observations = data.observations;
+      if (data.contact !== undefined) updatePayload.contact = data.contact;
+      if (data.urgency !== undefined) updatePayload.urgency = data.urgency;
+      if (data.eventName !== undefined) updatePayload.event_name = data.eventName;
+
+      const { error } = await supabase.from('extra_requests').update(updatePayload).eq('id', id);
+      if (error) {
+        console.error('Erro ao atualizar solicitação:', error);
+        throw error;
+      }
+
+      const { data: updatedRequest } = await supabase
+        .from('extra_requests')
+        .select(`
+          *,
+          sectors(name),
+          users!extra_requests_approved_by_fkey(name),
+          work_days(
+            *,
+            time_records(*)
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (updatedRequest) {
+        const mapped = mapExtraRequest(updatedRequest, updatedRequest.work_days);
+        setRequests((prev) => prev.map((r) => (r.id === id ? mapped : r)));
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar solicitação:', error);
+      throw error;
     }
   };
 
@@ -836,6 +900,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .insert({
           name: reason.name,
           active: true,
+          max_value: reason.maxValue ?? null,
         })
         .select()
         .single();
@@ -890,10 +955,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         reasonId = existingReason.id;
       }
 
-      // Atualizar no Supabase
       const { error } = await supabase
         .from('reasons')
-        .update({ name: reason.name })
+        .update({ name: reason.name, max_value: reason.maxValue ?? null })
         .eq('id', reasonId);
 
       if (error) {
@@ -1020,14 +1084,12 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addExtra = async (extra: ExtraPerson) => {
     try {
-      // Buscar ID do setor
-      const { data: sectorData } = await supabase
-        .from('sectors')
-        .select('id')
-        .eq('name', extra.sector)
-        .single();
+      const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+      const firstSectorName = sectorList[0];
+      const { data: sectorData } = firstSectorName
+        ? await supabase.from('sectors').select('id').eq('name', firstSectorName).single()
+        : { data: null };
 
-      // Criar extra no Supabase
       const { data: newExtra, error: extraError } = await supabase
         .from('extra_persons')
         .insert({
@@ -1038,6 +1100,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           address: extra.address || null,
           emergency_contact: extra.emergencyContact || null,
           sector_id: sectorData?.id || null,
+          sector_names: sectorList.length > 0 ? sectorList : [],
           active: true,
         })
         .select()
@@ -1084,7 +1147,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateExtra = async (extra: ExtraPerson) => {
     try {
-      const sectorId = await getSectorIdByName(extra.sector);
+      const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+      const firstSectorName = sectorList[0];
+      const sectorId = firstSectorName ? await getSectorIdByName(firstSectorName) : null;
       const { data: updated, error } = await supabase
         .from('extra_persons')
         .update({
@@ -1095,6 +1160,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           address: extra.address || null,
           emergency_contact: extra.emergencyContact || null,
           sector_id: sectorId || null,
+          sector_names: sectorList.length > 0 ? sectorList : [],
           updated_at: new Date().toISOString(),
         })
         .eq('id', extra.id)
@@ -1409,6 +1475,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         break_end: timeRecord.breakEnd || null,
         departure: timeRecord.departure || null,
         photo_url: timeRecord.photoUrl || null,
+        observations: timeRecord.observations ?? null,
         registered_by: userData?.id || null,
         updated_at: new Date().toISOString(),
       };
@@ -1511,6 +1578,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Retorna: null se não há setor/data, número se há registro, ou 'no-record' se não há registro cadastrado
   const getSaldoForWeek = (sector: string, dateStr: string): number | null | 'no-record' => {
     if (!sector || !dateStr) return null;
+    if (sector === SECTOR_NO_SALDO_LIMIT) return 999;
     const { start, end } = getWeekRange(dateStr);
     const weekStartStr = start.toISOString().split('T')[0];
     const weekEndStr = end.toISOString().split('T')[0];
@@ -1538,6 +1606,12 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Senha é obrigatória para criar usuário');
       }
 
+      // Guardar sessão atual para restaurar depois do signUp (evita deslogar o admin)
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession) {
+        throw new Error('Sessão não encontrada. Faça login novamente.');
+      }
+
       // Criar usuário no Supabase Auth primeiro
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
@@ -1548,6 +1622,12 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             username: userData.username.toLowerCase(),
           },
         },
+      });
+
+      // Restaurar sessão do admin imediatamente para não permanecer logado como o novo usuário
+      await supabase.auth.setSession({
+        access_token: currentSession.access_token,
+        refresh_token: currentSession.refresh_token,
       });
 
       if (authError) {
@@ -1622,16 +1702,15 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // Adicionar setor se fornecido
+      // Adicionar setores (pode ser mais de um)
       if (userData.sectors && userData.sectors.length > 0) {
-        const sector = sectors.find(s => s.name === userData.sectors![0]);
-        if (sector) {
+        const rows = userData.sectors
+          .map(name => sectors.find(s => s.name === name)?.id)
+          .filter(Boolean) as string[];
+        if (rows.length > 0) {
           await supabase
             .from('user_sectors')
-            .insert({
-              user_id: newUser.id,
-              sector_id: sector.id,
-            });
+            .insert(rows.map(sector_id => ({ user_id: newUser.id, sector_id })));
         }
       }
 
@@ -1730,24 +1809,21 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .eq('name', existingUser.name);
       }
 
-      // Atualizar setores
+      // Atualizar setores (pode ser mais de um)
       if (userData.sectors !== undefined) {
-        // Remover setores antigos
         await supabase
           .from('user_sectors')
           .delete()
           .eq('user_id', id);
 
-        // Adicionar novo setor
         if (userData.sectors.length > 0) {
-          const sector = sectors.find(s => s.name === userData.sectors![0]);
-          if (sector) {
+          const rows = userData.sectors
+            .map(name => sectors.find(s => s.name === name)?.id)
+            .filter(Boolean) as string[];
+          if (rows.length > 0) {
             await supabase
               .from('user_sectors')
-              .insert({
-                user_id: id,
-                sector_id: sector.id,
-              });
+              .insert(rows.map(sector_id => ({ user_id: id, sector_id })));
           }
         }
       }
@@ -1844,7 +1920,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
       users,
-      addRequest, updateStatus, deleteRequest,
+      addRequest, updateRequest, updateStatus, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,

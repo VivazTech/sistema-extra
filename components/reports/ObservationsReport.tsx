@@ -8,23 +8,28 @@ import { formatDateBR } from '../../utils/date';
 interface ObservationsReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endDate }) => {
+const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endDate, sector }) => {
   const { requests } = useExtras();
 
   const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const hasWorkDayInRange = req.workDays.some(day => {
-        const dayDate = new Date(day.date);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        return (!start || dayDate >= start) && (!end || dayDate <= end);
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const hasWorkDayInRange = req.workDays.some(day => {
+          const dayDate = new Date(day.date);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          return (!start || dayDate >= start) && (!end || dayDate <= end);
+        });
+        return hasWorkDayInRange;
       });
-      return hasWorkDayInRange;
-    });
-  }, [requests, startDate, endDate]);
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   // Extrair todas as observações
   const observations = useMemo(() => {

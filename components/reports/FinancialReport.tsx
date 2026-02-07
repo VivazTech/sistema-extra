@@ -7,23 +7,28 @@ import { DollarSign, TrendingUp, PieChart as PieChartIcon } from 'lucide-react';
 interface FinancialReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate }) => {
+const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate, sector }) => {
   const { requests, sectors } = useExtras();
 
   const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const hasWorkDayInRange = req.workDays.some(day => {
-        const dayDate = new Date(day.date);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
-        return (!start || dayDate >= start) && (!end || dayDate <= end);
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const hasWorkDayInRange = req.workDays.some(day => {
+          const dayDate = new Date(day.date);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          return (!start || dayDate >= start) && (!end || dayDate <= end);
+        });
+        return hasWorkDayInRange;
       });
-      return hasWorkDayInRange;
-    });
-  }, [requests, startDate, endDate]);
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   // Cálculo de custos
   const approvedRequests = filteredRequests.filter(r => r.status === 'APROVADO');

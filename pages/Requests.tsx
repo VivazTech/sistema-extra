@@ -16,20 +16,23 @@ import {
   Coffee,
   Edit,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { generateSingleReciboPDF, generateListPDF } from '../services/pdfService';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR } from '../utils/date';
+import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, updateStatus, updateTimeRecord } = useExtras();
+  const { requests, updateStatus, updateTimeRecord, deleteRequest } = useExtras();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [isModalOpen, setModalOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<ExtraRequest | null>(null);
   const [isRejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -301,6 +304,37 @@ const Requests: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between lg:justify-end gap-4">
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'ADMIN' && (
+                      <>
+                        <button
+                          onClick={() => setEditingRequest(req)}
+                          className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
+                          title="Editar solicitação"
+                        >
+                          <Edit size={16} />
+                          Editar
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Tem certeza que deseja excluir esta solicitação? Esta ação não pode ser desfeita.')) {
+                              try {
+                                await deleteRequest(req.id);
+                              } catch (e) {
+                                console.error(e);
+                                alert('Erro ao excluir solicitação.');
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg text-xs"
+                          title="Excluir solicitação"
+                        >
+                          <Trash2 size={16} />
+                          Apagar
+                        </button>
+                      </>
+                    )}
+                  </div>
                   <div className="text-right">
                     <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
                     <div className="text-lg font-black text-gray-900">
@@ -497,7 +531,11 @@ const Requests: React.FC = () => {
         )}
       </div>
 
-      <RequestModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
+      <RequestModal
+        isOpen={isModalOpen || !!editingRequest}
+        onClose={() => { setModalOpen(false); setEditingRequest(null); }}
+        initialRequest={editingRequest}
+      />
 
       {/* Rejection Modal */}
       {isRejectModalOpen && (

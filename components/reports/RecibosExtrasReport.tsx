@@ -31,9 +31,10 @@ function getDateRange(preset: PeriodPreset, customStart?: string, customEnd?: st
 interface RecibosExtrasReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd }) => {
+const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd, sector }) => {
   const { requests } = useExtras();
   const [period, setPeriod] = useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = useState('');
@@ -48,7 +49,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
 
   const filteredRequests = useMemo(() => {
     if (period === 'custom' && (!customStart || !customEnd) && !propsStart && !propsEnd) return [];
-    return requests.filter(req => {
+    let list = requests.filter(req => {
       if (req.status !== 'APROVADO') return false;
       const startD = new Date(start);
       const endD = new Date(end);
@@ -58,7 +59,9 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
       });
       return hasWorkDayInRange;
     });
-  }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd]);
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd, sector]);
 
   const handleGenerate = () => {
     if (period === 'custom' && (!customStart || !customEnd)) return;

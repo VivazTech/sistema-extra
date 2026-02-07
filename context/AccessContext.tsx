@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ACCESS_ACTIONS, ACCESS_PAGES, DEFAULT_ROLE_ACCESS } from '../constants';
 import { AccessActionKey, AccessPageKey, RoleAccess, UserRole } from '../types';
 import { supabase } from '../services/supabase';
@@ -44,6 +44,8 @@ const mapRoleAccessFromDB = (dbData: any[]): RoleAccess => {
 export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [roleAccess, setRoleAccess] = useState<RoleAccess>(DEFAULT_ROLE_ACCESS);
   const [loading, setLoading] = useState(true);
+  const roleAccessRef = useRef<RoleAccess>(roleAccess);
+  roleAccessRef.current = roleAccess;
 
   // Carregar configurações do banco de dados
   useEffect(() => {
@@ -80,32 +82,33 @@ export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const current = roleAccess[role].pages;
     const exists = current.includes(page);
     const pages = exists ? current.filter((item) => item !== page) : [...current, page];
-    
-    // Atualizar estado local imediatamente (otimistic update)
-    setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages } }));
-    
-    // Salvar no banco
+    const nextState = { ...roleAccess, [role]: { ...roleAccess[role], pages } };
+
+    setRoleAccess(nextState);
+
     try {
+      const toSave = roleAccessRef.current[role];
       const { error } = await supabase
         .from('role_access')
-        .upsert({
-          role,
-          pages,
-          actions: roleAccess[role].actions,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'role'
-        });
+        .upsert(
+          {
+            role,
+            pages: toSave.pages,
+            actions: toSave.actions,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'role' }
+        );
 
       if (error) {
         console.error('Erro ao salvar permissões:', error);
-        // Reverter em caso de erro
         setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages: current } }));
+        alert('Não foi possível salvar as alterações. Verifique se você é administrador e tente novamente.');
       }
     } catch (error) {
       console.error('Erro ao salvar permissões:', error);
-      // Reverter em caso de erro
       setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages: current } }));
+      alert('Não foi possível salvar as alterações. Tente novamente.');
     }
   };
 
@@ -113,32 +116,33 @@ export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const current = roleAccess[role].actions;
     const exists = current.includes(action);
     const actions = exists ? current.filter((item) => item !== action) : [...current, action];
-    
-    // Atualizar estado local imediatamente (otimistic update)
-    setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions } }));
-    
-    // Salvar no banco
+    const nextState = { ...roleAccess, [role]: { ...roleAccess[role], actions } };
+
+    setRoleAccess(nextState);
+
     try {
+      const toSave = roleAccessRef.current[role];
       const { error } = await supabase
         .from('role_access')
-        .upsert({
-          role,
-          pages: roleAccess[role].pages,
-          actions,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'role'
-        });
+        .upsert(
+          {
+            role,
+            pages: toSave.pages,
+            actions: toSave.actions,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'role' }
+        );
 
       if (error) {
         console.error('Erro ao salvar permissões:', error);
-        // Reverter em caso de erro
         setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions: current } }));
+        alert('Não foi possível salvar as alterações. Verifique se você é administrador e tente novamente.');
       }
     } catch (error) {
       console.error('Erro ao salvar permissões:', error);
-      // Reverter em caso de erro
       setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions: current } }));
+      alert('Não foi possível salvar as alterações. Tente novamente.');
     }
   };
 

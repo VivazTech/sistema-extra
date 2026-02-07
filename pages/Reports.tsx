@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   FileText, 
   TrendingDown, 
@@ -14,10 +13,12 @@ import {
   Shield, 
   LayoutDashboard,
   Download,
-  Calendar
+  Calendar,
+  Filter
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
+import type { ExtraRequest } from '../types';
 
 // Importar componentes de relatórios
 import FrequencyReport from '../components/reports/FrequencyReport';
@@ -38,15 +39,33 @@ interface ReportTab {
   id: string;
   label: string;
   icon: React.ComponentType<{ size?: number }>;
-  component: React.ComponentType<{ startDate?: string; endDate?: string }>;
+  component: React.ComponentType<{ startDate?: string; endDate?: string; sector?: string }>;
   roles: string[];
 }
 
+/** Escapa valor para CSV (aspas se contiver vírgula ou quebra de linha). */
+function csvEscape(value: string | number | undefined): string {
+  if (value === undefined || value === null) return '';
+  const s = String(value).trim();
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+/** Formata data ISO para exibição em CSV. */
+function formatDateCSV(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR');
+}
+
 const Reports: React.FC = () => {
-  const { user } = useAuth();
+  const { user, requests, sectors } = useExtras();
   const [activeTab, setActiveTab] = useState('recibos');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedSector, setSelectedSector] = useState<string>('');
 
   const reportTabs: ReportTab[] = [
     { 
@@ -155,6 +174,60 @@ const Reports: React.FC = () => {
 
   const ActiveComponent = availableTabs.find(tab => tab.id === activeTab)?.component ?? availableTabs[0]?.component ?? RecibosExtrasReport;
 
+  // Solicitações filtradas por período e setor (para exportar)
+  const requestsForExport = useMemo(() => {
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const hasWorkDayInRange = req.workDays.some(day => {
+          const dayDate = new Date(day.date);
+          const start = startDate ? new Date(startDate) : null;
+          const end = endDate ? new Date(endDate) : null;
+          return (!start || dayDate >= start) && (!end || dayDate <= end);
+        });
+        return hasWorkDayInRange;
+      });
+    }
+    if (selectedSector) {
+      list = list.filter(req => req.sector === selectedSector);
+    }
+    return list;
+  }, [requests, startDate, endDate, selectedSector]);
+
+  const handleExportCSV = () => {
+    const headers = [
+      'Código', 'Setor', 'Função', 'Nome do Extra', 'Líder', 'Solicitante', 'Motivo',
+      'Valor (R$)', 'Status', 'Qtd. dias', 'Datas dos dias', 'Criado em', 'Observações'
+    ];
+    const rows = requestsForExport.map((req: ExtraRequest) => {
+      const dates = req.workDays.map(d => formatDateCSV(d.date)).join('; ');
+      return [
+        csvEscape(req.code),
+        csvEscape(req.sector),
+        csvEscape(req.role),
+        csvEscape(req.extraName),
+        csvEscape(req.leaderName),
+        csvEscape(req.requester),
+        csvEscape(req.reason),
+        req.value != null ? String(req.value) : '',
+        csvEscape(req.status),
+        String(req.workDays?.length ?? 0),
+        csvEscape(dates),
+        formatDateCSV(req.createdAt),
+        csvEscape(req.observations)
+      ].join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const sectorLabel = selectedSector || 'todos';
+    a.download = `relatorio-extras-${sectorLabel.replace(/\s+/g, '-')}-${startDate || 'inicio'}-${endDate || 'fim'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -163,27 +236,52 @@ const Reports: React.FC = () => {
           <p className="text-gray-500">Análises e estatísticas do sistema de controle de extras</p>
         </div>
         
-        {/* Filtros de Período (oculto na sessão Recibos de Extras) */}
-        {activeTab !== 'recibos' && (
-          <div className="flex items-center gap-3">
-            <Calendar size={18} className="text-gray-400" />
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Data inicial"
-            />
-            <span className="text-gray-400">até</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Data final"
-            />
+        {/* Filtros: Setor e Período (período oculto na sessão Recibos de Extras) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-400" />
+            <select
+              value={selectedSector}
+              onChange={(e) => setSelectedSector(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+              title="Filtrar relatórios por setor"
+            >
+              <option value="">Todos os setores</option>
+              {sectors.map(s => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
           </div>
-        )}
+          {activeTab !== 'recibos' && (
+            <>
+              <Calendar size={18} className="text-gray-400" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Data inicial"
+              />
+              <span className="text-gray-400">até</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Data final"
+              />
+            </>
+          )}
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
+            title="Exportar solicitações (período e setor selecionados) em CSV"
+          >
+            <Download size={18} />
+            Exportar CSV
+          </button>
+        </div>
       </header>
 
       {/* Tabs Navigation */}
@@ -215,7 +313,7 @@ const Reports: React.FC = () => {
         {/* Report Content */}
         <div className="p-6">
           <React.Suspense fallback={<div className="text-center p-8 text-gray-500">Carregando...</div>}>
-            <ActiveComponent startDate={startDate} endDate={endDate} />
+            <ActiveComponent startDate={startDate} endDate={endDate} sector={selectedSector || undefined} />
           </React.Suspense>
         </div>
       </div>

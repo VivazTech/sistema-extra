@@ -11,12 +11,14 @@ import {
   Coffee
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
+import { useAuth } from '../context/AuthContext';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { formatDateBR } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 
 const TVDashboard: React.FC = () => {
   const { requests, extraSaldoRecords } = useExtras();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedSector, setSelectedSector] = useState('');
@@ -41,9 +43,18 @@ const TVDashboard: React.FC = () => {
   }, [isDarkMode]);
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayRequests = requests.filter(r => 
-    r.workDays.some(d => d.date === todayStr) && r.status !== 'REPROVADO' && r.status !== 'CANCELADO'
+  const todayRequestsRaw = useMemo(() =>
+    requests.filter(r =>
+      r.workDays.some(d => d.date === todayStr) && r.status !== 'REPROVADO' && r.status !== 'CANCELADO'
+    ),
+    [requests, todayStr]
   );
+  // Apenas setores cadastrados ao usuário: se tiver sectors, filtra; senão (ex.: ADMIN) mostra todos
+  const todayRequests = useMemo(() => {
+    const userSectors = user?.sectors;
+    if (!userSectors?.length) return todayRequestsRaw;
+    return todayRequestsRaw.filter(r => userSectors.includes(r.sector));
+  }, [todayRequestsRaw, user?.sectors]);
 
   const getShiftForDate = (workDays: { date: string; shift: string }[], date: string) => {
     return workDays.find(d => d.date === date)?.shift || workDays[0]?.shift || '';

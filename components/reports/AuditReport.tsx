@@ -7,20 +7,25 @@ import { formatDateBR, formatDateTimeBR } from '../../utils/date';
 interface AuditReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const AuditReport: React.FC<AuditReportProps> = ({ startDate, endDate }) => {
+const AuditReport: React.FC<AuditReportProps> = ({ startDate, endDate, sector }) => {
   const { requests } = useExtras();
 
   const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const reqDate = new Date(req.createdAt);
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
-      return (!start || reqDate >= start) && (!end || reqDate <= end);
-    });
-  }, [requests, startDate, endDate]);
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const reqDate = new Date(req.createdAt);
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        return (!start || reqDate >= start) && (!end || reqDate <= end);
+      });
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   // Histórico de aprovações/reprovações
   const approvalHistory = useMemo(() => {

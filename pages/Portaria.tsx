@@ -17,7 +17,9 @@ import {
   ArrowUpDown,
   ArrowUpAZ,
   ArrowDownAZ,
-  UserX
+  UserX,
+  FileText,
+  Save
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -37,6 +39,10 @@ const Portaria: React.FC = () => {
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
+  /** Rascunho da observação da portaria por card (key = requestId-workDate). */
+  const [observationDraft, setObservationDraft] = useState<Record<string, string>>({});
+  /** Key do card cuja observação está sendo salva (para mostrar loading). */
+  const [observationSavingKey, setObservationSavingKey] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -877,6 +883,65 @@ const Portaria: React.FC = () => {
                               </button>
                             </div>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Observação da portaria - abaixo do registro de horários */}
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <label className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                          <FileText size={14} className="text-gray-500" />
+                          Observação da portaria
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">
+                          Anote aqui qualquer acontecimento relevante do dia (atrasos, ocorrências, etc.).
+                        </p>
+                        <textarea
+                          className="w-full border border-gray-200 rounded-xl p-3 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y min-h-[80px]"
+                          placeholder="Ex.: Extra chegou 10 min atrasado; solicitou saída 15 min mais cedo..."
+                          value={observationDraft[photoKey] ?? timeRecord.observations ?? ''}
+                          onChange={(e) => setObservationDraft(prev => ({ ...prev, [photoKey]: e.target.value }))}
+                          rows={3}
+                        />
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const value = observationDraft[photoKey] ?? timeRecord.observations ?? '';
+                              setObservationSavingKey(photoKey);
+                              try {
+                                await updateTimeRecord(
+                                  request.id,
+                                  workDayDate,
+                                  { ...timeRecord, observations: value || undefined },
+                                  user?.name || 'Portaria'
+                                );
+                                setObservationDraft(prev => {
+                                  const next = { ...prev };
+                                  delete next[photoKey];
+                                  return next;
+                                });
+                              } catch (e) {
+                                console.error(e);
+                                alert('Erro ao salvar observação.');
+                              } finally {
+                                setObservationSavingKey(null);
+                              }
+                            }}
+                            disabled={observationSavingKey === photoKey}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 text-white text-sm font-bold hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {observationSavingKey === photoKey ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                                Salvando...
+                              </>
+                            ) : (
+                              <>
+                                <Save size={16} />
+                                Salvar observação
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
 

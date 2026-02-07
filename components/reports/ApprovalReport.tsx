@@ -7,20 +7,25 @@ import { CheckCircle2, XCircle, Clock, TrendingUp } from 'lucide-react';
 interface ApprovalReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const ApprovalReport: React.FC<ApprovalReportProps> = ({ startDate, endDate }) => {
+const ApprovalReport: React.FC<ApprovalReportProps> = ({ startDate, endDate, sector }) => {
   const { requests } = useExtras();
 
   const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const reqDate = new Date(req.createdAt);
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
-      return (!start || reqDate >= start) && (!end || reqDate <= end);
-    });
-  }, [requests, startDate, endDate]);
+    let list = requests;
+    if (startDate || endDate) {
+      list = list.filter(req => {
+        const reqDate = new Date(req.createdAt);
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        return (!start || reqDate >= start) && (!end || reqDate <= end);
+      });
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   // Estatísticas gerais
   const total = filteredRequests.length;

@@ -7,10 +7,25 @@ import { User, TrendingUp, CheckCircle2 } from 'lucide-react';
 interface RequesterReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate }) => {
+const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate, sector }) => {
   const { requests } = useExtras();
+
+  const filteredRequests = useMemo(() => {
+    let list = requests;
+    if (startDate || endDate) {
+      list = (list || []).filter(req => {
+        const reqDate = new Date(req.createdAt);
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        return (!start || reqDate >= start) && (!end || reqDate <= end);
+      });
+    }
+    if (sector) list = list.filter(r => r.sector === sector);
+    return list;
+  }, [requests, startDate, endDate, sector]);
 
   if (!requests || requests.length === 0) {
     return (
@@ -24,16 +39,6 @@ const RequesterReport: React.FC<RequesterReportProps> = ({ startDate, endDate })
       </div>
     );
   }
-
-  const filteredRequests = useMemo(() => {
-    if (!startDate && !endDate) return requests;
-    return requests.filter(req => {
-      const reqDate = new Date(req.createdAt);
-      const start = startDate ? new Date(startDate) : null;
-      const end = endDate ? new Date(endDate) : null;
-      return (!start || reqDate >= start) && (!end || reqDate <= end);
-    });
-  }, [requests, startDate, endDate]);
 
   // Análise por solicitante
   const requesterAnalysis = useMemo(() => {

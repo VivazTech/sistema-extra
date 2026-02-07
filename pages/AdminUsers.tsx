@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Save, Edit2, Trash2, X, UserPlus, KeyRound, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Save, Edit2, Trash2, X, UserPlus, KeyRound, Eye, EyeOff, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +36,16 @@ const AdminUsers: React.FC = () => {
   const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [showAdminConfirmPassword, setShowAdminConfirmPassword] = useState(false);
+  const [filterName, setFilterName] = useState('');
+  const [filterSector, setFilterSector] = useState('');
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const matchName = !filterName.trim() || user.name.toLowerCase().includes(filterName.trim().toLowerCase());
+      const matchSector = !filterSector || (user.sectors && user.sectors.includes(filterSector));
+      return matchName && matchSector;
+    });
+  }, [users, filterName, filterSector]);
 
   // Verificar se é ADMIN
   useEffect(() => {
@@ -56,9 +66,18 @@ const AdminUsers: React.FC = () => {
     whatsapp: '',
     password: '',
     role: 'VIEWER' as UserRole,
-    sector: '',
+    sectors: [] as string[],
     isRequester: false,
   });
+
+  const toggleUserSector = (sectorName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      sectors: prev.sectors.includes(sectorName)
+        ? prev.sectors.filter(s => s !== sectorName)
+        : [...prev.sectors, sectorName],
+    }));
+  };
 
   const handleOpenModal = (user?: User) => {
     if (user) {
@@ -71,7 +90,7 @@ const AdminUsers: React.FC = () => {
         whatsapp: user.whatsapp || '',
         password: '',
         role: user.role,
-        sector: user.sectors?.[0] || '',
+        sectors: user.sectors ? [...user.sectors] : [],
         isRequester: user.isRequester || false,
       });
     } else {
@@ -84,7 +103,7 @@ const AdminUsers: React.FC = () => {
         whatsapp: '',
         password: '',
         role: 'VIEWER',
-        sector: '',
+        sectors: [],
         isRequester: false,
       });
     }
@@ -102,7 +121,7 @@ const AdminUsers: React.FC = () => {
       whatsapp: '',
       password: '',
       role: 'VIEWER',
-      sector: '',
+      sectors: [],
       isRequester: false,
     });
   };
@@ -139,7 +158,7 @@ const AdminUsers: React.FC = () => {
         ramal: formData.ramal || undefined,
         whatsapp: formData.whatsapp || undefined,
         role: formData.role,
-        sectors: formData.sector ? [formData.sector] : undefined,
+        sectors: formData.sectors.length > 0 ? formData.sectors : undefined,
         isRequester: formData.isRequester,
         password: formData.password || undefined,
       };
@@ -346,11 +365,44 @@ const AdminUsers: React.FC = () => {
           )})}
         </div>
         <p className="text-xs text-gray-400">
-          Alterações são aplicadas imediatamente e salvas neste navegador.
+          Alterações são aplicadas imediatamente e salvas no banco de dados.
         </p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nome..."
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          <div className="min-w-[180px]">
+            <select
+              value={filterSector}
+              onChange={(e) => setFilterSector(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            >
+              <option value="">Todos os setores</option>
+              {sectors.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          {(filterName || filterSector) && (
+            <button
+              type="button"
+              onClick={() => { setFilterName(''); setFilterSector(''); }}
+              className="text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
             <tr>
@@ -366,7 +418,7 @@ const AdminUsers: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.map((user, index) => {
+            {filteredUsers.map((user, index) => {
               const isEven = index % 2 === 0;
               const bgColor = isEven ? 'bg-white' : 'bg-gray-50';
               return (
@@ -430,9 +482,9 @@ const AdminUsers: React.FC = () => {
             })}
           </tbody>
         </table>
-        {users.length === 0 && (
+        {filteredUsers.length === 0 && (
           <div className="p-12 text-center text-gray-400">
-            <p>Nenhum usuário cadastrado.</p>
+            <p>{users.length === 0 ? 'Nenhum usuário cadastrado.' : 'Nenhum usuário encontrado com os filtros aplicados.'}</p>
           </div>
         )}
       </div>
@@ -538,17 +590,21 @@ const AdminUsers: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Setor</label>
-                  <select
-                    className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={formData.sector}
-                    onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                  >
-                    <option value="">Selecione um setor</option>
+                  <label className="text-xs font-bold text-gray-500 uppercase">Setores</label>
+                  <p className="text-xs text-gray-500 mb-2">Selecione um ou mais setores para o usuário (relevante para Gerentes e Líderes).</p>
+                  <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50">
                     {sectors.map(s => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
+                      <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                          checked={formData.sectors.includes(s.name)}
+                          onChange={() => toggleUserSector(s.name)}
+                        />
+                        <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
 

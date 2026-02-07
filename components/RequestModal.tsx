@@ -4,10 +4,13 @@ import { X, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { SHIFTS } from '../constants';
+import type { ExtraRequest } from '../types';
 
 interface RequestModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Quando definido, o modal abre em modo edição para esta solicitação (somente ADMIN). */
+  initialRequest?: ExtraRequest | null;
 }
 
 const getTodayDateString = () => {
@@ -18,8 +21,9 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
-  const { sectors, requesters, reasons, shifts, extras, addRequest, getSaldoForWeek } = useExtras();
+const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialRequest = null }) => {
+  const { sectors, requesters, reasons, shifts, extras, addRequest, updateRequest, getSaldoForWeek } = useExtras();
+  const isEditMode = !!initialRequest?.id;
   const { user } = useAuth();
   const todayStr = getTodayDateString();
   const shiftOptions = shifts.length > 0 ? shifts.map(s => s.name) : [...SHIFTS];
@@ -39,17 +43,47 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
     reason: '',
     extraName: '',
     value: 0,
-    observations: ''
+    observations: '',
+    eventName: '' as string,
   });
+  const isEventoReason = (formData.reason || '').toUpperCase() === 'EVENTO';
+  const isTesteReason = (formData.reason || '').toUpperCase() === 'TESTE';
 
   const isLeaderWithSector = user?.role === 'LEADER' && user.sectors?.length;
   const leaderSector = isLeaderWithSector ? user.sectors![0] : null;
   const effectiveSector = formData.sector || leaderSector || '';
   const availableRoles = sectors.find(s => s.name === effectiveSector)?.roles || [];
-  // Extras do setor selecionado (para líder, usar setor do líder desde o início)
-  const availableExtras = effectiveSector
-    ? extras.filter(e => e.sector === effectiveSector)
-    : extras;
+  const isAdmin = user?.role === 'ADMIN';
+  const availableRequesters = useMemo(() => {
+    if (isAdmin) return requesters;
+    const leaderName = user?.name;
+    if (!leaderName) return requesters;
+    const found = requesters.filter(r => r.name === leaderName);
+    return found.length > 0 ? found : [{ id: 'current', name: leaderName }];
+  }, [isAdmin, requesters, user?.name]);
+
+  const selectedReason = useMemo(
+    () => (formData.reason ? reasons.find((r) => r.name === formData.reason) : null),
+    [reasons, formData.reason]
+  );
+  const maxValueForReason = selectedReason?.maxValue;
+  const testeNeedsMaxValue = isTesteReason && maxValueForReason == null;
+  // Extras do setor selecionado. Admin: qualquer extra do setor (e de outros). Não-admin: só extras cadastrados em setores daquele usuário.
+  const availableExtras = useMemo(() => {
+    if (!effectiveSector) return extras;
+    const matchEffective = (e: typeof extras[0]) =>
+      e.sectors?.includes(effectiveSector) || e.sector === effectiveSector;
+    if (isAdmin) {
+      return extras.filter(matchEffective);
+    }
+    const userSectors = user?.sectors;
+    if (!userSectors?.length) return extras.filter(matchEffective);
+    return extras.filter(e => {
+      if (!matchEffective(e)) return false;
+      const inUserSector = e.sectors?.some(s => userSectors.includes(s)) || (e.sector && userSectors.includes(e.sector));
+      return inUserSector;
+    });
+  }, [extras, effectiveSector, isAdmin, user?.sectors]);
 
   // Calcular saldo disponível para a semana da primeira data selecionada
   const saldoDisponivel = useMemo(() => {
@@ -66,10 +100,10 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleAddDay = () => {
-    // Verificar limite baseado no saldo disponível
-    const maxDays = saldoDisponivel !== null && saldoDisponivel !== 'no-record' 
-      ? Math.min(saldoDisponivel, 7) 
-      : 7;
+    // EVENTO não desconta saldo: permitir até 7 dias sem limitar pelo saldo
+    const maxDays = isEventoReason
+      ? 7
+      : (saldoDisponivel !== null && saldoDisponivel !== 'no-record' ? Math.min(saldoDisponivel, 7) : 7);
     
     if (formData.workDays.length >= maxDays) {
       if (saldoDisponivel !== null && saldoDisponivel !== 'no-record' && saldoDisponivel <= formData.workDays.length) {
@@ -107,19 +141,36 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       const initialShift = shiftOptions[0] || 'Manhã';
-      setFormData(prev => ({
-        ...prev,
-        sector: leaderSector ?? '',
-        role: '',
-        workDays: [
-          {
-            date: todayStr,
-            shift: initialShift,
-          },
-        ],
-      }));
+      if (initialRequest) {
+        setFormData({
+          sector: initialRequest.sector,
+          role: initialRequest.role,
+          workDays: initialRequest.workDays?.length
+            ? initialRequest.workDays.map((d) => ({ date: d.date, shift: d.shift }))
+            : [{ date: todayStr, shift: initialShift }],
+          requester: initialRequest.requester,
+          reason: initialRequest.reason,
+          extraName: initialRequest.extraName,
+          value: initialRequest.value,
+          observations: initialRequest.observations || '',
+          eventName: initialRequest.eventName || '',
+        });
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          sector: leaderSector ?? '',
+          role: '',
+          workDays: [{ date: todayStr, shift: initialShift }],
+          requester: user?.name ?? '',
+          reason: '',
+          extraName: '',
+          value: 0,
+          observations: '',
+          eventName: '',
+        }));
+      }
     }
-  }, [isOpen, todayStr, shiftOptions.join(','), leaderSector]);
+  }, [isOpen, todayStr, shiftOptions.join(','), leaderSector, initialRequest?.id, user?.name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,9 +180,38 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
       alert('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
-    
+    if (isEventoReason && !(formData.eventName || '').trim()) {
+      alert('Para motivo EVENTO, informe o nome do evento.');
+      return;
+    }
+    const selectedReasonConfig = reasons.find((r) => r.name === formData.reason);
+    const reasonLimit = selectedReasonConfig?.maxValue;
+    // Motivo TESTE exige valor máximo definido pelo admin no painel de Cadastros
+    if (isTesteReason && (reasonLimit == null || reasonLimit === undefined)) {
+      alert('O motivo TESTE exige um valor máximo definido pelo administrador. Configure em Cadastros > Motivos da Solicitação (Valor máx. em R$).');
+      return;
+    }
+    if (reasonLimit != null && formData.value > reasonLimit) {
+      alert(`O valor não pode ser maior que o limite do motivo (R$ ${reasonLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`);
+      return;
+    }
+
     try {
       setIsSaving(true);
+      if (isEditMode && initialRequest) {
+        await updateRequest(initialRequest.id, {
+          sector: formData.sector,
+          role: formData.role,
+          requester: formData.requester,
+          reason: formData.reason,
+          extraName: formData.extraName,
+          value: formData.value,
+          observations: formData.observations || undefined,
+          eventName: isEventoReason ? (formData.eventName || undefined) : undefined,
+        });
+        onClose();
+        return;
+      }
       // Validar se user.id é UUID válido
       if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
         alert('Erro: Usuário não autenticado corretamente. Por favor, faça login novamente.');
@@ -144,19 +224,16 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
         leaderName: user.name || 'Usuário'
       });
       
-      // Limpar formulário
       setFormData({
         sector: '',
         role: '',
-        workDays: [{
-          date: todayStr,
-          shift: defaultShift,
-        }],
+        workDays: [{ date: todayStr, shift: defaultShift }],
         requester: '',
         reason: '',
         extraName: '',
         value: 0,
-        observations: ''
+        observations: '',
+        eventName: '',
       });
       
       onClose();
@@ -175,8 +252,8 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl animate-in slide-in-from-bottom duration-300">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-emerald-900 text-white rounded-t-2xl">
           <div>
-            <h2 className="text-xl font-bold">Solicitar Funcionário Extra</h2>
-            <p className="text-xs text-emerald-300 opacity-80">Preencha todos os campos obrigatórios (*)</p>
+            <h2 className="text-xl font-bold">{isEditMode ? 'Editar Solicitação' : 'Solicitar Funcionário Extra'}</h2>
+            <p className="text-xs text-emerald-300 opacity-80">{isEditMode ? 'Altere os campos desejados e salve.' : 'Preencha todos os campos obrigatórios (*)'}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-emerald-800 rounded-full transition-colors">
             <X size={24} />
@@ -362,26 +439,33 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
                   <option value="" disabled>Nenhum extra cadastrado para este setor</option>
                 )}
                 {formData.sector ? (
-                  // Se tem setor selecionado, mostrar primeiro os do setor, depois os outros
                   <>
-                    {availableExtras.map(extra => (
-                      <option key={extra.id} value={extra.fullName}>
-                        {extra.fullName} {extra.sector !== formData.sector ? `(${extra.sector})` : ''}
-                      </option>
-                    ))}
-                    {extras.filter(e => e.sector !== formData.sector).map(extra => (
-                      <option key={extra.id} value={extra.fullName}>
-                        {extra.fullName} ({extra.sector})
-                      </option>
-                    ))}
+                    {availableExtras.map(extra => {
+                      const extraSectors = (extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean);
+                      const label = extraSectors.length ? `${extra.fullName} (${extraSectors.join(', ')})` : extra.fullName;
+                      return (
+                        <option key={extra.id} value={extra.fullName}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                    {isAdmin && extras.filter(e => !availableExtras.some(a => a.id === e.id)).map(extra => {
+                      const extraSectors = (extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean);
+                      return (
+                        <option key={extra.id} value={extra.fullName}>
+                          {extra.fullName} ({extraSectors.join(', ')})
+                        </option>
+                      );
+                    })}
                   </>
                 ) : (
-                  // Se não tem setor, mostrar todos agrupados
-                  extras.map(extra => (
-                    <option key={extra.id} value={extra.fullName}>
-                      {extra.fullName} {extra.sector ? `(${extra.sector})` : ''}
-                    </option>
-                  ))
+                  isAdmin
+                    ? extras.map(extra => (
+                        <option key={extra.id} value={extra.fullName}>
+                          {extra.fullName} {(extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean).join(', ') || ''}
+                        </option>
+                      ))
+                    : null
                 )}
               </select>
               {extras.length === 0 && (
@@ -392,45 +476,88 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Valor Combinado (R$) *</label>
-              <input 
+              <input
                 required
                 type="number"
                 step="0.01"
-                placeholder="0,00"
+                min="0"
+                {...(maxValueForReason != null && { max: maxValueForReason })}
+                placeholder={maxValueForReason != null ? `Máx. ${maxValueForReason.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '0,00'}
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.value || ''}
-                onChange={(e) => setFormData({ ...formData, value: parseFloat(e.target.value) })}
+                value={formData.value ?? ''}
+                onChange={(e) => {
+                  let val = parseFloat(e.target.value);
+                  if (maxValueForReason != null && !Number.isNaN(val) && val > maxValueForReason) {
+                    val = maxValueForReason;
+                  }
+                  setFormData({ ...formData, value: Number.isNaN(val) ? 0 : val });
+                }}
               />
+              {maxValueForReason != null && (
+                <p className="text-xs text-gray-500">
+                  Limite para este motivo: R$ {maxValueForReason.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-gray-500 uppercase">Demandante *</label>
-            <select 
+            <select
               required
-              className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+              disabled={!isAdmin}
+              className={`w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none ${!isAdmin ? 'bg-gray-50 cursor-not-allowed' : ''}`}
               value={formData.requester}
               onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
+              title={!isAdmin ? 'Apenas administradores podem alterar o demandante.' : undefined}
             >
               <option value="">Selecione o demandante</option>
-              {requesters.length === 0 && <option value="" disabled>Cadastre demandantes no painel</option>}
-              {requesters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+              {availableRequesters.length === 0 && <option value="" disabled>Cadastre demandantes no painel</option>}
+              {availableRequesters.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
             </select>
+            {!isAdmin && <p className="text-xs text-gray-500">O demandante é você (líder da solicitação).</p>}
           </div>
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-gray-500 uppercase">Motivo da Solicitação *</label>
-            <select 
+            <select
               required
               className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
               value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+              onChange={(e) => {
+                const reasonName = e.target.value;
+                const reason = reasons.find((r) => r.name === reasonName);
+                let newValue = formData.value ?? 0;
+                if (reason?.maxValue != null && newValue > reason.maxValue) {
+                  newValue = reason.maxValue;
+                }
+                setFormData({ ...formData, reason: reasonName, value: newValue });
+              }}
             >
               <option value="">Selecione o motivo</option>
               {reasons.length === 0 && <option value="" disabled>Cadastre motivos no painel</option>}
               {reasons.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
             </select>
           </div>
+
+          {testeNeedsMaxValue && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+              O motivo <strong>TESTE</strong> exige um valor máximo definido pelo administrador em <strong>Cadastros &gt; Motivos da Solicitação</strong> (campo Valor máx. em R$). Até lá, não será possível salvar a solicitação.
+            </div>
+          )}
+
+          {isEventoReason && (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase">Nome do evento *</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                placeholder="Ex.: Festa de Confraternização"
+                value={formData.eventName}
+                onChange={(e) => setFormData({ ...formData, eventName: e.target.value })}
+              />
+            </div>
+          )}
 
           <div className="flex gap-4 pt-4 sticky bottom-0 bg-white">
             <button 
@@ -443,8 +570,9 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose }) => {
             </button>
             <button 
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || testeNeedsMaxValue}
               className="flex-1 py-3 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              title={testeNeedsMaxValue ? 'Defina o valor máximo para o motivo TESTE em Cadastros' : undefined}
             >
               {isSaving ? (
                 <>

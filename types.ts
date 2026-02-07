@@ -54,6 +54,8 @@ export interface RequesterItem {
 export interface ReasonItem {
   id: string;
   name: string;
+  /** Valor máximo (R$) permitido para este motivo. Definido pelo admin nos Cadastros. */
+  maxValue?: number;
 }
 
 export interface ShiftItem {
@@ -71,6 +73,8 @@ export interface TimeRecord {
   photoUrl?: string;
   registeredBy?: string;
   registeredAt?: string;
+  /** Observação da portaria (acontecimentos relevantes do dia). */
+  observations?: string;
 }
 
 export interface WorkDay {
@@ -97,6 +101,8 @@ export interface ExtraRequest {
   needsManagerApproval?: boolean;
   urgency?: boolean;
   observations?: string;
+  /** Nome do evento quando reason é EVENTO. */
+  eventName?: string;
   contact?: string;
   rejectionReason?: string;
   cancellationReason?: string;
@@ -119,7 +125,10 @@ export interface ExtraPerson {
   contact: string;
   address: string;
   emergencyContact: string;
+  /** Setor principal (primeiro da lista). Mantido para compatibilidade. */
   sector: string;
+  /** Setores aos quais o extra pode ser alocado. Permite múltipla seleção no Banco de Extras. */
+  sectors?: string[];
   createdAt: string;
 }
 

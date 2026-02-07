@@ -141,6 +141,11 @@ const AdminCatalogs: React.FC = () => {
   const [isModalNewSectorOpen, setIsModalNewSectorOpen] = useState(false);
   const [newSectorName, setNewSectorName] = useState('');
   const [newSectorRoles, setNewSectorRoles] = useState<string[]>(['']);
+  const [editingReasonId, setEditingReasonId] = useState<string | null>(null);
+  const [editReasonName, setEditReasonName] = useState('');
+  const [editReasonMaxValue, setEditReasonMaxValue] = useState<string>('');
+  const [newReasonName, setNewReasonName] = useState('');
+  const [newReasonMaxValue, setNewReasonMaxValue] = useState<string>('');
 
   const handleStartEditSector = (sector: Sector) => {
     setIsEditingSector(sector.id);
@@ -228,6 +233,48 @@ const AdminCatalogs: React.FC = () => {
     });
   };
 
+  const handleStartEditReason = (item: ReasonItem) => {
+    setEditingReasonId(item.id);
+    setEditReasonName(item.name);
+    setEditReasonMaxValue(item.maxValue != null ? String(item.maxValue) : '');
+  };
+
+  const handleSaveReason = async () => {
+    if (!editingReasonId) return;
+    const name = editReasonName.trim();
+    if (!name) return;
+    const maxVal = editReasonMaxValue.trim() === '' ? undefined : parseFloat(editReasonMaxValue);
+    await updateReason(editingReasonId, {
+      id: editingReasonId,
+      name,
+      maxValue: maxVal != null && !Number.isNaN(maxVal) ? maxVal : undefined,
+    });
+    setEditingReasonId(null);
+    setEditReasonName('');
+    setEditReasonMaxValue('');
+  };
+
+  const handleCancelEditReason = () => {
+    setEditingReasonId(null);
+    setEditReasonName('');
+    setEditReasonMaxValue('');
+  };
+
+  const handleAddReason = async () => {
+    const name = newReasonName.trim();
+    if (!name) return;
+    const maxVal = newReasonMaxValue.trim() === '' ? undefined : parseFloat(newReasonMaxValue);
+    const created = await addReason({
+      id: Math.random().toString(36).substr(2, 9),
+      name,
+      maxValue: maxVal != null && !Number.isNaN(maxVal) ? maxVal : undefined,
+    });
+    if (created) {
+      setNewReasonName('');
+      setNewReasonMaxValue('');
+    }
+  };
+
   // Filtrar setores por pesquisa
   const filteredSectors = useMemo(() => {
     if (!searchSector.trim()) return sectors;
@@ -255,14 +302,85 @@ const AdminCatalogs: React.FC = () => {
           maxHeight={500}
           expandable
         />
-        <EditableList
-          title="Motivos da Solicitação"
-          items={reasons}
-          onAdd={addReason}
-          onUpdate={updateReason}
-          onDelete={deleteReason}
-          addLabel="Novo Motivo"
-        />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Motivos da Solicitação</h2>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="text"
+                placeholder="Nome do motivo"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40"
+                value={newReasonName}
+                onChange={(e) => setNewReasonName(e.target.value)}
+              />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Valor máx. (R$)"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-28"
+                value={newReasonMaxValue}
+                onChange={(e) => setNewReasonMaxValue(e.target.value)}
+              />
+              <button
+                onClick={handleAddReason}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+              >
+                <Plus size={16} /> Novo Motivo
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {reasons.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhum motivo cadastrado.</p>
+            )}
+            {reasons.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                {editingReasonId === item.id ? (
+                  <>
+                    <input
+                      type="text"
+                      className="flex-1 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                      value={editReasonName}
+                      onChange={(e) => setEditReasonName(e.target.value)}
+                      placeholder="Nome"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-24 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                      value={editReasonMaxValue}
+                      onChange={(e) => setEditReasonMaxValue(e.target.value)}
+                      placeholder="Máx. R$"
+                    />
+                    <button onClick={handleSaveReason} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Save size={16} />
+                    </button>
+                    <button onClick={handleCancelEditReason} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
+                    <span className="text-xs text-gray-500 w-24">
+                      {item.maxValue != null ? `R$ ${Number(item.maxValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Sem limite'}
+                    </span>
+                    <button onClick={() => handleStartEditReason(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => deleteReason(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-3">Valor máximo: limite em R$ para o campo &quot;Valor Combinado&quot; na solicitação de extra quando este motivo for selecionado.</p>
+          <p className="text-xs text-amber-600 mt-1">Para o motivo <strong>TESTE</strong>, defina sempre o valor máximo; caso contrário a solicitação não poderá ser salva.</p>
+        </div>
         <EditableList
           title="Turnos"
           items={shifts}

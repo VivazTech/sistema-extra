@@ -39,6 +39,7 @@ export const mapRequester = (dbRequester: any): RequesterItem => ({
 export const mapReason = (dbReason: any): ReasonItem => ({
   id: dbReason.id,
   name: dbReason.name,
+  maxValue: dbReason.max_value != null ? Number(dbReason.max_value) : undefined,
 });
 
 // Converter ShiftItem do Supabase
@@ -47,18 +48,24 @@ export const mapShift = (dbShift: any): ShiftItem => ({
   name: dbShift.name,
 });
 
-// Converter ExtraPerson do Supabase
-export const mapExtraPerson = (dbExtra: any): ExtraPerson => ({
-  id: dbExtra.id,
-  fullName: dbExtra.full_name,
-  birthDate: dbExtra.birth_date,
-  cpf: dbExtra.cpf,
-  contact: dbExtra.contact,
-  address: dbExtra.address,
-  emergencyContact: dbExtra.emergency_contact,
-  sector: dbExtra.sectors?.name || '',
-  createdAt: dbExtra.created_at,
-});
+// Converter ExtraPerson do Supabase (sectors = relação 1 setor; sector_names = array de nomes)
+export const mapExtraPerson = (dbExtra: any): ExtraPerson => {
+  const names: string[] = Array.isArray(dbExtra.sector_names) && dbExtra.sector_names.length > 0
+    ? dbExtra.sector_names
+    : dbExtra.sectors?.name ? [dbExtra.sectors.name] : [];
+  return {
+    id: dbExtra.id,
+    fullName: dbExtra.full_name,
+    birthDate: dbExtra.birth_date,
+    cpf: dbExtra.cpf,
+    contact: dbExtra.contact,
+    address: dbExtra.address,
+    emergencyContact: dbExtra.emergency_contact,
+    sector: names[0] || dbExtra.sectors?.name || '',
+    sectors: names.length > 0 ? names : undefined,
+    createdAt: dbExtra.created_at,
+  };
+};
 
 // Normalizar TIME do Postgres (HH:MM:SS ou HH:MM:SS.ms) para HH:MM (input type="time")
 const normalizeTime = (v: unknown): string | undefined => {
@@ -81,7 +88,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     return {
       date: wd.work_date,
       shift: wd.shift,
-      timeRecord: timeRecord && (timeRecord.arrival != null || timeRecord.break_start != null || timeRecord.break_end != null || timeRecord.departure != null || timeRecord.photo_url != null)
+      timeRecord: timeRecord && (timeRecord.arrival != null || timeRecord.break_start != null || timeRecord.break_end != null || timeRecord.departure != null || timeRecord.photo_url != null || (timeRecord.observations != null && timeRecord.observations !== ''))
         ? {
             arrival: normalizeTime(timeRecord.arrival) ?? undefined,
             breakStart: normalizeTime(timeRecord.break_start) ?? undefined,
@@ -90,6 +97,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
             photoUrl: timeRecord.photo_url ?? undefined,
             registeredBy: timeRecord.registered_by,
             registeredAt: timeRecord.registered_at,
+            observations: timeRecord.observations ?? undefined,
           }
         : undefined,
     };
@@ -112,6 +120,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     needsManagerApproval: dbRequest.needs_manager_approval || false,
     urgency: dbRequest.urgency || false,
     observations: dbRequest.observations,
+    eventName: dbRequest.event_name,
     contact: dbRequest.contact,
     rejectionReason: dbRequest.rejection_reason,
     cancellationReason: dbRequest.cancellation_reason,
@@ -160,5 +169,6 @@ export const prepareRequestForInsert = (request: Omit<ExtraRequest, 'id' | 'code
     observations: request.observations,
     contact: request.contact,
     needs_manager_approval: request.needsManagerApproval || false,
+    event_name: request.eventName ?? null,
   };
 };

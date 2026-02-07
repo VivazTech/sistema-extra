@@ -7,14 +7,16 @@ import { BarChart3, TrendingDown, AlertCircle } from 'lucide-react';
 interface SaldoUsageReportProps {
   startDate?: string;
   endDate?: string;
+  sector?: string;
 }
 
-const SaldoUsageReport: React.FC<SaldoUsageReportProps> = ({ startDate, endDate }) => {
+const SaldoUsageReport: React.FC<SaldoUsageReportProps> = ({ startDate, endDate, sector: sectorFilter }) => {
   const { requests, sectors, extraSaldoRecords, getSaldoForWeek } = useExtras();
 
   // Calcular saldo utilizado e disponível por setor
   const saldoAnalysis = useMemo(() => {
-    return sectors.map(sector => {
+    const sectorsToShow = sectorFilter ? sectors.filter(s => s.name === sectorFilter) : sectors;
+    return sectorsToShow.map(sector => {
       // Buscar registro de saldo mais recente para o setor
       const saldoRecord = extraSaldoRecords
         .filter(r => r.setor === sector.name)
@@ -62,7 +64,7 @@ const SaldoUsageReport: React.FC<SaldoUsageReportProps> = ({ startDate, endDate 
         status: remaining < 0 ? 'negative' : remaining < 10 ? 'low' : 'ok'
       };
     }).filter(s => s.saldoDisponivel !== null);
-  }, [sectors, requests, extraSaldoRecords, getSaldoForWeek]);
+  }, [sectors, requests, extraSaldoRecords, getSaldoForWeek, sectorFilter]);
 
   // Setores com saldo negativo ou baixo
   const alerts = saldoAnalysis.filter(s => s.status === 'negative' || s.status === 'low');
