@@ -86,24 +86,22 @@ export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setRoleAccess(nextState);
 
+    // Salvar o novo estado (não o ref, que ainda pode estar desatualizado)
+    const payload = { role, pages, actions: roleAccess[role].actions, updated_at: new Date().toISOString() };
+
     try {
-      const toSave = roleAccessRef.current[role];
       const { error } = await supabase
         .from('role_access')
-        .upsert(
-          {
-            role,
-            pages: toSave.pages,
-            actions: toSave.actions,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'role' }
-        );
+        .upsert(payload, { onConflict: 'role' });
 
       if (error) {
         console.error('Erro ao salvar permissões:', error);
         setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], pages: current } }));
-        alert('Não foi possível salvar as alterações. Verifique se você é administrador e tente novamente.');
+        const isRlsError = (error as { code?: string })?.code === '42501';
+        const msg = isRlsError
+          ? 'Não foi possível salvar: política de segurança do banco (RLS) bloqueou a alteração. Execute no Supabase (SQL Editor) o script: supabase/sql/fix-role-access-rls-insert.sql'
+          : 'Não foi possível salvar as alterações. Verifique se você é administrador e tente novamente.';
+        alert(msg);
       }
     } catch (error) {
       console.error('Erro ao salvar permissões:', error);
@@ -120,24 +118,22 @@ export const AccessProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setRoleAccess(nextState);
 
+    // Salvar o novo estado (não o ref, que ainda pode estar desatualizado)
+    const payload = { role, pages: roleAccess[role].pages, actions, updated_at: new Date().toISOString() };
+
     try {
-      const toSave = roleAccessRef.current[role];
       const { error } = await supabase
         .from('role_access')
-        .upsert(
-          {
-            role,
-            pages: toSave.pages,
-            actions: toSave.actions,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'role' }
-        );
+        .upsert(payload, { onConflict: 'role' });
 
       if (error) {
         console.error('Erro ao salvar permissões:', error);
         setRoleAccess((prev) => ({ ...prev, [role]: { ...prev[role], actions: current } }));
-        alert('Não foi possível salvar as alterações. Verifique se você é administrador e tente novamente.');
+        const isRlsError = (error as { code?: string })?.code === '42501';
+        const msg = isRlsError
+          ? 'Não foi possível salvar: política de segurança do banco (RLS) bloqueou a alteração. Execute no Supabase (SQL Editor) o script: supabase/sql/fix-role-access-rls-insert.sql'
+          : 'Não foi possível salvar as alterações. Verifique se você é administrador e tente novamente.';
+        alert(msg);
       }
     } catch (error) {
       console.error('Erro ao salvar permissões:', error);

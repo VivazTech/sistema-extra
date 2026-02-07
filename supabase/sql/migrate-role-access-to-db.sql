@@ -50,11 +50,19 @@ CREATE POLICY "role_access_select" ON role_access
   TO authenticated
   USING (true);
 
--- Política: Apenas admins podem modificar
+-- Política: Apenas admins podem modificar (USING + WITH CHECK para INSERT/UPDATE)
 CREATE POLICY "role_access_modify" ON role_access
   FOR ALL
   TO authenticated
   USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
+      AND users.role = 'ADMIN'
+      AND users.active = true
+    )
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM users
       WHERE users.id = auth.uid()

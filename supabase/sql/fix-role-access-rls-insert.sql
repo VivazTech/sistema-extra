@@ -1,7 +1,8 @@
 -- ============================================
 -- Corrige política RLS de role_access para permitir INSERT/UPDATE por admins
--- Alguns ambientes exigem WITH CHECK explícito para INSERT.
--- Execute no Supabase SQL Editor se as alterações em "Níveis de acesso por função" não persistirem.
+-- Erro no console: 403 + "new row violates row-level security policy" (42501)
+-- Causa: a política antiga não tinha WITH CHECK, então INSERT (do upsert) era bloqueado.
+-- Execute no Supabase > SQL Editor e rode este script uma vez.
 -- ============================================
 
 DROP POLICY IF EXISTS "role_access_modify" ON role_access;
