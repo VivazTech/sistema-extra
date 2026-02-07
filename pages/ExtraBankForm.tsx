@@ -20,7 +20,7 @@ const ExtraBankForm: React.FC = () => {
     neighborhood: '',
     city: '',
     state: '',
-    sector: ''
+    sectors: [] as string[],
   });
   const [submitted, setSubmitted] = useState(false);
   const [cpfError, setCpfError] = useState('');
@@ -226,9 +226,9 @@ const ExtraBankForm: React.FC = () => {
       !formData.neighborhood ||
       !formData.city ||
       !formData.state ||
-      !formData.sector
+      formData.sectors.length === 0
     ) {
-      alert('Preencha todos os campos obrigatórios.');
+      alert('Preencha todos os campos obrigatórios e selecione ao menos um setor.');
       return;
     }
     addExtra({
@@ -239,7 +239,8 @@ const ExtraBankForm: React.FC = () => {
       contact: `${formData.ddiContact} ${formData.contactNumber}`,
       address: `${formData.street}, ${formData.number} - ${formData.complement} - ${formData.neighborhood} - ${formData.city}/${formData.state} - CEP ${formData.cep}`,
       emergencyContact: `${formData.ddiEmergency} ${formData.emergencyContactNumber}`,
-      sector: formData.sector,
+      sector: formData.sectors[0] || '',
+      sectors: formData.sectors,
       createdAt: new Date().toISOString()
     });
     setSubmitted(true);
@@ -517,16 +518,31 @@ const ExtraBankForm: React.FC = () => {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase">Setor *</label>
-            <select
-              required
-              className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-              value={formData.sector}
-              onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-            >
-              <option value="">Selecione o setor</option>
-              {sectors.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
+            <label className="text-xs font-bold text-gray-500 uppercase">Setores *</label>
+            <p className="text-xs text-gray-500 mb-2">Selecione um ou mais setores em que o extra pode atuar.</p>
+            <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50">
+              {sectors.map(s => (
+                <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                    checked={formData.sectors.includes(s.name)}
+                    onChange={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        sectors: prev.sectors.includes(s.name)
+                          ? prev.sectors.filter(sec => sec !== s.name)
+                          : [...prev.sectors, s.name],
+                      }));
+                    }}
+                  />
+                  <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                </label>
+              ))}
+            </div>
+            {formData.sectors.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">Selecione ao menos um setor.</p>
+            )}
           </div>
 
           <button
