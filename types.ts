@@ -11,7 +11,8 @@ export type AccessPageKey =
   | 'saldo'
   | 'extras'
   | 'tv'
-  | 'test';
+  | 'test'
+  | 'logs';
 
 export type AccessActionKey =
   | 'manage_users'
@@ -164,4 +165,15 @@ export interface ExtraSaldoRecord extends ExtraSaldoInput {
 
 export interface ExtraSaldoSettings {
   valorDiaria: number;
+}
+
+/** Registro de ação para a seção de logs (auditoria). */
+export interface ActionLog {
+  id: string;
+  user_id: string | null;
+  user_name: string;
+  created_at: string;
+  action_where: string;
+  result: string;
+  details?: Record<string, unknown>;
 }

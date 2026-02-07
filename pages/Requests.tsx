@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
-import { generateSingleReciboPDF, generateListPDF } from '../services/pdfService';
+import { useActionLog } from '../context/ActionLogContext';
+import { generateSingleReciboPDF, generateListPDF, generateIndividualPDF } from '../services/pdfService';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
@@ -29,6 +30,7 @@ import type { ExtraRequest } from '../types';
 const Requests: React.FC = () => {
   const { requests, updateStatus, updateTimeRecord, deleteRequest } = useExtras();
   const { user } = useAuth();
+  const { logAction } = useActionLog();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [isModalOpen, setModalOpen] = useState(false);
@@ -75,7 +77,10 @@ const Requests: React.FC = () => {
           return;
         }
         await updateStatus(id, 'APROVADO', undefined, user.id);
+        logAction('Solicitações > Aprovar', 'OK', { requestId: id });
       } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Erro ao aprovar';
+        logAction('Solicitações > Aprovar', `Erro: ${msg}`, { requestId: id });
         console.error('Erro ao aprovar solicitação:', error);
         alert('Erro ao aprovar solicitação. Verifique o console para mais detalhes.');
       }
@@ -96,9 +101,12 @@ const Requests: React.FC = () => {
           ? user.id 
           : undefined;
         await updateStatus(selectedRequestId, 'REPROVADO', rejectionReason, userId);
+        logAction('Solicitações > Reprovar', 'OK', { requestId: selectedRequestId, motivo: rejectionReason });
         setRejectModalOpen(false);
         setRejectionReason('');
       } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Erro ao reprovar';
+        logAction('Solicitações > Reprovar', `Erro: ${msg}`, { requestId: selectedRequestId });
         console.error('Erro ao reprovar solicitação:', error);
         alert('Erro ao reprovar solicitação. Verifique o console para mais detalhes.');
       }
@@ -110,7 +118,10 @@ const Requests: React.FC = () => {
     if (reason !== null) {
       try {
         await updateStatus(id, 'CANCELADO', reason || 'Sem motivo informado');
+        logAction('Solicitações > Cancelar', 'OK', { requestId: id });
       } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Erro ao cancelar';
+        logAction('Solicitações > Cancelar', `Erro: ${msg}`, { requestId: id });
         console.error('Erro ao cancelar solicitação:', error);
         alert('Erro ao cancelar solicitação. Verifique o console para mais detalhes.');
       }

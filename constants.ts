@@ -32,6 +32,7 @@ export const ACCESS_PAGES = [
   { key: 'extras', label: 'Banco de Extras', path: '/admin/extras' },
   { key: 'tv', label: 'Painel 24h', path: '/tv' },
   { key: 'test', label: 'Testes Supabase', path: '/test-supabase' },
+  { key: 'logs', label: 'Logs de ação', path: '/admin/logs' },
 ] as const;
 
 export const ACCESS_ACTIONS = [
@@ -49,7 +50,7 @@ export const ACCESS_ACTIONS = [
 
 export const DEFAULT_ROLE_ACCESS: RoleAccess = {
   ADMIN: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test'],
+    pages: ['dashboard', 'requests', 'portaria', 'reports', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs'],
     actions: ['manage_users', 'manage_catalogs', 'manage_extras', 'manage_saldo', 'approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard'],
   },
   MANAGER: {

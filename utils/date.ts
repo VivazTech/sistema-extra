@@ -29,3 +29,18 @@ export function formatDateTimeBR(date?: Date | string | null): string {
   }).format(d);
 }
 
+/** Formato completo: dd/mm/yyyy hh:mm:ss (para logs). */
+export function formatDateTimeWithSeconds(date?: Date | string | null): string {
+  const d = date instanceof Date ? date : new Date(date || '');
+  if (!d || Number.isNaN(d.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+

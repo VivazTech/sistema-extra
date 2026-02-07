@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
+import { useActionLog } from '../context/ActionLogContext';
 import { SHIFTS } from '../constants';
 import type { ExtraRequest } from '../types';
 
@@ -23,6 +24,7 @@ const getTodayDateString = () => {
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialRequest = null }) => {
   const { sectors, requesters, reasons, shifts, extras, addRequest, updateRequest, getSaldoForWeek } = useExtras();
+  const { logAction } = useActionLog();
   const isEditMode = !!initialRequest?.id;
   const { user } = useAuth();
   const todayStr = getTodayDateString();
@@ -217,6 +219,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           observations: formData.observations || undefined,
           eventName: isEventoReason ? (formData.eventName || undefined) : undefined,
         });
+        logAction('Solicitações > Editar solicitação', 'OK', { requestId: initialRequest.id, code: initialRequest.code });
         onClose();
         return;
       }
@@ -231,7 +234,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
-      
+      logAction('Solicitações > Solicitar funcionário extra', 'Solicitação criada', { setor: formData.sector, extraName: formData.extraName });
       setFormData({
         sector: '',
         role: '',
@@ -243,9 +246,10 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
         observations: '',
         eventName: '',
       });
-      
       onClose();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao salvar solicitação';
+      logAction('Solicitações > Solicitar funcionário extra', `Erro: ${msg}`);
       console.error('Erro ao salvar solicitação:', error);
       alert('Erro ao salvar solicitação. Verifique o console para mais detalhes.');
     } finally {

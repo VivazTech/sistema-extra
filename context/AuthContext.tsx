@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { AuthState, User } from '../types';
 import { supabase } from '../services/supabase';
+import { logAction as logActionService } from '../services/actionLogService';
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -20,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [debugStartedAt] = useState<number>(() => Date.now());
   const [debugNow, setDebugNow] = useState<number>(() => Date.now());
 
-  const loadUserInFlightRef = useRef<Promise<void> | null>(null);
+  const loadUserInFlightRef = useRef<Promise<User | null | void> | null>(null);
 
   const debugEnabled = (() => {
     try {
@@ -204,7 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
         setDebugStep('loadUserData:notFound -> setLoading(false)');
-        return;
+        return null;
       }
 
       // Buscar setores vinculados ao usuário (qualquer função: MANAGER, LEADER, etc.)
@@ -240,11 +241,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setLoading(false);
       setDebugStep('loadUserData:success -> setLoading(false)');
+      return user;
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
       setState({ user: null, isAuthenticated: false });
       setLoading(false);
       setDebugStep(`loadUserData:catch ${(error as any)?.name || 'Error'}`);
+      return null;
     }
   };
 
@@ -304,8 +307,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Carregar dados do usuário
-      await loadUserData(authData.user.id);
-      
+      const loadedUser = await loadUserData(authData.user.id);
+      if (loadedUser) {
+        logActionService(loadedUser.id, loadedUser.name, 'Login', 'OK').catch(() => {});
+      }
       return { success: true };
     } catch (error: any) {
       console.error('Erro no login:', error);
