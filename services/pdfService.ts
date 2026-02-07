@@ -74,20 +74,16 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
     doc.text(`${value || 'N/A'}`, xPos + 32, yPos + offsetY);
   };
 
-  // Título – mesma linha: esquerda e direita
-  doc.setFontSize(12);
-  doc.setTextColor(20, 83, 45);
-  doc.text('VIVAZ CATARATAS RESORT', 20, 8 + offsetY, { align: 'left' });
+  // Título – alinhado à esquerda
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text('RECIBO DE PAGAMENTO', 190, 8 + offsetY, { align: 'right' });
+  doc.text('RECIBO DE PAGAMENTO', 20, 8 + offsetY, { align: 'left' });
   doc.setLineWidth(0.3);
   doc.line(20, 12 + offsetY, 190, 12 + offsetY);
 
   doc.setFontSize(9);
   let y = 18;
 
-  addField('Status', request.status, col1, y);
   addField('Demandante', request.requester, col2, y);
   y += 5;
   addField('Setor', request.sector, col1, y);
@@ -105,7 +101,7 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.setFont('helvetica', 'normal');
   doc.text(periodStr || 'N/A', col2 + 22, y + offsetY);
   y += 5;
-  addField('Nome Extra', request.extraName, col1, y);
+  addField('Nome', request.extraName, col1, y);
   y += 6;
 
   // Controle de Ponto (Portaria) – tabela com 2 colunas a mais: Total Horas e Valor total
@@ -162,9 +158,9 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.line(x1, lineY, x1 + w, lineY);
   doc.line(x2, lineY, x2 + w, lineY);
   doc.line(x3, lineY, x3 + w, lineY);
-  doc.text('CPF do Funcionário Extra', x1 + w / 2, lineY + 4, { align: 'center' });
-  doc.text('Data do Recebimento', x2 + w / 2, lineY + 4, { align: 'center' });
-  doc.text('Assinatura do Funcionário Extra', x3 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('CPF', x1 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('Data', x2 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('Assinatura', x3 + w / 2, lineY + 4, { align: 'center' });
   return lineY + 10;
 }
 
