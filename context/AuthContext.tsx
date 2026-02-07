@@ -6,7 +6,6 @@ interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -163,57 +162,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.info('[AGENT_DEBUG][B] loadUserData:start', { hasAuthUserId: !!authUserId });
       setDebugStep('loadUserData:start');
       // Buscar usuário na tabela users pelo ID do Auth (que deve ser o mesmo)
-      // maybeSingle() evita HTTP 406 quando não há linha (single() exige exatamente 1 linha)
       setDebugStep('loadUserData:usersQuery:start');
       let { data: userData, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUserId)
         .eq('active', true)
-        .maybeSingle();
+        .single();
 
       agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:usersQuery',message:'loadUserData usersQuery result',data:{hasUserData:!!userData,errorCode:(error as any)?.code,errorMessage:(error as any)?.message},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][B] loadUserData:usersQuery', { hasUserData: !!userData, errorCode: (error as any)?.code, hasError: !!error });
       setDebugStep(`loadUserData:usersQuery hasUser=${!!userData} err=${(error as any)?.code || 'none'}`);
 
-      // Se não encontrou pelo ID, tentar buscar pelo email do Auth (fallback para ID dessincronizado)
-      if (!userData && !error) {
-        try {
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          if (authUser?.email) {
-            const { data: userByEmail, error: emailError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('email', authUser.email)
-              .eq('active', true)
-              .maybeSingle();
+      // Se não encontrou pelo ID, tentar buscar pelo email do Auth
+      if (error && error.code === 'PGRST116') {
+        console.warn('Usuário não encontrado pelo ID, tentando buscar pelo email...');
+        
+        // Buscar email do usuário no Auth
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (authUser?.email) {
+          const { data: userByEmail, error: emailError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', authUser.email)
+            .eq('active', true)
+            .single();
 
-            if (!emailError && userByEmail) {
-              const alreadyWarned = sessionStorage.getItem('vivaz_sync_id_warn') === '1';
-              if (!alreadyWarned) {
-                console.warn('Usuário encontrado por email, mas ID do Auth não corresponde ao ID na tabela users. Para sincronizar: node scripts/create-admin-user.js');
-                sessionStorage.setItem('vivaz_sync_id_warn', '1');
-              }
-              userData = userByEmail;
-            }
+          if (!emailError && userByEmail) {
+            console.warn('⚠️ Usuário encontrado por email, mas ID não corresponde. Execute o script create-admin-user.js para sincronizar.');
+            userData = userByEmail;
+            error = null;
           }
-        } catch (_) {
-          // ignora falha no fallback
         }
       }
 
       if (error || !userData) {
-        if (error) console.error('Erro ao buscar dados do usuário:', error);
-        else console.error('Usuário do Auth não encontrado na tabela users. Execute: node scripts/create-admin-user.js');
+        console.error('Erro ao buscar dados do usuário:', error);
+        console.error('⚠️ O usuário existe no Supabase Auth mas não foi encontrado na tabela users.');
+        console.error('Execute o script: node scripts/create-admin-user.js');
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
         setDebugStep('loadUserData:notFound -> setLoading(false)');
         return;
       }
 
-      // Buscar setores do usuário (MANAGER e LEADER têm setor(es) atribuído(s) em user_sectors)
+      // Buscar setores do usuário (se for manager)
       let sectors: string[] = [];
-      if (userData.role === 'MANAGER' || userData.role === 'LEADER') {
+      if (userData.role === 'MANAGER') {
         const { data: userSectors } = await supabase
           .from('user_sectors')
           .select('sectors(name)')
@@ -259,13 +255,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      // Primeiro, buscar o usuário na tabela users para obter o email (maybeSingle evita 406 se não houver linha)
+      // Primeiro, buscar o usuário na tabela users para obter o email
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email, username')
         .eq('username', username.toLowerCase())
         .eq('active', true)
-        .maybeSingle();
+        .single();
 
       if (userError || !userData) {
         setLoading(false);
@@ -273,14 +269,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Se o usuário não tem email, não pode fazer login via Supabase Auth
-      if (!userData.email) {
+      if (!userData.email || !String(userData.email).trim()) {
         setLoading(false);
         return { success: false, error: 'Usuário não possui email cadastrado. Entre em contato com o administrador.' };
       }
 
+      // Normalizar email (trim + minúsculas) para evitar falha por diferença de maiúsculas
+      const emailNormalized = String(userData.email).trim().toLowerCase();
+
       // Fazer login no Supabase Auth usando o email
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: userData.email,
+        email: emailNormalized,
         password: password,
       });
 
@@ -288,9 +287,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Erro no login:', authError);
         setLoading(false);
         if (authError.message.includes('Invalid login credentials')) {
-          return { 
-            success: false, 
-            error: 'Usuário ou senha incorretos' 
+          return {
+            success: false,
+            error: 'Usuário ou senha incorretos. Se seu acesso foi criado pelo administrador, use "Esqueci minha senha" para definir uma senha.',
           };
         }
         if (authError.message.includes('Email not confirmed')) {
@@ -341,13 +340,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Verificar se o email existe na tabela users (maybeSingle evita 406 se não houver linha)
+      // Verificar se o email existe na tabela users
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
         .eq('email', email.toLowerCase())
         .eq('active', true)
-        .maybeSingle();
+        .single();
 
       if (userError || !userData || !userData.email) {
         return { success: false, error: 'Email não encontrado ou usuário inativo' };
@@ -368,20 +367,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Erro ao resetar senha:', error);
       return { success: false, error: error.message || 'Erro ao enviar email de recuperação' };
-    }
-  };
-
-  const updatePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        console.error('Erro ao alterar senha:', error);
-        return { success: false, error: error.message };
-      }
-      return { success: true };
-    } catch (error: any) {
-      console.error('Erro ao alterar senha:', error);
-      return { success: false, error: error.message || 'Erro ao alterar senha' };
     }
   };
 
@@ -434,7 +419,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, resetPassword, updatePassword }}>
+    <AuthContext.Provider value={{ ...state, login, logout, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
