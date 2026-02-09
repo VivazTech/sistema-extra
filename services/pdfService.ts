@@ -21,19 +21,25 @@ function timeToMinutes(t?: string): number | null {
   return h * 60 + m;
 }
 
-/** Calcula horas trabalhadas no dia (departure - arrival - intervalo). Retorna string "X,Xh" ou "". */
-function hoursWorkedInDay(tr?: TimeRecord): string {
-  if (!tr?.arrival || !tr?.departure) return '';
+/** Calcula minutos trabalhados no dia (departure - arrival - intervalo). Retorna 0 se incompleto. */
+function minutesWorkedInDay(tr?: TimeRecord): number {
+  if (!tr?.arrival || !tr?.departure) return 0;
   const arrival = timeToMinutes(tr.arrival);
   const departure = timeToMinutes(tr.departure);
-  if (arrival == null || departure == null) return '';
+  if (arrival == null || departure == null) return 0;
   let breakMin = 0;
   if (tr.breakStart && tr.breakEnd) {
     const start = timeToMinutes(tr.breakStart);
     const end = timeToMinutes(tr.breakEnd);
     if (start != null && end != null && end > start) breakMin = end - start;
   }
-  const totalMin = Math.max(0, departure - arrival - breakMin);
+  return Math.max(0, departure - arrival - breakMin);
+}
+
+/** Calcula horas trabalhadas no dia (departure - arrival - intervalo). Retorna string "X,Xh" ou "". */
+function hoursWorkedInDay(tr?: TimeRecord): string {
+  const totalMin = minutesWorkedInDay(tr);
+  if (totalMin <= 0) return '';
   const hours = Math.round((totalMin / 60) * 10) / 10;
   return `${hours.toFixed(1).replace('.', ',')}h`;
 }
@@ -104,14 +110,23 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   addField('Nome', request.extraName, col1, y);
   y += 6;
 
-  // Controle de Ponto (Portaria) – tabela com 2 colunas a mais: Total Horas e Valor total
-  const valuePerDay = request.workDays.length ? request.value / request.workDays.length : 0;
+  // Controle de Ponto (Portaria) – valor combinado é por dia; total = valor/dia × dias; valor por linha proporcional às horas
+  const valorPorDia = request.value;
+  const totalValor = request.workDays.length ? valorPorDia * request.workDays.length : 0;
+  const totalMinutesAll = request.workDays.reduce((sum, day) => sum + minutesWorkedInDay(day.timeRecord), 0);
   const totalHours = totalHoursWorked(request.workDays);
   const head = ['Data', 'Horário de Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário de Saída', 'Total Horas', 'Valor'];
   const body = request.workDays.map(day => {
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
-    const valor = valuePerDay > 0 ? valuePerDay.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+    const minDay = minutesWorkedInDay(tr);
+    let valorDia = 0;
+    if (totalMinutesAll > 0 && minDay > 0) {
+      valorDia = (minDay / totalMinutesAll) * totalValor;
+    } else if (totalMinutesAll === 0) {
+      valorDia = valorPorDia;
+    }
+    const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     return [
       formatDateBR(day.date),
       tr?.arrival || '',
@@ -119,10 +134,10 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
       tr?.breakEnd || '',
       tr?.departure || '',
       hours,
-      valor
+      valorStr
     ];
   });
-  body.push(['TOTAL', '', '', '', '', totalHours, request.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  body.push(['TOTAL', '', '', '', '', totalHours, totalValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
 
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
