@@ -202,25 +202,21 @@ const Requests: React.FC = () => {
 
       const existing = workDay.timeRecord || {};
 
-      // Criar objeto combinando campos existentes com os novos preenchidos
-      // Apenas atualizar campos que estavam vazios e foram preenchidos
+      // Admin pode editar os 4 campos; usar sempre os valores do formulário
       const updatedTimeRecord: any = {
-        arrival: existing.arrival || timeRecordForm.arrival || '',
-        breakStart: existing.breakStart || timeRecordForm.breakStart || '',
-        breakEnd: existing.breakEnd || timeRecordForm.breakEnd || '',
-        departure: existing.departure || timeRecordForm.departure || '',
+        arrival: timeRecordForm.arrival?.trim() || undefined,
+        breakStart: timeRecordForm.breakStart?.trim() || undefined,
+        breakEnd: timeRecordForm.breakEnd?.trim() || undefined,
+        departure: timeRecordForm.departure?.trim() || undefined,
         photoUrl: existing.photoUrl,
+        observations: existing.observations,
+        registeredBy: existing.registeredBy,
+        registeredAt: existing.registeredAt,
       };
 
-      // Verificar se pelo menos um campo foi preenchido
-      const hasNewData = 
-        (!existing.arrival && timeRecordForm.arrival) ||
-        (!existing.breakStart && timeRecordForm.breakStart) ||
-        (!existing.breakEnd && timeRecordForm.breakEnd) ||
-        (!existing.departure && timeRecordForm.departure);
-
-      if (!hasNewData) {
-        alert('Preencha pelo menos um horário que está faltando.');
+      // Exigir pelo menos chegada e saída final para salvar
+      if (!updatedTimeRecord.arrival || !updatedTimeRecord.departure) {
+        alert('Preencha pelo menos Chegada e Saída Final.');
         return;
       }
 
@@ -612,7 +608,7 @@ const Requests: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Chegada */}
+                    {/* Chegada - admin pode editar todos os 4 campos */}
                     <div className={`p-4 rounded-xl border ${!tr.arrival ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                         <LogIn size={16} className={!tr.arrival ? 'text-amber-600' : 'text-gray-400'} />
@@ -623,16 +619,8 @@ const Requests: React.FC = () => {
                         type="time"
                         value={timeRecordForm.arrival || ''}
                         onChange={(e) => setTimeRecordForm({ ...timeRecordForm, arrival: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
-                          !tr.arrival 
-                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
-                            : 'border-gray-200 focus:ring-gray-400 bg-white'
-                        }`}
-                        disabled={!!tr.arrival}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
                       />
-                      {tr.arrival && (
-                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.arrival}</p>
-                      )}
                     </div>
 
                     {/* Saída para Intervalo */}
@@ -646,16 +634,8 @@ const Requests: React.FC = () => {
                         type="time"
                         value={timeRecordForm.breakStart || ''}
                         onChange={(e) => setTimeRecordForm({ ...timeRecordForm, breakStart: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
-                          !tr.breakStart 
-                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
-                            : 'border-gray-200 focus:ring-gray-400 bg-white'
-                        }`}
-                        disabled={!!tr.breakStart}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
                       />
-                      {tr.breakStart && (
-                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.breakStart}</p>
-                      )}
                     </div>
 
                     {/* Volta do Intervalo */}
@@ -669,16 +649,8 @@ const Requests: React.FC = () => {
                         type="time"
                         value={timeRecordForm.breakEnd || ''}
                         onChange={(e) => setTimeRecordForm({ ...timeRecordForm, breakEnd: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
-                          !tr.breakEnd 
-                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
-                            : 'border-gray-200 focus:ring-gray-400 bg-white'
-                        }`}
-                        disabled={!!tr.breakEnd}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
                       />
-                      {tr.breakEnd && (
-                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.breakEnd}</p>
-                      )}
                     </div>
 
                     {/* Saída Final */}
@@ -692,16 +664,8 @@ const Requests: React.FC = () => {
                         type="time"
                         value={timeRecordForm.departure || ''}
                         onChange={(e) => setTimeRecordForm({ ...timeRecordForm, departure: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-lg border font-bold text-lg focus:ring-2 focus:outline-none ${
-                          !tr.departure 
-                            ? 'border-amber-300 focus:ring-amber-500 bg-white' 
-                            : 'border-gray-200 focus:ring-gray-400 bg-white'
-                        }`}
-                        disabled={!!tr.departure}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-200 font-bold text-lg focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
                       />
-                      {tr.departure && (
-                        <p className="text-xs text-gray-500 mt-1">Já preenchido: {tr.departure}</p>
-                      )}
                     </div>
                   </div>
 
