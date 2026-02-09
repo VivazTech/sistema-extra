@@ -271,7 +271,7 @@ const TVDashboard: React.FC = () => {
                   <div className="flex items-center justify-between mt-2">
                     <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'} uppercase`}>Líder: {req.leaderName}</p>
                     <p className={`text-sm font-bold ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                      R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      R$ {(req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                 </div>
@@ -350,7 +350,7 @@ const TVDashboard: React.FC = () => {
                           <div className="flex items-center justify-between mt-2">
                             <p className={`${isDarkMode ? 'text-gray-500' : 'text-gray-600'} text-sm font-medium uppercase tracking-tighter`}>Líder: {req.leaderName}</p>
                             <p className={`text-sm font-bold ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                              R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              R$ {(req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                           </div>
                         </div>

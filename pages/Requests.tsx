@@ -349,8 +349,13 @@ const Requests: React.FC = () => {
                   <div className="text-right">
                     <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
                     <div className="text-lg font-black text-gray-900">
-                      {req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      {(req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </div>
+                    {(req.workDays?.length || 0) > 1 && (
+                      <div className="text-[10px] text-gray-500">
+                        {req.workDays.length} × R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col items-end gap-1">

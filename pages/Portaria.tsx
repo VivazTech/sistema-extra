@@ -712,8 +712,13 @@ const Portaria: React.FC = () => {
                       <div className="text-right text-emerald-600">
                         <div className="text-xs font-bold uppercase mb-1">Valor</div>
                         <div className="text-lg font-black">
-                          R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          R$ {(request.value * (request.workDays?.length || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
+                        {(request.workDays?.length || 0) > 1 && (
+                          <div className="text-[10px] opacity-90">
+                            {request.workDays.length} × R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
                       </div>
                     )}
                     {completed ? (
