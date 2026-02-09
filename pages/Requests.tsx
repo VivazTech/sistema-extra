@@ -176,7 +176,7 @@ const Requests: React.FC = () => {
   const handleSaveTimeRecord = async () => {
     if (!editingTimeRecord || !user) return;
 
-    // Apenas ADMIN pode salvar
+    // Apenas ADMIN pode preencher horários; líder não pode
     if (user.role !== 'ADMIN') {
       alert('Apenas administradores podem preencher horários não informados.');
       return;
@@ -483,8 +483,8 @@ const Requests: React.FC = () => {
                                 </>
                               )}
 
-                              {/* Recibo (um único recibo da solicitação) */}
-                              {req.status === 'APROVADO' && (
+                              {/* Recibo (líder não pode ver) */}
+                              {req.status === 'APROVADO' && user?.role !== 'LEADER' && (
                                 <button
                                   onClick={() => handleRecibo(req)}
                                   className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"

@@ -47,6 +47,9 @@ const Portaria: React.FC = () => {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  /** Oculto temporariamente: quando false, o turno é confirmado ao preencher os 4 horários (saída final), sem exigir foto. */
+  const SHOW_PHOTO_FEATURE = false;
+
   // Atualizar horário atual a cada segundo
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -70,7 +73,8 @@ const Portaria: React.FC = () => {
       const hasIncomplete = req.workDays.some(day => {
         if (day.date < startDate || day.date > endDate) return false;
         const tr = day.timeRecord;
-        return !(tr?.arrival && tr?.departure && tr?.photoUrl);
+        if (SHOW_PHOTO_FEATURE) return !(tr?.arrival && tr?.departure && tr?.photoUrl);
+        return !(tr?.arrival && tr?.breakStart && tr?.breakEnd && tr?.departure);
       });
       return hasIncomplete;
     });
@@ -199,7 +203,8 @@ const Portaria: React.FC = () => {
 
   const isComplete = (request: ExtraRequest, date: string) => {
     const timeRecord = getTimeRecord(request, date);
-    return !!(timeRecord.arrival && timeRecord.departure && timeRecord.photoUrl);
+    if (SHOW_PHOTO_FEATURE) return !!(timeRecord.arrival && timeRecord.departure && timeRecord.photoUrl);
+    return !!(timeRecord.arrival && timeRecord.breakStart && timeRecord.breakEnd && timeRecord.departure);
   };
 
   const hasAllTimes = (request: ExtraRequest, date: string) => {
@@ -986,8 +991,8 @@ const Portaria: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Captura de Foto - Aparece quando os 4 campos estão preenchidos */}
-                      {allTimesFilled && !hasPhoto && (
+                      {/* Captura de Foto - Oculto temporariamente (SHOW_PHOTO_FEATURE) */}
+                      {SHOW_PHOTO_FEATURE && allTimesFilled && !hasPhoto && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6">
                             <div className="flex items-center gap-3 mb-4">
@@ -1076,8 +1081,8 @@ const Portaria: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Foto Confirmada */}
-                      {hasPhoto && timeRecord.photoUrl && (
+                      {/* Foto Confirmada - Oculto temporariamente (SHOW_PHOTO_FEATURE) */}
+                      {SHOW_PHOTO_FEATURE && hasPhoto && timeRecord.photoUrl && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
                             {photoSaveSuccessKey === `${request.id}-${workDayDate}` && (
