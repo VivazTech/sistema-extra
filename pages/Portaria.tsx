@@ -29,10 +29,11 @@ import { formatDateTimeBR } from '../utils/date';
 import { formatDateBR } from '../utils/date';
 
 const Portaria: React.FC = () => {
-  const { requests, sectors, updateTimeRecord, appendRequestObservation, removeWorkDay } = useExtras();
+  const { requests, sectors, shifts, updateTimeRecord, appendRequestObservation, removeWorkDay } = useExtras();
   const { user } = useAuth();
   const canViewValues = user?.role !== 'PORTARIA' && user?.role !== 'VIEWER';
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
+  const [selectedShift, setSelectedShift] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,13 +76,24 @@ const Portaria: React.FC = () => {
     });
   }, [requests, dateStart, dateEnd, todayStr]);
 
-  // Aplicar todos os filtros (setor, pesquisa, período) e ordenação
+  // Aplicar todos os filtros (setor, turno, pesquisa, período) e ordenação
   const filteredExtras = useMemo(() => {
     let filtered = periodExtras;
 
     // Filtro por setor
     if (selectedSector !== 'TODOS') {
       filtered = filtered.filter(req => req.sector === selectedSector);
+    }
+
+    // Filtro por turno (workDay no período com esse turno)
+    if (selectedShift !== 'TODOS') {
+      const startDate = dateStart || todayStr;
+      const endDate = dateEnd || todayStr;
+      filtered = filtered.filter(req =>
+        req.workDays.some(day =>
+          day.date >= startDate && day.date <= endDate && day.shift === selectedShift
+        )
+      );
     }
 
     // Filtro por pesquisa (nome do extra)
@@ -108,7 +120,7 @@ const Portaria: React.FC = () => {
     }
 
     return sorted;
-  }, [periodExtras, selectedSector, searchTerm, sortOrder]);
+  }, [periodExtras, selectedSector, selectedShift, dateStart, dateEnd, todayStr, searchTerm, sortOrder]);
 
   // Função para calcular horas trabalhadas
   const calculateWorkHours = (timeRecord: { arrival?: string; departure?: string; breakStart?: string; breakEnd?: string }) => {
@@ -195,14 +207,15 @@ const Portaria: React.FC = () => {
     return !!(timeRecord.arrival && timeRecord.breakStart && timeRecord.breakEnd && timeRecord.departure);
   };
 
-  // Campo de horário já foi registrado (salvo no banco) e não pode mais ser alterado
+  // Campo de horário já foi preenchido (tem valor) e não pode mais ser alterado
   const isTimeFieldLocked = (
     request: ExtraRequest,
     workDate: string,
     field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure'
   ) => {
     const tr = getTimeRecord(request, workDate);
-    return field in tr;
+    const value = tr[field];
+    return value != null && value !== '';
   };
 
   const [capturingPhoto, setCapturingPhoto] = useState<string | null>(null);
@@ -470,37 +483,64 @@ const Portaria: React.FC = () => {
           </div>
         </div>
 
-        {/* Segunda linha: Período */}
-        <div className="flex items-center gap-4">
-          <Calendar size={20} className="text-gray-400" />
-          <span className="text-sm font-medium text-gray-600">Período:</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
-              value={dateStart}
-              onChange={(e) => setDateStart(e.target.value)}
-              placeholder="Data início"
-            />
-            <span className="text-gray-400">até</span>
-            <input
-              type="date"
-              className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
-              value={dateEnd}
-              onChange={(e) => setDateEnd(e.target.value)}
-              placeholder="Data fim"
-            />
-            {(dateStart || dateEnd) && (
-              <button
-                onClick={() => {
-                  setDateStart('');
-                  setDateEnd('');
-                }}
-                className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
-              >
-                Limpar
-              </button>
-            )}
+        {/* Segunda linha: Período e Turno */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-4">
+            <Calendar size={20} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-600">Período:</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                value={dateStart}
+                onChange={(e) => setDateStart(e.target.value)}
+                placeholder="Data início"
+              />
+              <span className="text-gray-400">até</span>
+              <input
+                type="date"
+                className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                value={dateEnd}
+                onChange={(e) => setDateEnd(e.target.value)}
+                placeholder="Data fim"
+              />
+              {(dateStart || dateEnd) && (
+                <button
+                  onClick={() => {
+                    setDateStart('');
+                    setDateEnd('');
+                  }}
+                  className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
+            <Clock size={20} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-600">Turno:</span>
+            <select
+              value={selectedShift}
+              onChange={(e) => setSelectedShift(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium bg-white"
+            >
+              <option value="TODOS">Todos</option>
+              {shifts.filter(s => s.name).map(shift => {
+                const startDate = dateStart || todayStr;
+                const endDate = dateEnd || todayStr;
+                const count = periodExtras.filter(req =>
+                  req.workDays.some(day =>
+                    day.date >= startDate && day.date <= endDate && day.shift === shift.name
+                  )
+                ).length;
+                return (
+                  <option key={shift.id} value={shift.name}>
+                    {shift.name} ({count})
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
 
@@ -546,10 +586,11 @@ const Portaria: React.FC = () => {
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
             <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-400 font-medium">
-              {searchTerm || dateStart || dateEnd || selectedSector !== 'TODOS'
+              {searchTerm || dateStart || dateEnd || selectedSector !== 'TODOS' || selectedShift !== 'TODOS'
                 ? 'Nenhum resultado encontrado com os filtros aplicados'
                 : 'Nenhum funcionário extra aprovado para hoje'}
               {selectedSector !== 'TODOS' && ` no setor ${selectedSector}`}
+              {selectedShift !== 'TODOS' && ` no turno ${selectedShift}`}
             </p>
           </div>
         ) : (
