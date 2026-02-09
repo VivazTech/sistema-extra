@@ -62,10 +62,12 @@ const Requests: React.FC = () => {
                           r.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
     
-    // Managers only see their sectors if restricted (mock implementation)
+    // Managers only see their sectors if restricted
     const isManagerAuthorized = user?.role !== 'MANAGER' || (user.sectors?.includes(r.sector));
+    // Líder só vê solicitações do próprio setor
+    const isLeaderAuthorized = user?.role !== 'LEADER' || (user.sectors?.length && user.sectors.includes(r.sector));
     
-    return matchesSearch && matchesStatus && isManagerAuthorized;
+    return matchesSearch && matchesStatus && isManagerAuthorized && isLeaderAuthorized;
   });
 
   const handleApprove = async (id: string) => {
@@ -236,10 +238,19 @@ const Requests: React.FC = () => {
     }
   };
 
+  const leaderSectorLabel = user?.role === 'LEADER' && user.sectors?.length
+    ? user.sectors.join(', ')
+    : null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Solicitações de Extras</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Solicitações de Extras</h1>
+          {leaderSectorLabel && (
+            <p className="text-sm text-gray-600 mt-0.5 font-medium">Setor: {leaderSectorLabel}</p>
+          )}
+        </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button 
             onClick={handleExportList}
@@ -463,6 +474,17 @@ const Requests: React.FC = () => {
                                 >
                                   <Edit size={16} />
                                   Preencher Horários
+                                </button>
+                              )}
+                              {/* Botão para editar horários já preenchidos (apenas ADMIN) */}
+                              {!hasMissing && user?.role === 'ADMIN' && (
+                                <button
+                                  onClick={() => handleOpenTimeEdit(req.id, workDay.date, workDay)}
+                                  className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-800 text-white font-bold rounded-lg text-xs"
+                                  title="Editar horários registrados"
+                                >
+                                  <Clock size={16} />
+                                  Editar Horários
                                 </button>
                               )}
 
