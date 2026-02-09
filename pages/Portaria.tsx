@@ -44,6 +44,8 @@ const Portaria: React.FC = () => {
   const [observationDraft, setObservationDraft] = useState<Record<string, string>>({});
   /** Key do card cuja observação está sendo salva (para mostrar loading). */
   const [observationSavingKey, setObservationSavingKey] = useState<string | null>(null);
+  /** Key do card que acabou de ter o turno confirmado (mensagem de sucesso). */
+  const [turnoConfirmedKey, setTurnoConfirmedKey] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -175,6 +177,20 @@ const Portaria: React.FC = () => {
     };
 
     updateTimeRecord(requestId, workDate, updatedTimeRecord, user?.name || 'Portaria');
+
+    // Mensagem de confirmação quando todos os horários são preenchidos (sem foto, se oculta)
+    if (!SHOW_PHOTO_FEATURE && value) {
+      const allFilled =
+        (updatedTimeRecord.arrival || '') !== '' &&
+        (updatedTimeRecord.breakStart ?? '') !== '' &&
+        (updatedTimeRecord.breakEnd ?? '') !== '' &&
+        (updatedTimeRecord.departure ?? '') !== '';
+      if (allFilled) {
+        const key = `${requestId}-${workDate}`;
+        setTurnoConfirmedKey(key);
+        setTimeout(() => setTurnoConfirmedKey(null), 4000);
+      }
+    }
   };
 
   const handleRegisterTime = (
@@ -742,6 +758,15 @@ const Portaria: React.FC = () => {
                 {isExpanded && (
                   <div className="p-6 border-t border-gray-100 bg-gray-50">
                     <div className="space-y-4">
+                      {turnoConfirmedKey === photoKey && (
+                        <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-800">
+                          <CheckCircle size={24} className="shrink-0 text-emerald-600" />
+                          <div>
+                            <p className="font-bold">Turno confirmado com sucesso!</p>
+                            <p className="text-sm opacity-90">Todos os horários foram registrados.</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-4">
                         Registro de Horários
                       </div>

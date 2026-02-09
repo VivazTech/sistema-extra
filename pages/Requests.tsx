@@ -147,6 +147,10 @@ const Requests: React.FC = () => {
     return !tr.arrival || !tr.breakStart || !tr.breakEnd || !tr.departure;
   };
 
+  // Solicitação tem algum dia com horários faltando (status correto para "Horário não informado")
+  const requestHasMissingTimes = (r: ExtraRequest) =>
+    r.workDays.some((wd: any) => hasMissingTimes(wd));
+
   // Obter campos não informados
   const getMissingFields = (workDay: any) => {
     const tr = workDay.timeRecord || {};
@@ -366,7 +370,7 @@ const Requests: React.FC = () => {
                     {req.status === 'SOLICITADO' && req.needsManagerApproval && (
                       <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
                     )}
-                    {req.observations?.includes('PORTARIA - Horário não informado') && (
+                    {req.observations?.includes('PORTARIA - Horário não informado') && requestHasMissingTimes(req) && (
                       <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
                     )}
                   </div>
