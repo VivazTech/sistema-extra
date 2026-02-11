@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
+import { exportBulkRecibosExcel } from '../../services/excelService';
+import ExportFormatModal from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
 
@@ -39,6 +41,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
   const [period, setPeriod] = useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const { start, end } = useMemo(() => {
     if (period === 'custom' && propsStart && propsEnd) {
@@ -65,10 +68,17 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
 
   const handleGenerate = () => {
     if (period === 'custom' && (!customStart || !customEnd)) return;
-    generateBulkRecibosPDF(
-      filteredRequests,
-      `recibos-pagamento-${start}-${end}.pdf`
-    );
+    setShowExportModal(true);
+  };
+
+  const handleExportFormat = (format: 'pdf' | 'excel') => {
+    const filename = `recibos-pagamento-${start}-${end}`;
+    if (format === 'pdf') {
+      generateBulkRecibosPDF(filteredRequests, `${filename}.pdf`);
+    } else {
+      exportBulkRecibosExcel(filteredRequests, `${filename}.xlsx`);
+    }
+    setShowExportModal(false);
   };
 
   const canGenerate = period !== 'custom' || (customStart && customEnd);
@@ -148,9 +158,18 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
           className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Download size={20} />
-          Gerar PDF Recibos de Pagamento
+          Baixar Recibos de Pagamento
         </button>
       </div>
+
+      {showExportModal && (
+        <ExportFormatModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExportFormat}
+          type="bulk"
+        />
+      )}
 
       {filteredRequests.length === 0 && (
         <p className="text-gray-500 text-sm">
@@ -163,7 +182,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
           <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
             <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
               <FileText size={18} />
-              Solicitações incluídas no PDF
+              Solicitações incluídas na exportação
             </h3>
           </div>
           <ul className="divide-y divide-gray-100 max-h-60 overflow-y-auto">

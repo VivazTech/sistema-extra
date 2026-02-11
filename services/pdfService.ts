@@ -17,6 +17,13 @@ const A4_HEIGHT_MM = 297;
 /** Jornada padrão em horas (7h20) para cálculo do valor da hora. */
 const HORAS_JORNADA_PADRAO = 7 + 20 / 60; // 7,333...
 
+/** Arredonda valor monetário para centavos pares (ex: 70,95 → 70,94; 70,97 → 70,96). */
+function roundToEvenCentavos(value: number): number {
+  const cents = Math.round(value * 100);
+  if (cents % 2 === 0) return cents / 100;
+  return (cents - 1) / 100; // ímpar → arredonda para o par menor
+}
+
 /** Converte "HH:MM" em minutos desde meia-noite. */
 function timeToMinutes(t?: string): number | null {
   if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
@@ -103,17 +110,15 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   addField('Motivo', request.reason, col1, y);
   addField('Aprovado por', request.approvedBy || 'N/A', col2, y);
   y += 5;
-  // Período trabalhado
+  // CPF e Período na mesma linha, alinhados
   const periodStr = request.workDays.length
     ? `${formatDateBR(request.workDays[0].date)} - ${formatDateBR(request.workDays[request.workDays.length - 1].date)}`
     : '';
+  addField('CPF', request.extraCpf || '', col1, y);
   doc.setFont('helvetica', 'bold');
   doc.text('Período:', col2, y + offsetY);
   doc.setFont('helvetica', 'normal');
   doc.text(periodStr || 'N/A', col2 + 22, y + offsetY);
-  y += 5;
-  // Onde era Nome: CPF do extra (puxado automaticamente do banco)
-  addField('CPF', request.extraCpf || '', col1, y);
   y += 6;
 
   // Controle de Ponto (Portaria)
@@ -122,16 +127,14 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   // Valor da hora = valor combinado / 7h20 (7,333h). Valor linha = total horas × valor da hora
   const valorCombinado = request.value; // valor combinado (por dia)
   const valorHora = valorCombinado / HORAS_JORNADA_PADRAO;
-  const totalMinutesAll = request.workDays.reduce((sum, day) => sum + minutesWorkedInDay(day.timeRecord), 0);
   const totalHours = totalHoursWorked(request.workDays);
-  const totalValor = (totalMinutesAll / 60) * valorHora;
   const head = ['Data', 'Horário Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário Saída', 'Total Horas', 'Valor'];
   const body = request.workDays.map(day => {
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
     const horasDia = minDay / 60;
-    const valorDia = horasDia * valorHora;
+    const valorDia = roundToEvenCentavos(horasDia * valorHora);
     const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     return [
       formatDateBR(day.date),
@@ -143,6 +146,9 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
       valorStr
     ];
   });
+  const totalValor = roundToEvenCentavos(
+    request.workDays.reduce((sum, day) => sum + roundToEvenCentavos((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
+  );
   body.push(['TOTAL', '', '', '', '', totalHours, totalValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
 
   doc.setFontSize(7);
@@ -168,20 +174,17 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   const finalY = tableEndY + 5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  // Linha primeiro (escreve em cima), rótulos ABAIXO da linha
+  // Linhas de assinatura (Data e Assinatura apenas; CPF removido)
   const totalW = 190 - 20;
   const gap = 4;
-  const w = (totalW - 2 * gap) / 3;
+  const w = (totalW - gap) / 2;
   const x1 = 20;
   const x2 = 20 + gap + w;
-  const x3 = 20 + 2 * (gap + w);
   const lineY = finalY + 2;
   doc.line(x1, lineY, x1 + w, lineY);
   doc.line(x2, lineY, x2 + w, lineY);
-  doc.line(x3, lineY, x3 + w, lineY);
-  doc.text('CPF', x1 + w / 2, lineY + 4, { align: 'center' });
-  doc.text('Data', x2 + w / 2, lineY + 4, { align: 'center' });
-  doc.text('Assinatura', x3 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('Data', x1 + w / 2, lineY + 4, { align: 'center' });
+  doc.text('Assinatura', x2 + w / 2, lineY + 4, { align: 'center' });
   return lineY + 10;
 }
 
@@ -323,6 +326,17 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. */
+function totalWorkedValue(request: ExtraRequest): number {
+  const valorHora = request.value / HORAS_JORNADA_PADRAO;
+  let total = 0;
+  for (const day of request.workDays) {
+    const minDay = minutesWorkedInDay(day.timeRecord);
+    total += roundToEvenCentavos((minDay / 60) * valorHora);
+  }
+  return roundToEvenCentavos(total);
+}
+
 /** Espaçamento entre grupos de setor em mm (linhas vazias sem borda). */
 const DIVIDER_PADDING_MM = 2.5;
 
@@ -344,6 +358,8 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
     const list = requests.filter(r => r.sector === setor);
     let totalSetor = 0;
     for (const r of list) {
+      const valorTrabalhado = totalWorkedValue(r);
+      totalSetor += valorTrabalhado;
       body.push([
         formatPeriodRange(r.workDays),
         r.sector,
@@ -351,9 +367,8 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
         r.extraName,
         r.status,
         r.approvedBy || '—',
-        r.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        valorTrabalhado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       ]);
-      totalSetor += r.value;
     }
     body.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
     summaryRowIndices.add(body.length - 1);

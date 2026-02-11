@@ -23,6 +23,8 @@ import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
 import { generateSingleReciboPDF, generateListPDF, generateIndividualPDF } from '../services/pdfService';
+import { exportSingleReciboExcel, exportListExcel } from '../services/excelService';
+import ExportFormatModal from '../components/ExportFormatModal';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
@@ -46,6 +48,7 @@ const Requests: React.FC = () => {
     departure?: string;
   }>({});
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [exportModal, setExportModal] = useState<{ type: 'recibo'; request: ExtraRequest } | { type: 'list' } | null>(null);
 
   const toggleGroupExpanded = (requestId: string) => {
     setExpandedGroups(prev => {
@@ -134,12 +137,25 @@ const Requests: React.FC = () => {
     generateIndividualPDF(r);
   };
 
-  const handleRecibo = (req: any) => {
-    generateSingleReciboPDF(req);
+  const handleRecibo = (req: ExtraRequest) => {
+    setExportModal({ type: 'recibo', request: req });
   };
 
   const handleExportList = () => {
-    generateListPDF(filteredRequests, `Solicitações - Filtro: ${filterStatus}`);
+    setExportModal({ type: 'list' });
+  };
+
+  const handleExportFormat = (format: 'pdf' | 'excel') => {
+    if (!exportModal) return;
+    if (exportModal.type === 'recibo') {
+      if (format === 'pdf') generateSingleReciboPDF(exportModal.request);
+      else exportSingleReciboExcel(exportModal.request);
+    } else {
+      const title = `Solicitações - Filtro: ${filterStatus}`;
+      if (format === 'pdf') generateListPDF(filteredRequests, title);
+      else exportListExcel(filteredRequests, title);
+    }
+    setExportModal(null);
   };
 
   // Verificar se há horários não informados em um workDay
@@ -256,7 +272,7 @@ const Requests: React.FC = () => {
             onClick={handleExportList}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-medium text-sm transition-all"
           >
-            <FileDown size={18} /> Exportar PDF
+            <FileDown size={18} /> Exportar Lista
           </button>
           {user?.role !== 'VIEWER' && (
             <button 
@@ -329,7 +345,7 @@ const Requests: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {req.status === 'APROVADO' && user?.role !== 'LEADER' && (
                       <button
-                        onClick={() => handleRecibo(req)}
+                        onClick={() => handleRecibo(req as ExtraRequest)}
                         className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
                         title="Baixar recibo de pagamento (PDF com todos os dias)"
                       >
@@ -566,6 +582,15 @@ const Requests: React.FC = () => {
           ))
         )}
       </div>
+
+      {exportModal && (
+        <ExportFormatModal
+          isOpen={!!exportModal}
+          onClose={() => setExportModal(null)}
+          onExport={handleExportFormat}
+          type={exportModal.type === 'recibo' ? 'recibo' : 'list'}
+        />
+      )}
 
       <RequestModal
         isOpen={isModalOpen || !!editingRequest}

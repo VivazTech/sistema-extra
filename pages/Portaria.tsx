@@ -46,8 +46,44 @@ const Portaria: React.FC = () => {
   const [observationSavingKey, setObservationSavingKey] = useState<string | null>(null);
   /** Key do card que acabou de ter o turno confirmado (mensagem de sucesso). */
   const [turnoConfirmedKey, setTurnoConfirmedKey] = useState<string | null>(null);
+  /** Rascunho dos horários digitados (só local, não salva até clicar em Registrar). Key: requestId-workDate. */
+  const [timeDraft, setTimeDraft] = useState<Record<string, Partial<Record<'arrival' | 'breakStart' | 'breakEnd' | 'departure', string>>>>({});
 
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const timeDraftKey = (requestId: string, workDate: string) => `${requestId}-${workDate}`;
+
+  const setTimeDraftField = (
+    requestId: string,
+    workDate: string,
+    field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure',
+    value: string
+  ) => {
+    const key = timeDraftKey(requestId, workDate);
+    setTimeDraft(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value }
+    }));
+  };
+
+  const getDisplayTime = (
+    request: ExtraRequest,
+    workDate: string,
+    field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure'
+  ): string => {
+    const tr = getTimeRecord(request, workDate);
+    const draft = timeDraft[timeDraftKey(request.id, workDate)];
+    return (tr[field] ?? draft?.[field] ?? '') || '';
+  };
+
+  const clearTimeDraftField = (requestId: string, workDate: string, field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure') => {
+    const key = timeDraftKey(requestId, workDate);
+    setTimeDraft(prev => {
+      const next = { ...prev[key] };
+      delete next[field];
+      return { ...prev, [key]: next };
+    });
+  };
 
   /** Oculto temporariamente: quando false, o turno é confirmado ao preencher os 4 horários (saída final), sem exigir foto. */
   const SHOW_PHOTO_FEATURE = false;
@@ -157,9 +193,10 @@ const Portaria: React.FC = () => {
     return `PORTARIA - Horário não informado: ${fieldLabel} (${formattedDate})`;
   };
 
-  const handleTimeChange = (
-    requestId: string, 
-    workDate: string, 
+  /** Salva o horário no banco. Chamado apenas ao clicar em Registrar ou Não informado. */
+  const saveTimeRecord = (
+    requestId: string,
+    workDate: string,
     field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure',
     value: string
   ) => {
@@ -170,15 +207,14 @@ const Portaria: React.FC = () => {
     if (!workDay) return;
 
     const currentTimeRecord = workDay.timeRecord || {};
-    
     const updatedTimeRecord = {
       ...currentTimeRecord,
       [field]: value
     };
 
     updateTimeRecord(requestId, workDate, updatedTimeRecord, user?.name || 'Portaria');
+    clearTimeDraftField(requestId, workDate, field);
 
-    // Mensagem de confirmação quando todos os horários são preenchidos (sem foto, se oculta)
     if (!SHOW_PHOTO_FEATURE && value) {
       const allFilled =
         (updatedTimeRecord.arrival || '') !== '' &&
@@ -186,20 +222,23 @@ const Portaria: React.FC = () => {
         (updatedTimeRecord.breakEnd ?? '') !== '' &&
         (updatedTimeRecord.departure ?? '') !== '';
       if (allFilled) {
-        const key = `${requestId}-${workDate}`;
-        setTurnoConfirmedKey(key);
+        setTurnoConfirmedKey(`${requestId}-${workDate}`);
         setTimeout(() => setTurnoConfirmedKey(null), 4000);
       }
     }
   };
 
+  /** Registrar: usa horário digitado se houver, senão horário atual. Só salva ao clicar no botão. */
   const handleRegisterTime = (
     requestId: string,
     workDate: string,
     field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure'
   ) => {
-    const currentTimeValue = getCurrentTime();
-    handleTimeChange(requestId, workDate, field, currentTimeValue);
+    const request = requests.find(r => r.id === requestId);
+    if (!request) return;
+    const displayValue = getDisplayTime(request, workDate, field);
+    const valueToSave = displayValue.trim() ? displayValue : getCurrentTime();
+    saveTimeRecord(requestId, workDate, field, valueToSave);
   };
 
   const handleNotInformed = async (
@@ -208,7 +247,8 @@ const Portaria: React.FC = () => {
     field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure',
     fieldLabel: string
   ) => {
-    handleTimeChange(requestId, workDate, field, '');
+    saveTimeRecord(requestId, workDate, field, '');
+    clearTimeDraftField(requestId, workDate, field);
     await appendRequestObservation(requestId, buildNotInformedNote(fieldLabel, workDate));
   };
 
@@ -788,16 +828,10 @@ const Portaria: React.FC = () => {
                           </label>
                           <input
                             type="time"
-                            value={timeRecord.arrival || ''}
+                            value={getDisplayTime(request, workDayDate, 'arrival')}
                             onChange={(e) => {
                               if (isTimeFieldLocked(request, workDayDate, 'arrival')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'arrival', value);
-                            }}
-                            onBlur={(e) => {
-                              if (isTimeFieldLocked(request, workDayDate, 'arrival')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'arrival', value);
+                              setTimeDraftField(request.id, workDayDate, 'arrival', e.target.value);
                             }}
                             readOnly={isTimeFieldLocked(request, workDayDate, 'arrival')}
                             disabled={isTimeFieldLocked(request, workDayDate, 'arrival')}
@@ -834,16 +868,10 @@ const Portaria: React.FC = () => {
                           </label>
                           <input
                             type="time"
-                            value={timeRecord.breakStart || ''}
+                            value={getDisplayTime(request, workDayDate, 'breakStart')}
                             onChange={(e) => {
                               if (isTimeFieldLocked(request, workDayDate, 'breakStart')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'breakStart', value);
-                            }}
-                            onBlur={(e) => {
-                              if (isTimeFieldLocked(request, workDayDate, 'breakStart')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'breakStart', value);
+                              setTimeDraftField(request.id, workDayDate, 'breakStart', e.target.value);
                             }}
                             readOnly={isTimeFieldLocked(request, workDayDate, 'breakStart')}
                             disabled={isTimeFieldLocked(request, workDayDate, 'breakStart')}
@@ -880,16 +908,10 @@ const Portaria: React.FC = () => {
                           </label>
                           <input
                             type="time"
-                            value={timeRecord.breakEnd || ''}
+                            value={getDisplayTime(request, workDayDate, 'breakEnd')}
                             onChange={(e) => {
                               if (isTimeFieldLocked(request, workDayDate, 'breakEnd')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'breakEnd', value);
-                            }}
-                            onBlur={(e) => {
-                              if (isTimeFieldLocked(request, workDayDate, 'breakEnd')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'breakEnd', value);
+                              setTimeDraftField(request.id, workDayDate, 'breakEnd', e.target.value);
                             }}
                             readOnly={isTimeFieldLocked(request, workDayDate, 'breakEnd')}
                             disabled={isTimeFieldLocked(request, workDayDate, 'breakEnd')}
@@ -926,16 +948,10 @@ const Portaria: React.FC = () => {
                           </label>
                           <input
                             type="time"
-                            value={timeRecord.departure || ''}
+                            value={getDisplayTime(request, workDayDate, 'departure')}
                             onChange={(e) => {
                               if (isTimeFieldLocked(request, workDayDate, 'departure')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'departure', value);
-                            }}
-                            onBlur={(e) => {
-                              if (isTimeFieldLocked(request, workDayDate, 'departure')) return;
-                              const value = e.target.value;
-                              if (value) handleTimeChange(request.id, workDayDate, 'departure', value);
+                              setTimeDraftField(request.id, workDayDate, 'departure', e.target.value);
                             }}
                             readOnly={isTimeFieldLocked(request, workDayDate, 'departure')}
                             disabled={isTimeFieldLocked(request, workDayDate, 'departure')}

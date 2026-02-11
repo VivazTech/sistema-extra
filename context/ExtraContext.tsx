@@ -753,53 +753,46 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteSector = async (id: string) => {
     try {
-      // Buscar setor no banco
-      const { data: existingSector } = await supabase
+      let sectorId: string | undefined;
+
+      const { data: byId } = await supabase
         .from('sectors')
         .select('id')
         .eq('id', id)
         .single();
 
-      if (!existingSector) {
-        // Tentar por nome
+      if (byId?.id) {
+        sectorId = byId.id;
+      } else {
         const { data: byName } = await supabase
           .from('sectors')
           .select('id')
           .eq('name', id)
           .single();
-
-        if (!byName) {
-          console.error('Setor não encontrado');
-          return;
-        }
-
-        // Deletar (cascade vai deletar as funções)
-        const { error } = await supabase
-          .from('sectors')
-          .delete()
-          .eq('id', byName.id);
-
-        if (error) {
-          console.error('Erro ao deletar setor:', error);
-          return;
-        }
-
-        setSectors(prev => prev.filter(s => s.id !== id && s.name !== id));
-      } else {
-        const { error } = await supabase
-          .from('sectors')
-          .delete()
-          .eq('id', existingSector.id);
-
-        if (error) {
-          console.error('Erro ao deletar setor:', error);
-          return;
-        }
-
-        setSectors(prev => prev.filter(s => s.id !== id));
+        sectorId = byName?.id;
       }
+
+      if (!sectorId) {
+        alert('Setor não encontrado no banco de dados.');
+        return;
+      }
+
+      // Soft delete: marcar active=false (evita erro de FK em extra_requests, extra_persons, extra_saldo_records)
+      const { error } = await supabase
+        .from('sectors')
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq('id', sectorId);
+
+      if (error) {
+        console.error('Erro ao deletar setor:', error);
+        alert(`Erro ao excluir setor: ${error.message}`);
+        return;
+      }
+
+      setSectors(prev => prev.filter(s => s.id !== id && s.id !== sectorId && s.name !== id));
     } catch (error) {
       console.error('Erro ao deletar setor:', error);
+      alert('Erro inesperado ao excluir setor. Tente novamente.');
     }
   };
 
