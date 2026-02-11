@@ -14,6 +14,9 @@ const MIN_CARD_HEIGHT_MM = 70;
 /** Altura da página A4 (mm). */
 const A4_HEIGHT_MM = 297;
 
+/** Jornada padrão em horas (7h20) para cálculo do valor da hora. */
+const HORAS_JORNADA_PADRAO = 7 + 20 / 60; // 7,333...
+
 /** Converte "HH:MM" em minutos desde meia-noite. */
 function timeToMinutes(t?: string): number | null {
   if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
@@ -90,6 +93,8 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.setFontSize(9);
   let y = 18;
 
+  // Nome e Demandante na primeira linha, alinhados
+  addField('Nome', request.extraName, col1, y);
   addField('Demandante', request.requester, col2, y);
   y += 5;
   addField('Setor', request.sector, col1, y);
@@ -98,7 +103,7 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   addField('Motivo', request.reason, col1, y);
   addField('Aprovado por', request.approvedBy || 'N/A', col2, y);
   y += 5;
-  // Período trabalhado abaixo de "Aprovado por"
+  // Período trabalhado
   const periodStr = request.workDays.length
     ? `${formatDateBR(request.workDays[0].date)} - ${formatDateBR(request.workDays[request.workDays.length - 1].date)}`
     : '';
@@ -107,25 +112,26 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.setFont('helvetica', 'normal');
   doc.text(periodStr || 'N/A', col2 + 22, y + offsetY);
   y += 5;
-  addField('Nome', request.extraName, col1, y);
+  // Onde era Nome: CPF do extra (puxado automaticamente do banco)
+  addField('CPF', request.extraCpf || '', col1, y);
   y += 6;
 
-  // Controle de Ponto (Portaria) – valor combinado é por dia; total = valor/dia × dias; valor por linha proporcional às horas
-  const valorPorDia = request.value;
-  const totalValor = request.workDays.length ? valorPorDia * request.workDays.length : 0;
+  // Controle de Ponto (Portaria)
+  // Colunas: Data, Horário Chegada, Início Intervalo, Fim Intervalo, Horário Saída, Total Horas, Valor
+  // Total horas = (saída - chegada) - (fim intervalo - início intervalo). Ex: 10-12-13-15 → 4h
+  // Valor da hora = valor combinado / 7h20 (7,333h). Valor linha = total horas × valor da hora
+  const valorCombinado = request.value; // valor combinado (por dia)
+  const valorHora = valorCombinado / HORAS_JORNADA_PADRAO;
   const totalMinutesAll = request.workDays.reduce((sum, day) => sum + minutesWorkedInDay(day.timeRecord), 0);
   const totalHours = totalHoursWorked(request.workDays);
-  const head = ['Data', 'Horário de Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário de Saída', 'Total Horas', 'Valor'];
+  const totalValor = (totalMinutesAll / 60) * valorHora;
+  const head = ['Data', 'Horário Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário Saída', 'Total Horas', 'Valor'];
   const body = request.workDays.map(day => {
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
-    let valorDia = 0;
-    if (totalMinutesAll > 0 && minDay > 0) {
-      valorDia = (minDay / totalMinutesAll) * totalValor;
-    } else if (totalMinutesAll === 0) {
-      valorDia = valorPorDia;
-    }
+    const horasDia = minDay / 60;
+    const valorDia = horasDia * valorHora;
     const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     return [
       formatDateBR(day.date),

@@ -62,6 +62,15 @@ const PDFPreview: React.FC = () => {
     }
   }, [requests, selectedRequestId]);
 
+  // Auto-atualiza o preview do PDF quando os dados da solicitação mudam (ex: portaria registrou horários)
+  useEffect(() => {
+    if (mode === 'individual' && selectedRequestId && requests.length > 0) {
+      updatePreview();
+    } else if (mode === 'list' && requests.length > 0) {
+      updatePreview();
+    }
+  }, [requests, selectedRequestId, mode]);
+
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-6xl mx-auto space-y-4">

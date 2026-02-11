@@ -252,6 +252,52 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     loadData();
   }, []);
 
+  // Realtime: quando portaria registra horário (time_records), atualiza requests para o PDF recibo refletir imediatamente
+  useEffect(() => {
+    const channel = supabase
+      .channel('time_records_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_records',
+        },
+        async (payload) => {
+          const workDayId = (payload.new as any)?.work_day_id;
+          if (!workDayId) return;
+          try {
+            const { data: workDay } = await supabase
+              .from('work_days')
+              .select('request_id, work_date')
+              .eq('id', workDayId)
+              .single();
+            if (!workDay?.request_id) return;
+            const { data: fullRequest } = await supabase
+              .from('extra_requests')
+              .select(`
+                *,
+                sectors(name),
+                users!extra_requests_approved_by_fkey(name),
+                extra_persons(cpf),
+                work_days(*, time_records(*))
+              `)
+              .eq('id', workDay.request_id)
+              .single();
+            if (!fullRequest) return;
+            const mapped = mapExtraRequest(fullRequest, fullRequest.work_days);
+            setRequests(prev => prev.map(r => (r.id === mapped.id ? mapped : r)));
+          } catch (e) {
+            console.warn('Realtime time_records: erro ao atualizar request', e);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Sincronização com Supabase é feita nas funções individuais
   // Todos os dados vêm exclusivamente do banco de dados
 

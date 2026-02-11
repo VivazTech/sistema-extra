@@ -327,6 +327,16 @@ const Requests: React.FC = () => {
 
                 <div className="flex items-center justify-between lg:justify-end gap-4">
                   <div className="flex items-center gap-2">
+                    {req.status === 'APROVADO' && user?.role !== 'LEADER' && (
+                      <button
+                        onClick={() => handleRecibo(req)}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
+                        title="Baixar recibo de pagamento (PDF com todos os dias)"
+                      >
+                        <DollarSign size={16} />
+                        Recibo
+                      </button>
+                    )}
                     {user?.role === 'ADMIN' && (
                       <>
                         <button
@@ -508,18 +518,6 @@ const Requests: React.FC = () => {
                                     Reprovar
                                   </button>
                                 </>
-                              )}
-
-                              {/* Recibo (líder não pode ver) */}
-                              {req.status === 'APROVADO' && user?.role !== 'LEADER' && (
-                                <button
-                                  onClick={() => handleRecibo(req)}
-                                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs"
-                                  title="Abrir recibo de pagamento (PDF)"
-                                >
-                                  <DollarSign size={16} />
-                                  Recibo
-                                </button>
                               )}
 
                               {/* Cancelar (líder) */}
