@@ -177,20 +177,24 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           `)
           .order('created_at', { ascending: false });
 
-        if (!requestsError && requestsData) {
-          const mappedRequests = requestsData.map(req => mapExtraRequest(req, req.work_days));
-          setRequests(mappedRequests);
-        }
-
-        // Carregar Extras
+        // Carregar Extras primeiro (para enriquecer CPF das solicitações)
         const { data: extrasData, error: extrasError } = await supabase
           .from('extra_persons')
           .select('*, sectors(name)')
           .eq('active', true)
           .order('full_name');
 
-        if (!extrasError && extrasData) {
-          setExtras(extrasData.map(mapExtraPerson));
+        const mappedExtras = !extrasError && extrasData ? extrasData.map(mapExtraPerson) : [];
+        if (mappedExtras.length > 0) setExtras(mappedExtras);
+
+        if (!requestsError && requestsData) {
+          const mappedRequests = requestsData.map(req => mapExtraRequest(req, req.work_days));
+          // Preencher CPF a partir do banco de extras quando o extra estiver vinculado pelo nome
+          const enriched = mappedRequests.map(r => {
+            const cpf = r.extraCpf || mappedExtras.find(e => e.fullName === r.extraName)?.cpf;
+            return cpf != null ? { ...r, extraCpf: cpf } : r;
+          });
+          setRequests(enriched);
         }
 
         // Carregar Saldo Records
@@ -286,7 +290,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               .single();
             if (!fullRequest) return;
             const mapped = mapExtraRequest(fullRequest, fullRequest.work_days);
-            setRequests(prev => prev.map(r => (r.id === mapped.id ? mapped : r)));
+            const extraCpf = mapped.extraCpf || extras.find(e => e.fullName === mapped.extraName)?.cpf;
+            setRequests(prev => prev.map(r => (r.id === mapped.id ? { ...mapped, extraCpf: extraCpf ?? mapped.extraCpf } : r)));
           } catch (e) {
             console.warn('Realtime time_records: erro ao atualizar request', e);
           }
@@ -434,7 +439,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (fullRequest) {
         const mappedRequest = mapExtraRequest(fullRequest, fullRequest.work_days);
-        setRequests(prev => [mappedRequest, ...prev]);
+        const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
+        setRequests(prev => [{ ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf }, ...prev]);
       } else {
         throw new Error('Solicitação criada mas não foi possível buscar os dados completos');
       }
@@ -515,10 +521,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (updatedRequest) {
         const mappedRequest = mapExtraRequest(updatedRequest, updatedRequest.work_days);
-        // Atualizar estado local com dados do banco
-        setRequests(prev => prev.map(req => 
-          req.id === id ? mappedRequest : req
-        ));
+        const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
+        const enriched = { ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf };
+        setRequests(prev => prev.map(req => (req.id === id ? enriched : req)));
       } else {
         // Fallback: atualizar estado local manualmente
     setRequests(prev => prev.map(req => 
@@ -575,6 +580,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           *,
           sectors(name),
           users!extra_requests_approved_by_fkey(name),
+          extra_persons(cpf),
           work_days(
             *,
             time_records(*)
@@ -585,7 +591,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (updatedRequest) {
         const mapped = mapExtraRequest(updatedRequest, updatedRequest.work_days);
-        setRequests((prev) => prev.map((r) => (r.id === id ? mapped : r)));
+        const extraCpf = mapped.extraCpf || extras.find(e => e.fullName === mapped.extraName)?.cpf;
+        setRequests((prev) => prev.map((r) => (r.id === id ? { ...mapped, extraCpf: extraCpf ?? mapped.extraCpf } : r)));
       }
     } catch (error) {
       console.error('Erro ao atualizar solicitação:', error);
@@ -1441,9 +1448,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (updatedRequest) {
         const mappedRequest = mapExtraRequest(updatedRequest, updatedRequest.work_days);
-        setRequests(prev => prev.map(req => 
-          req.id === requestId ? mappedRequest : req
-        ));
+        const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
+        setRequests(prev => prev.map(req => (req.id === requestId ? { ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf } : req)));
       }
     } catch (error) {
       console.error('Erro ao remover dia de trabalho:', error);

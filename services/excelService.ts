@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR } from '../utils/date';
+import { roundHoursToInteger, roundHoursToOneDecimal, roundMoney } from '../utils/round';
 
 const HORAS_JORNADA_PADRAO = 7 + 20 / 60;
 
@@ -27,7 +28,7 @@ function minutesWorkedInDay(tr?: TimeRecord): number {
 function hoursWorkedInDay(tr?: TimeRecord): string {
   const totalMin = minutesWorkedInDay(tr);
   if (totalMin <= 0) return '';
-  const hours = Math.round((totalMin / 60) * 10) / 10;
+  const hours = roundHoursToOneDecimal(totalMin / 60);
   return `${hours.toFixed(1).replace('.', ',')}h`;
 }
 
@@ -47,14 +48,8 @@ function totalHoursWorked(workDays: WorkDay[]): string {
     }
     totalMin += Math.max(0, departure - arrival - breakMin);
   }
-  const hours = Math.round((totalMin / 60) * 10) / 10;
-  return `${hours.toFixed(1).replace('.', ',')}h`;
-}
-
-function roundToEvenCentavos(value: number): number {
-  const cents = Math.round(value * 100);
-  if (cents % 2 === 0) return cents / 100;
-  return (cents - 1) / 100;
+  const hours = roundHoursToInteger(totalMin / 60);
+  return `${hours}h`;
 }
 
 function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (string | number)[][] } {
@@ -81,7 +76,7 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
-    const valorDia = roundToEvenCentavos((minDay / 60) * valorHora);
+    const valorDia = roundMoney((minDay / 60) * valorHora);
     totalValor += valorDia;
     table.push([
       formatDateBR(day.date),
@@ -93,7 +88,7 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
       valorDia > 0 ? valorDia.toFixed(2) : '',
     ]);
   }
-  totalValor = roundToEvenCentavos(totalValor);
+  totalValor = roundMoney(totalValor);
   table.push(['TOTAL', '', '', '', '', totalHours, totalValor.toFixed(2)]);
 
   return { headers, table };
@@ -109,15 +104,15 @@ export function exportSingleReciboExcel(request: ExtraRequest, filename?: string
   XLSX.writeFile(wb, filename || `recibo-pagamento-${request.code}.xlsx`);
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Arredondamento: < 0,50 baixo, >= 0,50 cima. */
 function totalWorkedValue(request: ExtraRequest): number {
   const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {
     const minDay = minutesWorkedInDay(day.timeRecord);
-    total += roundToEvenCentavos((minDay / 60) * valorHora);
+    total += roundMoney((minDay / 60) * valorHora);
   }
-  return roundToEvenCentavos(total);
+  return roundMoney(total);
 }
 
 /** Exporta listagem de solicitações para Excel */

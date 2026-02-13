@@ -180,7 +180,7 @@ const Portaria: React.FC = () => {
       totalMinutes -= breakMinutes;
     }
     
-    return (totalMinutes / 60).toFixed(2);
+    return (Math.round((totalMinutes / 60) * 100) / 100).toFixed(2);
   };
 
   const getCurrentTime = () => {

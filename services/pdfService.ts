@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR, formatDateTimeBR } from '../utils/date';
+import { roundHoursToInteger, roundHoursToOneDecimal, roundMoney } from '../utils/round';
 
 /** Margem superior da página (mm). */
 const PAGE_TOP_MARGIN = 10;
@@ -16,13 +17,6 @@ const A4_HEIGHT_MM = 297;
 
 /** Jornada padrão em horas (7h20) para cálculo do valor da hora. */
 const HORAS_JORNADA_PADRAO = 7 + 20 / 60; // 7,333...
-
-/** Arredonda valor monetário para centavos pares (ex: 70,95 → 70,94; 70,97 → 70,96). */
-function roundToEvenCentavos(value: number): number {
-  const cents = Math.round(value * 100);
-  if (cents % 2 === 0) return cents / 100;
-  return (cents - 1) / 100; // ímpar → arredonda para o par menor
-}
 
 /** Converte "HH:MM" em minutos desde meia-noite. */
 function timeToMinutes(t?: string): number | null {
@@ -46,15 +40,15 @@ function minutesWorkedInDay(tr?: TimeRecord): number {
   return Math.max(0, departure - arrival - breakMin);
 }
 
-/** Calcula horas trabalhadas no dia (departure - arrival - intervalo). Retorna string "X,Xh" ou "". */
+/** Calcula horas trabalhadas no dia (departure - arrival - intervalo). Retorna string "X,Xh" ou "". Arredondamento: < 0,50 baixo, >= 0,50 cima. */
 function hoursWorkedInDay(tr?: TimeRecord): string {
   const totalMin = minutesWorkedInDay(tr);
   if (totalMin <= 0) return '';
-  const hours = Math.round((totalMin / 60) * 10) / 10;
+  const hours = roundHoursToOneDecimal(totalMin / 60);
   return `${hours.toFixed(1).replace('.', ',')}h`;
 }
 
-/** Soma total de horas trabalhadas (string "X,Xh"). */
+/** Soma total de horas trabalhadas (string "Xh"). Arredondamento: < 0,50 baixo, >= 0,50 cima (inteiro). */
 function totalHoursWorked(workDays: WorkDay[]): string {
   let totalMin = 0;
   for (const day of workDays) {
@@ -71,8 +65,8 @@ function totalHoursWorked(workDays: WorkDay[]): string {
     }
     totalMin += Math.max(0, departure - arrival - breakMin);
   }
-  const hours = Math.round((totalMin / 60) * 10) / 10;
-  return `${hours.toFixed(1).replace('.', ',')}h`;
+  const hours = roundHoursToInteger(totalMin / 60);
+  return `${hours}h`;
 }
 
 /**
@@ -134,7 +128,7 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
     const horasDia = minDay / 60;
-    const valorDia = roundToEvenCentavos(horasDia * valorHora);
+    const valorDia = roundMoney(horasDia * valorHora);
     const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     return [
       formatDateBR(day.date),
@@ -146,8 +140,8 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
       valorStr
     ];
   });
-  const totalValor = roundToEvenCentavos(
-    request.workDays.reduce((sum, day) => sum + roundToEvenCentavos((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
+  const totalValor = roundMoney(
+    request.workDays.reduce((sum, day) => sum + roundMoney((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
   );
   body.push(['TOTAL', '', '', '', '', totalHours, totalValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
 
@@ -326,15 +320,15 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Arredondamento: < 0,50 baixo, >= 0,50 cima. */
 function totalWorkedValue(request: ExtraRequest): number {
   const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {
     const minDay = minutesWorkedInDay(day.timeRecord);
-    total += roundToEvenCentavos((minDay / 60) * valorHora);
+    total += roundMoney((minDay / 60) * valorHora);
   }
-  return roundToEvenCentavos(total);
+  return roundMoney(total);
 }
 
 /** Espaçamento entre grupos de setor em mm (linhas vazias sem borda). */

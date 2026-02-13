@@ -114,7 +114,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     requester: dbRequest.requester_name,
     reason: dbRequest.reason_name,
     extraName: dbRequest.extra_name,
-    extraCpf: dbRequest.extra_persons?.cpf,
+    extraCpf: Array.isArray(dbRequest.extra_persons) ? dbRequest.extra_persons[0]?.cpf : dbRequest.extra_persons?.cpf,
     value: parseFloat(dbRequest.value) || 0,
     status: dbRequest.status,
     needsManagerApproval: dbRequest.needs_manager_approval || false,
