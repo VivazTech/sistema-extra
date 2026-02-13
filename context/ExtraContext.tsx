@@ -128,10 +128,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setSectors(sortSectorsByName(mappedSectors));
         }
 
-        // Carregar Solicitantes (todos, inclusive inativos, para a lista aparecer no cadastro)
+        // Carregar Solicitantes (apenas ativos; exclusão é soft delete com active: false)
         const { data: requestersData, error: requestersError } = await supabase
           .from('requesters')
           .select('*')
+          .eq('active', true)
           .order('name');
 
         if (!requestersError && requestersData) {
@@ -841,111 +842,93 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateRequester = async (id: string, requester: RequesterItem) => {
-    try {
-      // Buscar ID no banco (pode ser UUID ou ID local)
-      let requesterId = id;
-      
-      const { data: existingRequester } = await supabase
-        .from('requesters')
-        .select('id')
-        .eq('id', id)
-        .single();
+    const name = (requester.name || '').trim();
+    if (!name) {
+      throw new Error('Nome do demandante não pode ser vazio.');
+    }
+    let requesterId = id;
 
-      if (!existingRequester) {
-        // Tentar buscar pelo nome do requester atual
-        const currentRequester = requesters.find(r => r.id === id);
-        if (currentRequester) {
-          const { data: byName } = await supabase
-            .from('requesters')
-            .select('id')
-            .eq('name', currentRequester.name)
-            .single();
-          
-          if (byName) {
-            requesterId = byName.id;
-          } else {
-            console.error('Demandante não encontrado no banco');
-            return;
-          }
+    const { data: existingRequester } = await supabase
+      .from('requesters')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (!existingRequester) {
+      const currentRequester = requesters.find(r => r.id === id);
+      if (currentRequester) {
+        const { data: byName } = await supabase
+          .from('requesters')
+          .select('id')
+          .eq('name', currentRequester.name)
+          .single();
+        if (byName) {
+          requesterId = byName.id;
         } else {
-          console.error('Demandante não encontrado no estado local');
-          return;
+          console.error('Demandante não encontrado no banco');
+          throw new Error('Demandante não encontrado no banco.');
         }
       } else {
-        requesterId = existingRequester.id;
+        throw new Error('Demandante não encontrado.');
       }
-
-      // Atualizar no Supabase
-      const { error } = await supabase
-        .from('requesters')
-        .update({ name: requester.name })
-        .eq('id', requesterId);
-
-      if (error) {
-        console.error('Erro ao atualizar demandante:', error);
-        return;
-      }
-
-      // Atualizar estado local
-      setRequesters(prev => prev.map(r => r.id === id ? { ...requester, id: requesterId } : r));
-    } catch (error) {
-      console.error('Erro ao atualizar demandante:', error);
+    } else {
+      requesterId = existingRequester.id;
     }
+
+    const { error } = await supabase
+      .from('requesters')
+      .update({ name })
+      .eq('id', requesterId);
+
+    if (error) {
+      console.error('Erro ao atualizar demandante:', error);
+      if (error.code === '23505') {
+        throw new Error('Já existe um demandante com esse nome.');
+      }
+      throw new Error(error.message || 'Erro ao salvar alterações.');
+    }
+
+    setRequesters(prev => prev.map(r => (r.id === id ? { ...requester, name, id: requesterId } : r)));
   };
 
   const deleteRequester = async (id: string) => {
-    try {
-      // Buscar no banco
-      const { data: existingRequester } = await supabase
-        .from('requesters')
-        .select('id')
-        .eq('id', id)
-        .single();
+    let requesterId: string | null = null;
 
-      if (!existingRequester) {
-        // Tentar por nome
-        const currentRequester = requesters.find(r => r.id === id);
-        if (currentRequester) {
-          const { data: byName } = await supabase
-            .from('requesters')
-            .select('id')
-            .eq('name', currentRequester.name)
-            .single();
+    const { data: existingRequester } = await supabase
+      .from('requesters')
+      .select('id')
+      .eq('id', id)
+      .single();
 
-          if (byName) {
-            const { error } = await supabase
-              .from('requesters')
-              .update({ active: false })
-              .eq('id', byName.id);
-
-            if (error) {
-              console.error('Erro ao deletar demandante:', error);
-              return;
-            }
-
-            setRequesters(prev => prev.filter(r => r.id !== id));
-            return;
-          }
-        }
-        console.error('Demandante não encontrado');
-        return;
+    if (existingRequester) {
+      requesterId = existingRequester.id;
+    } else {
+      const currentRequester = requesters.find(r => r.id === id);
+      if (currentRequester) {
+        const { data: byName } = await supabase
+          .from('requesters')
+          .select('id')
+          .eq('name', currentRequester.name)
+          .single();
+        if (byName) requesterId = byName.id;
       }
-
-      // Soft delete (marcar como inativo)
-      const { error } = await supabase
-        .from('requesters')
-        .update({ active: false })
-        .eq('id', existingRequester.id);
-
-      if (error) {
-        console.error('Erro ao deletar demandante:', error);
-        return;
-      }
-
-      setRequesters(prev => prev.filter(r => r.id !== id));
-    } catch (error) {
-      console.error('Erro ao deletar demandante:', error);
     }
+
+    if (!requesterId) {
+      throw new Error('Demandante não encontrado.');
+    }
+
+    const { error } = await supabase
+      .from('requesters')
+      .update({ active: false })
+      .eq('id', requesterId);
+
+    if (error) {
+      console.error('Erro ao deletar demandante:', error);
+      throw new Error(error.message || 'Erro ao excluir demandante.');
+    }
+
+    setRequesters(prev => prev.filter(r => r.id !== id));
   };
 
   const addReason = async (reason: ReasonItem): Promise<ReasonItem | null> => {

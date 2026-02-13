@@ -189,10 +189,19 @@ const AdminCatalogs: React.FC = () => {
   const handleSaveRequester = async () => {
     if (!editingRequesterId) return;
     const name = editRequesterValue.trim();
-    if (!name) return;
-    await updateRequester(editingRequesterId, { id: editingRequesterId, name });
-    setEditingRequesterId(null);
-    setEditRequesterValue('');
+    if (!name) {
+      alert('Informe o nome do demandante.');
+      return;
+    }
+    try {
+      await updateRequester(editingRequesterId, { id: editingRequesterId, name });
+      setEditingRequesterId(null);
+      setEditRequesterValue('');
+      alert('Demandante atualizado com sucesso.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar alterações. Tente novamente.';
+      alert(msg);
+    }
   };
 
   const handleCancelEditRequester = () => {
@@ -328,7 +337,19 @@ const AdminCatalogs: React.FC = () => {
                     <button onClick={() => handleStartEditRequester(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => deleteRequester(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Excluir este demandante?')) return;
+                        try {
+                          await deleteRequester(item.id);
+                          alert('Demandante excluído com sucesso.');
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : 'Erro ao excluir demandante. Tente novamente.';
+                          alert(msg);
+                        }
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </>
