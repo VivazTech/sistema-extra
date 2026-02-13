@@ -1192,37 +1192,33 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateExtra = async (extra: ExtraPerson) => {
-    try {
-      const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
-      const firstSectorName = sectorList[0];
-      const sectorId = firstSectorName ? await getSectorIdByName(firstSectorName) : null;
-      const { data: updated, error } = await supabase
-        .from('extra_persons')
-        .update({
-          full_name: extra.fullName,
-          birth_date: extra.birthDate || null,
-          cpf: extra.cpf || null,
-          contact: extra.contact || null,
-          address: extra.address || null,
-          emergency_contact: extra.emergencyContact || null,
-          sector_id: sectorId || null,
-          sector_names: sectorList.length > 0 ? sectorList : [],
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', extra.id)
-        .select('*, sectors(name)')
-        .single();
+    const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+    const firstSectorName = sectorList[0];
+    const sectorId = firstSectorName ? await getSectorIdByName(firstSectorName) : null;
+    const { data: updated, error } = await supabase
+      .from('extra_persons')
+      .update({
+        full_name: extra.fullName,
+        birth_date: extra.birthDate || null,
+        cpf: extra.cpf || null,
+        contact: extra.contact || null,
+        address: extra.address || null,
+        emergency_contact: extra.emergencyContact || null,
+        sector_id: sectorId || null,
+        sector_names: sectorList.length > 0 ? sectorList : [],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', extra.id)
+      .select('*, sectors(name)')
+      .single();
 
-      if (error || !updated) {
-        console.error('Erro ao atualizar extra:', error);
-        return;
-      }
-
-      const mapped = mapExtraPerson(updated);
-      setExtras(prev => prev.map(e => (e.id === extra.id ? mapped : e)));
-    } catch (err) {
-      console.error('Erro ao atualizar extra:', err);
+    if (error || !updated) {
+      console.error('Erro ao atualizar extra:', error);
+      throw new Error(error?.message || 'Erro ao salvar alterações do extra.');
     }
+
+    const mapped = mapExtraPerson(updated);
+    setExtras(prev => prev.map(e => (e.id === extra.id ? mapped : e)));
   };
 
   const getSectorIdByName = async (sectorName: string): Promise<string> => {

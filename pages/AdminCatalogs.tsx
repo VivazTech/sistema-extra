@@ -3,117 +3,6 @@ import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp } from 'lu
 import { useExtras } from '../context/ExtraContext';
 import { RequesterItem, ReasonItem, ShiftItem, Sector } from '../types';
 
-type ListItem = RequesterItem | ReasonItem | ShiftItem;
-
-interface EditableListProps {
-  title: string;
-  items: ListItem[];
-  onAdd: (item: ListItem) => Promise<ListItem | null>;
-  onUpdate: (id: string, item: ListItem) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  addLabel: string;
-  maxHeight?: number;
-  expandable?: boolean;
-}
-
-const EditableList: React.FC<EditableListProps> = ({ title, items, onAdd, onUpdate, onDelete, addLabel, maxHeight, expandable }) => {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const handleStartEdit = (item: ListItem) => {
-    setEditingId(item.id);
-    setEditValue(item.name);
-  };
-
-  const handleSave = async () => {
-    if (!editingId) return;
-    const trimmed = editValue.trim();
-    if (!trimmed) return;
-    await onUpdate(editingId, { id: editingId, name: trimmed });
-    setEditingId(null);
-    setEditValue('');
-  };
-
-  const handleAdd = async () => {
-    const newId = Math.random().toString(36).substr(2, 9);
-    const created = await onAdd({ id: newId, name: addLabel });
-    if (created) {
-      setEditingId(created.id);
-      setEditValue(created.name);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditingId(null);
-    setEditValue('');
-  };
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-        <button
-          onClick={handleAdd}
-          className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
-        >
-          <Plus size={16} /> {addLabel}
-        </button>
-      </div>
-
-      <div
-        className="space-y-2"
-        style={expandable && !isExpanded && maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
-      >
-        {items.length === 0 && (
-          <p className="text-xs text-gray-400 italic">Nenhum item cadastrado.</p>
-        )}
-        {items.map(item => (
-          <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
-            {editingId === item.id ? (
-              <>
-                <input
-                  type="text"
-                  className="flex-1 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                />
-                <button onClick={handleSave} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
-                  <Save size={16} />
-                </button>
-                <button onClick={handleCancel} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
-                  <X size={16} />
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
-                <button onClick={() => handleStartEdit(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
-                  <Edit2 size={16} />
-                </button>
-                <button onClick={async () => await onDelete(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                  <Trash2 size={16} />
-                </button>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-      {expandable && items.length > 0 && maxHeight && (
-        <div className="pt-3">
-          <button
-            type="button"
-            onClick={() => setIsExpanded(prev => !prev)}
-            className="w-full py-2 text-xs font-bold text-emerald-600 hover:text-emerald-700 border border-emerald-100 rounded-lg bg-emerald-50/60 hover:bg-emerald-100 transition-colors"
-          >
-            {isExpanded ? 'Ver menos' : 'Ver mais'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const AdminCatalogs: React.FC = () => {
   const {
     sectors,
@@ -262,16 +151,115 @@ const AdminCatalogs: React.FC = () => {
 
   const handleAddReason = async () => {
     const name = newReasonName.trim();
+    if (!name) {
+      alert('Informe o nome do motivo.');
+      return;
+    }
+    try {
+      const maxVal = newReasonMaxValue.trim() === '' ? undefined : parseFloat(newReasonMaxValue);
+      const created = await addReason({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+        maxValue: maxVal != null && !Number.isNaN(maxVal) ? maxVal : undefined,
+      });
+      if (created) {
+        setNewReasonName('');
+        setNewReasonMaxValue('');
+        alert('Motivo cadastrado com sucesso.');
+      } else {
+        alert('Erro ao cadastrar motivo. Tente novamente.');
+      }
+    } catch {
+      alert('Erro ao cadastrar motivo. Tente novamente.');
+    }
+  };
+
+  const [newRequesterName, setNewRequesterName] = useState('');
+  const [editingRequesterId, setEditingRequesterId] = useState<string | null>(null);
+  const [editRequesterValue, setEditRequesterValue] = useState('');
+  const [newShiftName, setNewShiftName] = useState('');
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [editShiftValue, setEditShiftValue] = useState('');
+
+  const handleStartEditRequester = (item: RequesterItem) => {
+    setEditingRequesterId(item.id);
+    setEditRequesterValue(item.name);
+  };
+
+  const handleSaveRequester = async () => {
+    if (!editingRequesterId) return;
+    const name = editRequesterValue.trim();
     if (!name) return;
-    const maxVal = newReasonMaxValue.trim() === '' ? undefined : parseFloat(newReasonMaxValue);
-    const created = await addReason({
-      id: Math.random().toString(36).substr(2, 9),
-      name,
-      maxValue: maxVal != null && !Number.isNaN(maxVal) ? maxVal : undefined,
-    });
-    if (created) {
-      setNewReasonName('');
-      setNewReasonMaxValue('');
+    await updateRequester(editingRequesterId, { id: editingRequesterId, name });
+    setEditingRequesterId(null);
+    setEditRequesterValue('');
+  };
+
+  const handleCancelEditRequester = () => {
+    setEditingRequesterId(null);
+    setEditRequesterValue('');
+  };
+
+  const handleAddRequester = async () => {
+    const name = newRequesterName.trim();
+    if (!name) {
+      alert('Informe o nome do demandante.');
+      return;
+    }
+    try {
+      const created = await addRequester({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+      });
+      if (created) {
+        setNewRequesterName('');
+        alert('Demandante cadastrado com sucesso.');
+      } else {
+        alert('Erro ao cadastrar demandante. Tente novamente.');
+      }
+    } catch {
+      alert('Erro ao cadastrar demandante. Tente novamente.');
+    }
+  };
+
+  const handleStartEditShift = (item: ShiftItem) => {
+    setEditingShiftId(item.id);
+    setEditShiftValue(item.name);
+  };
+
+  const handleSaveShift = async () => {
+    if (!editingShiftId) return;
+    const name = editShiftValue.trim();
+    if (!name) return;
+    await updateShift(editingShiftId, { id: editingShiftId, name });
+    setEditingShiftId(null);
+    setEditShiftValue('');
+  };
+
+  const handleCancelEditShift = () => {
+    setEditingShiftId(null);
+    setEditShiftValue('');
+  };
+
+  const handleAddShift = async () => {
+    const name = newShiftName.trim();
+    if (!name) {
+      alert('Informe o nome do turno.');
+      return;
+    }
+    try {
+      const created = await addShift({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+      });
+      if (created) {
+        setNewShiftName('');
+        alert('Turno cadastrado com sucesso.');
+      } else {
+        alert('Erro ao cadastrar turno. Tente novamente.');
+      }
+    } catch {
+      alert('Erro ao cadastrar turno. Tente novamente.');
     }
   };
 
@@ -292,16 +280,62 @@ const AdminCatalogs: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <EditableList
-          title="Demandantes"
-          items={requesters}
-          onAdd={addRequester}
-          onUpdate={updateRequester}
-          onDelete={deleteRequester}
-          addLabel="Novo Demandante"
-          maxHeight={500}
-          expandable
-        />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Demandantes</h2>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="text"
+                placeholder="Nome do demandante"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48"
+                value={newRequesterName}
+                onChange={(e) => setNewRequesterName(e.target.value)}
+              />
+              <button
+                onClick={handleAddRequester}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+              >
+                <Plus size={16} /> Novo Demandante
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {requesters.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhum demandante cadastrado.</p>
+            )}
+            {requesters.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                {editingRequesterId === item.id ? (
+                  <>
+                    <input
+                      type="text"
+                      className="flex-1 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                      value={editRequesterValue}
+                      onChange={(e) => setEditRequesterValue(e.target.value)}
+                      placeholder="Nome"
+                    />
+                    <button onClick={handleSaveRequester} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Save size={16} />
+                    </button>
+                    <button onClick={handleCancelEditRequester} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
+                    <button onClick={() => handleStartEditRequester(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => deleteRequester(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Motivos da Solicitação</h2>
@@ -381,14 +415,62 @@ const AdminCatalogs: React.FC = () => {
           <p className="text-xs text-gray-500 mt-3">Valor máximo: limite em R$ para o campo &quot;Valor Combinado&quot; na solicitação de extra quando este motivo for selecionado.</p>
           <p className="text-xs text-amber-600 mt-1">Para o motivo <strong>TESTE</strong>, defina sempre o valor máximo; caso contrário a solicitação não poderá ser salva.</p>
         </div>
-        <EditableList
-          title="Turnos"
-          items={shifts}
-          onAdd={addShift}
-          onUpdate={updateShift}
-          onDelete={deleteShift}
-          addLabel="Novo Turno"
-        />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Turnos</h2>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="text"
+                placeholder="Nome do turno"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40"
+                value={newShiftName}
+                onChange={(e) => setNewShiftName(e.target.value)}
+              />
+              <button
+                onClick={handleAddShift}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+              >
+                <Plus size={16} /> Novo Turno
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {shifts.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhum turno cadastrado.</p>
+            )}
+            {shifts.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                {editingShiftId === item.id ? (
+                  <>
+                    <input
+                      type="text"
+                      className="flex-1 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                      value={editShiftValue}
+                      onChange={(e) => setEditShiftValue(e.target.value)}
+                      placeholder="Nome"
+                    />
+                    <button onClick={handleSaveShift} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Save size={16} />
+                    </button>
+                    <button onClick={handleCancelEditShift} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
+                    <button onClick={() => handleStartEditShift(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => deleteShift(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

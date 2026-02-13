@@ -30,8 +30,9 @@ import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, updateStatus, updateTimeRecord, deleteRequest } = useExtras();
+  const { requests, sectors, updateStatus, updateTimeRecord, deleteRequest } = useExtras();
   const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -145,15 +146,17 @@ const Requests: React.FC = () => {
     setExportModal({ type: 'list' });
   };
 
-  const handleExportFormat = (format: 'pdf' | 'excel') => {
+  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string) => {
     if (!exportModal) return;
     if (exportModal.type === 'recibo') {
       if (format === 'pdf') generateSingleReciboPDF(exportModal.request);
       else exportSingleReciboExcel(exportModal.request);
     } else {
-      const title = `Solicitações - Filtro: ${filterStatus}`;
-      if (format === 'pdf') generateListPDF(filteredRequests, title);
-      else exportListExcel(filteredRequests, title);
+      const list = sectorFilter ? filteredRequests.filter(r => r.sector === sectorFilter) : filteredRequests;
+      const sectorSuffix = sectorFilter ? ` - ${sectorFilter}` : '';
+      const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}`;
+      if (format === 'pdf') generateListPDF(list, title);
+      else exportListExcel(list, title);
     }
     setExportModal(null);
   };
@@ -589,6 +592,7 @@ const Requests: React.FC = () => {
           onClose={() => setExportModal(null)}
           onExport={handleExportFormat}
           type={exportModal.type === 'recibo' ? 'recibo' : 'list'}
+          sectors={exportModal.type === 'list' && isAdmin ? sectors.map(s => s.name) : undefined}
         />
       )}
 

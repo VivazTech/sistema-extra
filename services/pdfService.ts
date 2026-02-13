@@ -14,9 +14,45 @@ const GAP_BEFORE_NEXT_CARD = 6;
 const MIN_CARD_HEIGHT_MM = 70;
 /** Altura da página A4 (mm). */
 const A4_HEIGHT_MM = 297;
+/** Margem inferior mínima (mm) para não cortar recibo. */
+const PAGE_BOTTOM_MARGIN_MM = 15;
+/** Altura do cabeçalho do recibo até o início da tabela (mm). */
+const RECIBO_HEADER_MM = 42;
+/** Altura por linha da tabela (minCellHeight) (mm). */
+const RECIBO_TABLE_ROW_MM = 6;
+/** Altura do rodapé do recibo (após tabela até fim: linhas de assinatura) (mm). */
+const RECIBO_FOOTER_MM = 17;
+
+/** Estima a altura total do recibo em mm (cabeçalho + tabela + rodapé) para evitar quebra no meio. */
+function estimateReciboHeightMm(request: ExtraRequest): number {
+  const tableRows = 1 + request.workDays.length + 1; // cabeçalho da tabela + dias + linha TOTAL
+  return RECIBO_HEADER_MM + tableRows * RECIBO_TABLE_ROW_MM + RECIBO_FOOTER_MM;
+}
+
+/** Verifica se o recibo inteiro cabe na página a partir de offsetY; se não couber, adiciona nova página e retorna PAGE_TOP_MARGIN. */
+function ensureReciboFitsPage(doc: jsPDF, request: ExtraRequest, offsetY: number): number {
+  const height = estimateReciboHeightMm(request);
+  const maxY = A4_HEIGHT_MM - PAGE_BOTTOM_MARGIN_MM;
+  if (offsetY + height > maxY) {
+    doc.addPage();
+    return PAGE_TOP_MARGIN;
+  }
+  return offsetY;
+}
 
 /** Jornada padrão em horas (7h20) para cálculo do valor da hora. */
 const HORAS_JORNADA_PADRAO = 7 + 20 / 60; // 7,333...
+
+/** Limites de caracteres no recibo para evitar sobreposição/transbordamento. */
+const RECIBO_MAX_36 = 36; // Nome, Setor, Motivo
+const RECIBO_MAX_26 = 26; // Demandante, Função, Aprovado por
+
+/** Trunca texto ao limite indicado; se truncar, acrescenta "..." no fim. */
+function truncateRecibo(value: string | undefined, maxLen: number): string {
+  const s = (value || '').trim();
+  if (s.length <= maxLen) return s || 'N/A';
+  return s.slice(0, maxLen - 3) + '...';
+}
 
 /** Converte "HH:MM" em minutos desde meia-noite. */
 function timeToMinutes(t?: string): number | null {
@@ -94,15 +130,15 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.setFontSize(9);
   let y = 18;
 
-  // Nome e Demandante na primeira linha, alinhados
-  addField('Nome', request.extraName, col1, y);
-  addField('Demandante', request.requester, col2, y);
+  // Nome e Demandante na primeira linha, alinhados (limites: 36 e 26 caracteres)
+  addField('Nome', truncateRecibo(request.extraName, RECIBO_MAX_36), col1, y);
+  addField('Demandante', truncateRecibo(request.requester, RECIBO_MAX_26), col2, y);
   y += 5;
-  addField('Setor', request.sector, col1, y);
-  addField('Função', request.role, col2, y);
+  addField('Setor', truncateRecibo(request.sector, RECIBO_MAX_36), col1, y);
+  addField('Função', truncateRecibo(request.role, RECIBO_MAX_26), col2, y);
   y += 5;
-  addField('Motivo', request.reason, col1, y);
-  addField('Aprovado por', request.approvedBy || 'N/A', col2, y);
+  addField('Motivo', truncateRecibo(request.reason, RECIBO_MAX_36), col1, y);
+  addField('Aprovado por', truncateRecibo(request.approvedBy || 'N/A', RECIBO_MAX_26), col2, y);
   y += 5;
   // CPF e Período na mesma linha, alinhados
   const periodStr = request.workDays.length
@@ -201,6 +237,7 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
   const doc = new jsPDF();
   let offsetY = PAGE_TOP_MARGIN;
   for (let i = 0; i < 3; i++) {
+    offsetY = ensureReciboFitsPage(doc, request, offsetY);
     if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
       doc.addPage();
       offsetY = PAGE_TOP_MARGIN;
@@ -217,14 +254,16 @@ export const generateIndividualPDF = (request: ExtraRequest) => {
 /** Gera e baixa um único recibo (1 cópia) para uma solicitação. Usado na lista de Solicitações. */
 export const generateSingleReciboPDF = (request: ExtraRequest) => {
   const doc = new jsPDF();
-  buildIndividualPDF(doc, request, PAGE_TOP_MARGIN);
+  let offsetY = ensureReciboFitsPage(doc, request, PAGE_TOP_MARGIN);
+  buildIndividualPDF(doc, request, offsetY);
   doc.save(`recibo-pagamento-${request.code}.pdf`);
 };
 
 /** Retorna URL do PDF com um único recibo (1 cópia) para exibir em iframe. */
 export const getSingleReciboPDFBlobUrl = (request: ExtraRequest): string => {
   const doc = new jsPDF();
-  buildIndividualPDF(doc, request, PAGE_TOP_MARGIN);
+  let offsetY = ensureReciboFitsPage(doc, request, PAGE_TOP_MARGIN);
+  buildIndividualPDF(doc, request, offsetY);
   return URL.createObjectURL(doc.output('blob'));
 };
 
@@ -233,6 +272,7 @@ export const getIndividualPDFBlobUrl = (request: ExtraRequest): string => {
   const doc = new jsPDF();
   let offsetY = PAGE_TOP_MARGIN;
   for (let i = 0; i < 3; i++) {
+    offsetY = ensureReciboFitsPage(doc, request, offsetY);
     if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
       doc.addPage();
       offsetY = PAGE_TOP_MARGIN;
@@ -251,6 +291,7 @@ export const getIndividualPDFBlobUrl = (request: ExtraRequest): string => {
 function drawThreeRecibos(doc: jsPDF, request: ExtraRequest): void {
   let offsetY = PAGE_TOP_MARGIN;
   for (let i = 0; i < 3; i++) {
+    offsetY = ensureReciboFitsPage(doc, request, offsetY);
     if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
       doc.addPage();
       offsetY = PAGE_TOP_MARGIN;
@@ -274,6 +315,7 @@ export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
   }
   let offsetY = PAGE_TOP_MARGIN;
   approved.forEach((req, index) => {
+    offsetY = ensureReciboFitsPage(doc, req, offsetY);
     if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
       doc.addPage();
       offsetY = PAGE_TOP_MARGIN;
@@ -299,6 +341,7 @@ export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: stri
   }
   let offsetY = PAGE_TOP_MARGIN;
   approved.forEach((req, index) => {
+    offsetY = ensureReciboFitsPage(doc, req, offsetY);
     if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
       doc.addPage();
       offsetY = PAGE_TOP_MARGIN;

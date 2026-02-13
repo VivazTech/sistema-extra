@@ -466,8 +466,15 @@ const ExtraBank: React.FC = () => {
         sectors: formData.sectors,
         createdAt: '', // não alterado na atualização
       };
-      await updateExtra(extraToUpdate);
-      resetFormAndClose();
+      try {
+        await updateExtra(extraToUpdate);
+        resetFormAndClose();
+        alert('Alterações salvas com sucesso.');
+      } catch (err) {
+        console.error('Erro ao salvar extra:', err);
+        const msg = err instanceof Error ? err.message : 'Erro ao salvar alterações. Tente novamente.';
+        alert(msg);
+      }
       return;
     }
 

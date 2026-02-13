@@ -6,8 +6,11 @@ export type ExportFormat = 'pdf' | 'excel';
 interface ExportFormatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: ExportFormat) => void;
+  /** Para type 'bulk' pode receber (format, sector?). */
+  onExport: (format: ExportFormat, sector?: string) => void;
   type: 'recibo' | 'list' | 'bulk';
+  /** Lista de nomes de setores para filtrar exportação (usado em type 'bulk' e 'list' para Admin). */
+  sectors?: string[];
 }
 
 const LABELS = {
@@ -28,20 +31,24 @@ const LABELS = {
   },
 };
 
-const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, onExport, type }) => {
+const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, onExport, type, sectors = [] }) => {
   const [selected, setSelected] = React.useState<ExportFormat | null>(null);
+  const [selectedSector, setSelectedSector] = React.useState<string>('');
   const labels = LABELS[type];
+  const showSectorSelector = (type === 'bulk' || type === 'list') && sectors.length > 0;
 
   const handleDownload = () => {
     if (selected) {
-      onExport(selected);
+      onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined);
       setSelected(null);
+      setSelectedSector('');
       onClose();
     }
   };
 
   const handleClose = () => {
     setSelected(null);
+    setSelectedSector('');
     onClose();
   };
 
@@ -59,6 +66,25 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
             <X size={20} className="text-gray-500" />
           </button>
         </div>
+
+        {showSectorSelector && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Setor</label>
+            <select
+              value={selectedSector}
+              onChange={(e) => setSelectedSector(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-gray-900"
+            >
+              <option value="">Todos os setores</option>
+              {sectors.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {type === 'bulk' ? 'Exportar recibos apenas do setor selecionado ou de todos.' : 'Exportar listagem apenas do setor selecionado ou de todos.'}
+            </p>
+          </div>
+        )}
 
         <p className="text-sm text-gray-600 mb-4">Selecione o formato desejado:</p>
 
