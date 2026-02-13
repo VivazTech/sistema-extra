@@ -26,12 +26,13 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+    // Preferir apikey do request (mesmo do front VITE_SUPABASE_ANON_KEY) para validar o JWT no mesmo projeto
+    const supabaseAnonKey = req.headers.get('apikey')?.trim() || Deno.env.get('SUPABASE_ANON_KEY') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     if (!supabaseAnonKey) {
       return new Response(
-        JSON.stringify({ error: 'Configuração do servidor: SUPABASE_ANON_KEY ausente.' }),
+        JSON.stringify({ error: 'Envie o header "apikey" (VITE_SUPABASE_ANON_KEY) ou defina SUPABASE_ANON_KEY nos secrets da função.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
