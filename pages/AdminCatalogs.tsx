@@ -217,8 +217,9 @@ const AdminCatalogs: React.FC = () => {
       } else {
         alert('Erro ao cadastrar demandante. Tente novamente.');
       }
-    } catch {
-      alert('Erro ao cadastrar demandante. Tente novamente.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar demandante. Tente novamente.';
+      alert(msg);
     }
   };
 

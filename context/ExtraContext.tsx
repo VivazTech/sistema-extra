@@ -128,15 +128,16 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setSectors(sortSectorsByName(mappedSectors));
         }
 
-        // Carregar Solicitantes
+        // Carregar Solicitantes (todos, inclusive inativos, para a lista aparecer no cadastro)
         const { data: requestersData, error: requestersError } = await supabase
           .from('requesters')
           .select('*')
-          .eq('active', true)
           .order('name');
 
         if (!requestersError && requestersData) {
           setRequesters(requestersData.map(mapRequester));
+        } else if (requestersError) {
+          console.error('Erro ao carregar demandantes:', requestersError);
         }
 
         // Carregar Motivos
@@ -804,29 +805,38 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addRequester = async (requester: RequesterItem): Promise<RequesterItem | null> => {
+    const name = (requester.name || '').trim();
+    if (!name) {
+      console.error('Nome do demandante vazio');
+      return null;
+    }
     try {
-      // Criar no Supabase
       const { data: newRequester, error } = await supabase
         .from('requesters')
         .insert({
-          name: requester.name,
+          name,
           active: true,
         })
         .select()
         .single();
 
-      if (error || !newRequester) {
+      if (error) {
         console.error('Erro ao criar demandante:', error);
-        return null;
+        if (error.code === '23505') {
+          throw new Error('Já existe um demandante com esse nome.');
+        }
+        throw new Error(error.message || 'Erro ao cadastrar demandante.');
+      }
+      if (!newRequester) {
+        throw new Error('Erro ao cadastrar demandante. Tente novamente.');
       }
 
-      // Atualizar estado local
       const mappedRequester = mapRequester(newRequester);
       setRequesters(prev => [...prev, mappedRequester]);
       return mappedRequester;
     } catch (error) {
       console.error('Erro ao adicionar demandante:', error);
-      return null;
+      throw error;
     }
   };
 
