@@ -1422,9 +1422,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addExtra = async (extra: ExtraPerson) => {
     const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
     const firstSectorName = sectorList[0];
-    const { data: sectorData } = firstSectorName
-      ? await supabase.from('sectors').select('id').eq('name', firstSectorName).single()
-      : { data: null };
+    const sectorId = firstSectorName ? await getSectorIdByName(firstSectorName) : null;
 
     const insertPayload = {
       full_name: extra.fullName,
@@ -1433,7 +1431,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       contact: extra.contact || null,
       address: extra.address || null,
       emergency_contact: extra.emergencyContact || null,
-      sector_id: sectorData?.id || null,
+      sector_id: sectorId || null,
       sector_names: sectorList.length > 0 ? sectorList : [],
       active: true,
     };
@@ -1559,21 +1557,26 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setExtras(prev => prev.map(e => (e.id === extra.id ? mapped : e)));
   };
 
-  const getSectorIdByName = async (sectorName: string): Promise<string> => {
-    const local = sectors.find(s => s.name === sectorName);
+  const getSectorIdByName = async (sectorName: string): Promise<string | null> => {
+    const trimmed = (sectorName || '').trim();
+    if (!trimmed) return null;
+    const local = sectors.find(s => s.name?.toLowerCase() === trimmed.toLowerCase());
     if (local?.id) return local.id;
     const { data, error } = await supabase
       .from('sectors')
       .select('id')
-      .eq('name', sectorName)
-      .single();
-    if (error || !data?.id) throw error || new Error('Setor não encontrado');
+      .ilike('name', trimmed)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.id) return null;
     return data.id;
   };
 
   const addExtraSaldoRecord = async (input: ExtraSaldoInput, valorDiariaSnapshot: number) => {
     try {
       const sectorId = await getSectorIdByName(input.setor);
+      if (!sectorId) throw new Error(`Setor "${input.setor}" não encontrado. Verifique os Cadastros.`);
       const { data, error } = await supabase
         .from('extra_saldo_records')
         .insert({
@@ -1605,6 +1608,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateExtraSaldoRecord = async (id: string, input: ExtraSaldoInput, valorDiariaSnapshot: number) => {
     try {
       const sectorId = await getSectorIdByName(input.setor);
+      if (!sectorId) throw new Error(`Setor "${input.setor}" não encontrado. Verifique os Cadastros.`);
       const { data, error } = await supabase
         .from('extra_saldo_records')
         .update({
