@@ -15,7 +15,6 @@ import {
   WorkDay,
   TimeRecord
 } from '../types';
-import { roundMoney } from '../utils/round';
 
 // Converter Sector do Supabase para Type
 export const mapSector = (dbSector: any, roles?: any[]): Sector => {
@@ -116,7 +115,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     reason: dbRequest.reason_name,
     extraName: dbRequest.extra_name,
     extraCpf: Array.isArray(dbRequest.extra_persons) ? dbRequest.extra_persons[0]?.cpf : dbRequest.extra_persons?.cpf,
-    value: roundMoney(parseFloat(dbRequest.value) || 0),
+    value: parseFloat(dbRequest.value) || 0,
     status: dbRequest.status,
     needsManagerApproval: dbRequest.needs_manager_approval || false,
     urgency: dbRequest.urgency || false,

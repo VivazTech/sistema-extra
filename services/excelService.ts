@@ -104,10 +104,9 @@ export function exportSingleReciboExcel(request: ExtraRequest, filename?: string
   XLSX.writeFile(wb, filename || `recibo-pagamento-${request.code}.xlsx`);
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Arredondamento: < 0,50 baixo, >= 0,50 cima. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Resultado arredondado com roundMoney. */
 function totalWorkedValue(request: ExtraRequest): number {
-  const valorCombinado = roundMoney(request.value);
-  const valorHora = valorCombinado / HORAS_JORNADA_PADRAO;
+  const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {
     const minDay = minutesWorkedInDay(day.timeRecord);

@@ -155,8 +155,7 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   // Colunas: Data, Horário Chegada, Início Intervalo, Fim Intervalo, Horário Saída, Total Horas, Valor
   // Total horas = (saída - chegada) - (fim intervalo - início intervalo). Ex: 10-12-13-15 → 4h
   // Valor da hora = valor combinado / 7h20 (7,333h). Valor linha = total horas × valor da hora
-  const valorCombinado = roundMoney(request.value);
-  const valorHora = valorCombinado / HORAS_JORNADA_PADRAO;
+  const valorHora = request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
   const head = ['Data', 'Horário Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário Saída', 'Total Horas', 'Valor'];
   const body = request.workDays.map(day => {
@@ -363,10 +362,9 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Arredondamento: < 0,50 baixo, >= 0,50 cima. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Resultado arredondado com roundMoney. */
 function totalWorkedValue(request: ExtraRequest): number {
-  const valorCombinado = roundMoney(request.value);
-  const valorHora = valorCombinado / HORAS_JORNADA_PADRAO;
+  const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {
     const minDay = minutesWorkedInDay(day.timeRecord);
