@@ -222,6 +222,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           value: formData.value,
           observations: formData.observations || undefined,
           eventName: isEventoReason ? (formData.eventName || undefined) : undefined,
+          workDays: formData.workDays.map(d => ({ date: d.date, shift: d.shift })),
         });
         logAction('Solicitações > Editar solicitação', 'OK', { requestId: initialRequest.id, code: initialRequest.code });
         onClose();

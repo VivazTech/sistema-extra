@@ -27,7 +27,7 @@ interface ExtraContextType {
   extraSaldoSettings: ExtraSaldoSettings;
   users: User[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
-  updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>>) => Promise<void>;
+  updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }) => Promise<void>;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
   deleteRequest: (id: string) => void;
   addSector: (sector: Sector) => void;
@@ -45,7 +45,7 @@ interface ExtraContextType {
   addExtra: (extra: ExtraPerson) => Promise<void>;
   checkCpfExists: (cpf: string, excludeId?: string) => Promise<boolean>;
   updateExtra: (extra: ExtraPerson) => Promise<void>;
-  deleteExtra: (id: string) => void;
+  deleteExtra: (id: string) => Promise<void>;
   addExtraSaldoRecord: (input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
   updateExtraSaldoRecord: (id: string, input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
   deleteExtraSaldoRecord: (id: string) => Promise<void>;
@@ -559,7 +559,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateRequest = async (
     id: string,
-    data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>>
+    data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }
   ) => {
     try {
       const updatePayload: Record<string, unknown> = {
@@ -583,6 +583,42 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (error) {
         console.error('Erro ao atualizar solicitação:', error);
         throw error;
+      }
+
+      // Sincronizar work_days quando workDays foi enviado (adicionar/remover/atualizar dias)
+      if (data.workDays && Array.isArray(data.workDays)) {
+        const request = requests.find(r => r.id === id);
+        const requestValue = data.value ?? request?.value ?? 0;
+
+        const { data: existingWorkDays } = await supabase
+          .from('work_days')
+          .select('id, work_date, shift')
+          .eq('request_id', id);
+
+        const toDateKey = (d: unknown) => (typeof d === 'string' ? d : (d as Date)?.toISOString?.() || '').slice(0, 10);
+        const existingByDate = new Map((existingWorkDays || []).map(w => [toDateKey(w.work_date), w]));
+        const newByDate = new Map(data.workDays.map(d => [toDateKey(d.date), d]));
+
+        for (const [date, wd] of existingByDate) {
+          if (!newByDate.has(date)) {
+            await supabase.from('work_days').delete().eq('id', wd.id);
+          } else {
+            const n = newByDate.get(date)!;
+            if (n.shift !== wd.shift) {
+              await supabase.from('work_days').update({ shift: n.shift }).eq('id', wd.id);
+            }
+          }
+        }
+        for (const [date, n] of newByDate) {
+          if (!existingByDate.has(date)) {
+            await supabase.from('work_days').insert({
+              request_id: id,
+              work_date: date,
+              shift: n.shift,
+              value: requestValue,
+            });
+          }
+        }
       }
 
       const { data: updatedRequest } = await supabase
@@ -1181,29 +1217,62 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ? await supabase.from('sectors').select('id').eq('name', firstSectorName).single()
       : { data: null };
 
+    const insertPayload = {
+      full_name: extra.fullName,
+      birth_date: extra.birthDate || null,
+      cpf: extra.cpf || null,
+      contact: extra.contact || null,
+      address: extra.address || null,
+      emergency_contact: extra.emergencyContact || null,
+      sector_id: sectorData?.id || null,
+      sector_names: sectorList.length > 0 ? sectorList : [],
+      active: true,
+    };
+
     const { data: newExtra, error: extraError } = await supabase
       .from('extra_persons')
-      .insert({
-        full_name: extra.fullName,
-        birth_date: extra.birthDate || null,
-        cpf: extra.cpf || null,
-        contact: extra.contact || null,
-        address: extra.address || null,
-        emergency_contact: extra.emergencyContact || null,
-        sector_id: sectorData?.id || null,
-        sector_names: sectorList.length > 0 ? sectorList : [],
-        active: true,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
-    if (extraError || !newExtra) {
+    if (extraError) {
+      if (extraError.code === '23505') {
+        const normalizedInput = (extra.cpf || '').replace(/\D/g, '');
+        const { data: rows } = await supabase.from('extra_persons').select('*').not('cpf', 'is', null);
+        const existing = (rows || []).find((r: { cpf?: string }) =>
+          normalizedInput && (r.cpf || '').replace(/\D/g, '') === normalizedInput
+        );
+        if (existing) {
+          if (existing.active) {
+            throw new Error('Este CPF já está cadastrado no banco de extras.');
+          }
+          const { data: reactivated, error: updError } = await supabase
+            .from('extra_persons')
+            .update({
+              ...insertPayload,
+              active: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+          if (!updError && reactivated) {
+            const fullMapped = mapExtraPerson(reactivated);
+            setExtras(prev => prev.some(e => e.id === fullMapped.id) ? prev : [fullMapped, ...prev]);
+            return;
+          }
+        }
+        throw new Error('Este CPF já está cadastrado no banco de extras.');
+      }
       const msg = extraError?.message || '';
       if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('cpf')) {
         throw new Error('Este CPF já está cadastrado no banco de extras.');
       }
       console.error('Erro ao criar extra:', extraError);
       throw new Error(extraError?.message || 'Erro ao cadastrar. Tente novamente.');
+    }
+    if (!newExtra) {
+      throw new Error('Erro ao cadastrar. Tente novamente.');
     }
 
     const { data: fullExtra } = await supabase
@@ -1220,6 +1289,12 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteExtra = async (id: string) => {
     try {
+      // Anular referências em extra_requests antes de excluir (evita violação de FK)
+      await supabase
+        .from('extra_requests')
+        .update({ extra_person_id: null })
+        .eq('extra_person_id', id);
+
       const { error } = await supabase
         .from('extra_persons')
         .delete()
@@ -1227,12 +1302,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (error) {
         console.error('Erro ao deletar extra:', error);
-        return;
+        throw error;
       }
 
       setExtras(prev => prev.filter(e => e.id !== id));
     } catch (error) {
       console.error('Erro ao deletar extra:', error);
+      throw error;
     }
   };
 
@@ -1240,7 +1316,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
     const firstSectorName = sectorList[0];
     const sectorId = firstSectorName ? await getSectorIdByName(firstSectorName) : null;
-    const { data: updated, error } = await supabase
+
+    // Usar select() sem single() para evitar PGRST116; evitar join sectors() que pode falhar em extras com setor inativo/removido
+    const { data: updatedRows, error } = await supabase
       .from('extra_persons')
       .update({
         full_name: extra.fullName,
@@ -1254,19 +1332,21 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updated_at: new Date().toISOString(),
       })
       .eq('id', extra.id)
-      .select('*, sectors(name)')
-      .single();
+      .select('*');
 
-    if (error || !updated) {
+    if (error) {
       console.error('Erro ao atualizar extra:', error);
       const msg = error?.message || '';
-      if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('cpf')) {
+      if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('cpf') || msg.includes('23505')) {
         throw new Error('Este CPF já está cadastrado no banco de extras.');
       }
       throw new Error(msg || 'Erro ao salvar alterações do extra.');
     }
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error('Extra não encontrado ou não foi possível atualizar. Tente recarregar a página.');
+    }
 
-    const mapped = mapExtraPerson(updated);
+    const mapped = mapExtraPerson(updatedRows[0]);
     setExtras(prev => prev.map(e => (e.id === extra.id ? mapped : e)));
   };
 

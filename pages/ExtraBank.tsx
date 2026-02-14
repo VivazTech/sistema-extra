@@ -609,7 +609,14 @@ const ExtraBank: React.FC = () => {
                         <Pencil size={16} />
                       </button>
                       <button
-                        onClick={() => deleteExtra(extra.id)}
+                        onClick={async () => {
+                          if (!confirm('Excluir este extra da lista?')) return;
+                          try {
+                            await deleteExtra(extra.id);
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : 'Erro ao excluir.');
+                          }
+                        }}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                         title="Remover"
                       >
