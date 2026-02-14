@@ -146,13 +146,14 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
         r.extraName,
         r.status,
         r.approvedBy || '—',
-        valorTrabalhado,
+        roundMoney(valorTrabalhado),
       ]);
     }
-    data.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetor]);
+    const totalSetorArredondado = roundMoney(totalSetor);
+    data.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetorArredondado]);
     data.push([], []);
   }
-  data.push(['TOTAL GERAL', '', '', '', '', '', totalGeral]);
+  data.push(['TOTAL GERAL', '', '', '', '', '', roundMoney(totalGeral)]);
 
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();

@@ -142,7 +142,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
   };
 
   const handleUpdateDay = (idx: number, field: 'date' | 'shift', value: string) => {
-    const normalizedValue = field === 'date' && value < todayStr ? todayStr : value;
+    const normalizedValue = field === 'date' && !isAdmin && value < todayStr ? todayStr : value;
     const updated = [...formData.workDays];
     updated[idx] = { ...updated[idx], [field]: normalizedValue };
     setFormData({ ...formData, workDays: updated });
@@ -203,6 +203,10 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
     }
     if (reasonLimit != null && formData.value > reasonLimit) {
       alert(`O valor não pode ser maior que o limite do motivo (R$ ${reasonLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`);
+      return;
+    }
+    if (!isAdmin && formData.workDays.some(d => d.date < todayStr)) {
+      alert('Apenas administradores podem criar solicitações para datas passadas.');
       return;
     }
 
@@ -387,8 +391,9 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                         type="date"
                         className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                         value={day.date}
-                        min={todayStr}
+                        {...(isAdmin ? {} : { min: todayStr })}
                         onChange={(e) => handleUpdateDay(idx, 'date', e.target.value)}
+                        title={isAdmin ? 'Administradores podem selecionar datas passadas' : 'Selecione a data de hoje ou futura'}
                       />
                     </div>
                     <div className="space-y-1">
@@ -421,6 +426,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 ) : (
                   <>Máximo de 7 dias por solicitação.</>
                 )}
+                {!isAdmin && ' Apenas datas de hoje em diante.'}
               </p>
             </div>
           </div>

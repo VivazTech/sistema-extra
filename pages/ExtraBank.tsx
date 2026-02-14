@@ -4,7 +4,7 @@ import { useExtras } from '../context/ExtraContext';
 import type { ExtraPerson } from '../types';
 
 const ExtraBank: React.FC = () => {
-  const { extras, sectors, deleteExtra, addExtra, updateExtra } = useExtras();
+  const { extras, sectors, deleteExtra, addExtra, updateExtra, checkCpfExists } = useExtras();
   const link = useMemo(() => `${window.location.origin}/#/banco-extras`, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExtraId, setEditingExtraId] = useState<string | null>(null);
@@ -50,16 +50,6 @@ const ExtraBank: React.FC = () => {
     return cpf.replace(/\D/g, '');
   };
 
-  // Verificar se CPF já existe (excludeId = id do extra em edição para permitir manter o mesmo CPF)
-  const cpfExists = (cpfToCheck: string, excludeId?: string) => {
-    if (!cpfToCheck) return false;
-    const normalizedCpf = normalizeCpf(cpfToCheck);
-    return extras.some(extra => {
-      if (excludeId && extra.id === excludeId) return false;
-      if (!extra.cpf) return false;
-      return normalizeCpf(extra.cpf) === normalizedCpf;
-    });
-  };
 
   // Validar contatos em tempo real
   const validateContacts = () => {
@@ -75,61 +65,41 @@ const ExtraBank: React.FC = () => {
     return true;
   };
 
-  // Validar CPF duplicado em tempo real
-  const validateCpfDuplicate = () => {
-    const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
-    
-    if (!cpfToCheck) {
-      setCpfError('');
-      return true;
-    }
-
-    // Verificar se é CPF brasileiro e validar formato primeiro
-    if (!formData.isForeign && formData.cpf) {
-      const cpfDigits = normalizeCpf(formData.cpf);
-      if (cpfDigits.length === 11) {
-        if (!isValidCpf(formData.cpf)) {
-          setCpfError('CPF inválido.');
-          return false;
-        }
-        // Se o formato é válido, verificar duplicidade (excluir o próprio extra ao editar)
-        if (cpfExists(cpfToCheck, editingExtraId || undefined)) {
-          setCpfError('Este CPF já está cadastrado no banco de extras.');
-          return false;
-        }
-      } else if (cpfDigits.length > 0) {
-        // CPF incompleto, não mostrar erro ainda
-        setCpfError('');
-        return true;
-      }
-    }
-
-    // Para documento estrangeiro ou CPF completo válido, verificar duplicidade
-    if (formData.isForeign && formData.foreignDoc) {
-      if (cpfExists(formData.foreignDoc, editingExtraId || undefined)) {
-        setCpfError('Este documento já está cadastrado no banco de extras.');
-        return false;
-      }
-    }
-
-    // Se chegou aqui, está tudo ok
-    if (!cpfExists(cpfToCheck, editingExtraId || undefined)) {
-      setCpfError('');
-    }
-    return true;
-  };
-
   // Validar contatos em tempo real quando os campos mudarem
   useEffect(() => {
     validateContacts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.contactNumber, formData.emergencyContactNumber, formData.ddiContact, formData.ddiEmergency]);
 
-  // Validar CPF duplicado em tempo real quando os campos mudarem
+  // Validar CPF duplicado em tempo real (verificação no banco - fonte de verdade)
   useEffect(() => {
-    validateCpfDuplicate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras, editingExtraId]);
+    let cancelled = false;
+    const run = async () => {
+      const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
+      if (!cpfToCheck) {
+        if (!cancelled) setCpfError('');
+        return;
+      }
+      const cpfDigits = normalizeCpf(cpfToCheck);
+      if (formData.isForeign) {
+        const exists = await checkCpfExists(formData.foreignDoc, editingExtraId || undefined);
+        if (!cancelled) setCpfError(exists ? 'Este documento já está cadastrado no banco de extras.' : '');
+      } else if (cpfDigits.length === 11) {
+        if (!isValidCpf(formData.cpf)) {
+          if (!cancelled) setCpfError('CPF inválido.');
+          return;
+        }
+        const exists = await checkCpfExists(cpfToCheck, editingExtraId || undefined);
+        if (!cancelled) setCpfError(exists ? 'Este CPF já está cadastrado no banco de extras.' : '');
+      } else if (cpfDigits.length > 0) {
+        if (!cancelled) setCpfError('');
+      } else {
+        if (!cancelled) setCpfError('');
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [formData.cpf, formData.foreignDoc, formData.isForeign, editingExtraId, checkCpfExists]);
 
   const maskCpf = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -387,11 +357,35 @@ const ExtraBank: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.contactNumber, formData.emergencyContactNumber, formData.ddiContact, formData.ddiEmergency]);
 
-  // Validar CPF duplicado em tempo real quando os campos mudarem
+  // Validar CPF duplicado em tempo real (verificação no banco - fonte de verdade)
   useEffect(() => {
-    validateCpfDuplicate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.cpf, formData.foreignDoc, formData.isForeign, extras, editingExtraId]);
+    let cancelled = false;
+    const run = async () => {
+      const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
+      if (!cpfToCheck) {
+        if (!cancelled) setCpfError('');
+        return;
+      }
+      const cpfDigits = normalizeCpf(cpfToCheck);
+      if (formData.isForeign) {
+        const exists = await checkCpfExists(formData.foreignDoc, editingExtraId || undefined);
+        if (!cancelled) setCpfError(exists ? 'Este documento já está cadastrado no banco de extras.' : '');
+      } else if (cpfDigits.length === 11) {
+        if (!isValidCpf(formData.cpf)) {
+          if (!cancelled) setCpfError('CPF inválido.');
+          return;
+        }
+        const exists = await checkCpfExists(cpfToCheck, editingExtraId || undefined);
+        if (!cancelled) setCpfError(exists ? 'Este CPF já está cadastrado no banco de extras.' : '');
+      } else if (cpfDigits.length > 0) {
+        if (!cancelled) setCpfError('');
+      } else {
+        if (!cancelled) setCpfError('');
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [formData.cpf, formData.foreignDoc, formData.isForeign, editingExtraId, checkCpfExists]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,11 +405,14 @@ const ExtraBank: React.FC = () => {
       return;
     }
 
-    // Verificar CPF duplicado (ao editar, excluir o próprio extra)
+    // Verificar CPF duplicado no banco (fonte de verdade)
     const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
-    if (cpfToCheck && cpfExists(cpfToCheck, editingExtraId || undefined)) {
-      setCpfError('Este CPF já está cadastrado no banco de extras.');
-      return;
+    if (cpfToCheck) {
+      const exists = await checkCpfExists(cpfToCheck, editingExtraId || undefined);
+      if (exists) {
+        setCpfError('Este CPF já está cadastrado no banco de extras.');
+        return;
+      }
     }
 
     if (formData.isForeign && !formData.foreignDoc) {
@@ -473,25 +470,38 @@ const ExtraBank: React.FC = () => {
       } catch (err) {
         console.error('Erro ao salvar extra:', err);
         const msg = err instanceof Error ? err.message : 'Erro ao salvar alterações. Tente novamente.';
-        alert(msg);
+        if (msg.includes('CPF já está cadastrado')) {
+          setCpfError(msg);
+        } else {
+          alert(msg);
+        }
       }
       return;
     }
 
-    addExtra({
-      id: Math.random().toString(36).substr(2, 9),
-      fullName: formData.fullName,
-      birthDate: formData.birthDate || '',
-      cpf: formData.isForeign ? formData.foreignDoc : (formData.cpf || ''),
-      contact: contactStr,
-      address: addressStr,
-      emergencyContact: emergencyStr,
-      sector: formData.sectors[0] || '',
-      sectors: formData.sectors,
-      createdAt: new Date().toISOString(),
-    });
-
-    resetFormAndClose();
+    try {
+      await addExtra({
+        id: Math.random().toString(36).substr(2, 9),
+        fullName: formData.fullName,
+        birthDate: formData.birthDate || '',
+        cpf: formData.isForeign ? formData.foreignDoc : (formData.cpf || ''),
+        contact: contactStr,
+        address: addressStr,
+        emergencyContact: emergencyStr,
+        sector: formData.sectors[0] || '',
+        sectors: formData.sectors,
+        createdAt: new Date().toISOString(),
+      });
+      resetFormAndClose();
+    } catch (err) {
+      console.error('Erro ao cadastrar extra:', err);
+      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar. Tente novamente.';
+      if (msg.includes('CPF já está cadastrado')) {
+        setCpfError(msg);
+      } else {
+        alert(msg);
+      }
+    }
   };
 
   return (

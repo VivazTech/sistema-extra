@@ -30,7 +30,7 @@ import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, sectors, updateStatus, updateTimeRecord, deleteRequest } = useExtras();
+  const { requests, updateStatus, updateTimeRecord, deleteRequest, deleteWorkDay } = useExtras();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
@@ -152,7 +152,12 @@ const Requests: React.FC = () => {
       if (format === 'pdf') generateSingleReciboPDF(exportModal.request);
       else exportSingleReciboExcel(exportModal.request);
     } else {
-      const list = sectorFilter ? filteredRequests.filter(r => r.sector === sectorFilter) : filteredRequests;
+      let list = filteredRequests;
+      if (sectorFilter === 'VIVAZ') {
+        list = filteredRequests.filter(r => r.sector.toLowerCase() !== 'aquamania');
+      } else if (sectorFilter === 'AQUAMANIA') {
+        list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
+      }
       const sectorSuffix = sectorFilter ? ` - ${sectorFilter}` : '';
       const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}`;
       if (format === 'pdf') generateListPDF(list, title);
@@ -494,6 +499,27 @@ const Requests: React.FC = () => {
                             )}
 
                             <div className="flex flex-wrap items-center gap-2 justify-end">
+                              {/* Botão para apagar apenas este dia (apenas ADMIN, quando há mais de um dia) */}
+                              {user?.role === 'ADMIN' && totalDays > 1 && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Remover o dia ${formatDateBR(workDay.date)} desta solicitação?`)) {
+                                      try {
+                                        await deleteWorkDay(req.id, workDay.date);
+                                        logAction('Solicitações > Apagar dia', 'OK', { requestId: req.id, workDate: workDay.date });
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Erro ao remover dia.');
+                                      }
+                                    }
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg text-xs"
+                                  title="Apagar este dia da solicitação"
+                                >
+                                  <Trash2 size={16} />
+                                  Apagar dia
+                                </button>
+                              )}
                               {/* Botão para preencher horários não informados (apenas ADMIN) */}
                               {hasMissing && user?.role === 'ADMIN' && (
                                 <button
@@ -592,7 +618,6 @@ const Requests: React.FC = () => {
           onClose={() => setExportModal(null)}
           onExport={handleExportFormat}
           type={exportModal.type === 'recibo' ? 'recibo' : 'list'}
-          sectors={exportModal.type === 'list' && isAdmin ? sectors.map(s => s.name) : undefined}
         />
       )}
 

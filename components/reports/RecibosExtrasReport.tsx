@@ -37,7 +37,7 @@ interface RecibosExtrasReportProps {
 }
 
 const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd, sector: propsSector }) => {
-  const { requests, sectors } = useExtras();
+  const { requests } = useExtras();
   const [period, setPeriod] = useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -72,7 +72,12 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
   };
 
   const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string) => {
-    const list = sectorFilter ? filteredRequests.filter(r => r.sector === sectorFilter) : filteredRequests;
+    let list = filteredRequests;
+    if (sectorFilter === 'VIVAZ') {
+      list = filteredRequests.filter(r => r.sector.toLowerCase() !== 'aquamania');
+    } else if (sectorFilter === 'AQUAMANIA') {
+      list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
+    }
     const sectorSuffix = sectorFilter ? `-${sectorFilter.replace(/\s+/g, '-')}` : '';
     const filename = `recibos-pagamento-${start}-${end}${sectorSuffix}`;
     if (format === 'pdf') {
@@ -170,7 +175,6 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
           onClose={() => setShowExportModal(false)}
           onExport={handleExportFormat}
           type="bulk"
-          sectors={sectors.map(s => s.name)}
         />
       )}
 

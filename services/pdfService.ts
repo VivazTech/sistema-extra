@@ -404,12 +404,13 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
         r.extraName,
         r.status,
         r.approvedBy || '—',
-        valorTrabalhado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        roundMoney(valorTrabalhado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       ]);
     }
-    body.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+    const totalSetorArredondado = roundMoney(totalSetor);
+    body.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetorArredondado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
     summaryRowIndices.add(body.length - 1);
-    totalGeral += totalSetor;
+    totalGeral += totalSetorArredondado;
 
     if (i < sectors.length - 1) {
       body.push([...emptyRow]);
@@ -419,7 +420,7 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
     }
   }
 
-  body.push(['TOTAL GERAL', '', '', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  body.push(['TOTAL GERAL', '', '', '', '', '', roundMoney(totalGeral).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
   summaryRowIndices.add(body.length - 1);
 
   return { body, summaryRowIndices, spacerRowIndices };

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
@@ -42,7 +42,8 @@ interface ExtraContextType {
   addShift: (shift: ShiftItem) => Promise<ShiftItem | null>;
   updateShift: (id: string, shift: ShiftItem) => Promise<void>;
   deleteShift: (id: string) => Promise<void>;
-  addExtra: (extra: ExtraPerson) => void;
+  addExtra: (extra: ExtraPerson) => Promise<void>;
+  checkCpfExists: (cpf: string, excludeId?: string) => Promise<boolean>;
   updateExtra: (extra: ExtraPerson) => Promise<void>;
   deleteExtra: (id: string) => void;
   addExtraSaldoRecord: (input: ExtraSaldoInput, valorDiariaSnapshot: number) => Promise<void>;
@@ -52,6 +53,7 @@ interface ExtraContextType {
   updateTimeRecord: (requestId: string, workDate: string, timeRecord: TimeRecord, registeredBy: string) => void;
   appendRequestObservation: (requestId: string, note: string) => Promise<void>;
   removeWorkDay: (requestId: string, workDate: string, registeredBy: string) => Promise<void>;
+  deleteWorkDay: (requestId: string, workDate: string) => Promise<void>;
   getSaldoForWeek: (sector: string, dateStr: string) => number | null | 'no-record';
   addUser: (user: Partial<User>) => Promise<void>;
   updateUser: (id: string, user: Partial<User>) => Promise<void>;
@@ -349,6 +351,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addRequest = async (data: any) => {
     try {
+      // Apenas admins podem criar solicitações para datas passadas
+      const todayStr = new Date().toISOString().split('T')[0];
+      const hasPastDate = data.workDays?.some((d: { date: string }) => d.date < todayStr);
+      if (hasPastDate && user?.role !== 'ADMIN') {
+        throw new Error('Apenas administradores podem criar solicitações para datas passadas.');
+      }
+
       // Buscar IDs necessários
       const { data: sectorData } = await supabase
         .from('sectors')
@@ -1121,48 +1130,63 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  /** Verifica se o CPF já existe no banco (fonte de verdade). excludeId para edição. */
+  const checkCpfExists = useCallback(async (cpf: string, excludeId?: string): Promise<boolean> => {
+    const normalized = (cpf || '').replace(/\D/g, '');
+    if (!normalized) return false;
+    const { data, error } = await supabase
+      .from('extra_persons')
+      .select('id, cpf')
+      .not('cpf', 'is', null);
+    if (error) return false;
+    const exists = (data || []).some(row => {
+      if (excludeId && row.id === excludeId) return false;
+      return (row.cpf || '').replace(/\D/g, '') === normalized;
+    });
+    return exists;
+  }, []);
+
   const addExtra = async (extra: ExtraPerson) => {
-    try {
-      const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
-      const firstSectorName = sectorList[0];
-      const { data: sectorData } = firstSectorName
-        ? await supabase.from('sectors').select('id').eq('name', firstSectorName).single()
-        : { data: null };
+    const sectorList = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+    const firstSectorName = sectorList[0];
+    const { data: sectorData } = firstSectorName
+      ? await supabase.from('sectors').select('id').eq('name', firstSectorName).single()
+      : { data: null };
 
-      const { data: newExtra, error: extraError } = await supabase
-        .from('extra_persons')
-        .insert({
-          full_name: extra.fullName,
-          birth_date: extra.birthDate || null,
-          cpf: extra.cpf || null,
-          contact: extra.contact || null,
-          address: extra.address || null,
-          emergency_contact: extra.emergencyContact || null,
-          sector_id: sectorData?.id || null,
-          sector_names: sectorList.length > 0 ? sectorList : [],
-          active: true,
-        })
-        .select()
-        .single();
+    const { data: newExtra, error: extraError } = await supabase
+      .from('extra_persons')
+      .insert({
+        full_name: extra.fullName,
+        birth_date: extra.birthDate || null,
+        cpf: extra.cpf || null,
+        contact: extra.contact || null,
+        address: extra.address || null,
+        emergency_contact: extra.emergencyContact || null,
+        sector_id: sectorData?.id || null,
+        sector_names: sectorList.length > 0 ? sectorList : [],
+        active: true,
+      })
+      .select()
+      .single();
 
-      if (extraError || !newExtra) {
-        console.error('Erro ao criar extra:', extraError);
-        return;
+    if (extraError || !newExtra) {
+      const msg = extraError?.message || '';
+      if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('cpf')) {
+        throw new Error('Este CPF já está cadastrado no banco de extras.');
       }
+      console.error('Erro ao criar extra:', extraError);
+      throw new Error(extraError?.message || 'Erro ao cadastrar. Tente novamente.');
+    }
 
-      // Buscar extra completo para atualizar estado
-      const { data: fullExtra } = await supabase
-        .from('extra_persons')
-        .select('*, sectors(name)')
-        .eq('id', newExtra.id)
-        .single();
+    const { data: fullExtra } = await supabase
+      .from('extra_persons')
+      .select('*, sectors(name)')
+      .eq('id', newExtra.id)
+      .single();
 
-      if (fullExtra) {
-        const mappedExtra = mapExtraPerson(fullExtra);
-        setExtras(prev => [mappedExtra, ...prev]);
-      }
-    } catch (error) {
-      console.error('Erro ao adicionar extra:', error);
+    if (fullExtra) {
+      const mappedExtra = mapExtraPerson(fullExtra);
+      setExtras(prev => [mappedExtra, ...prev]);
     }
   };
 
@@ -1207,7 +1231,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (error || !updated) {
       console.error('Erro ao atualizar extra:', error);
-      throw new Error(error?.message || 'Erro ao salvar alterações do extra.');
+      const msg = error?.message || '';
+      if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('cpf')) {
+        throw new Error('Este CPF já está cadastrado no banco de extras.');
+      }
+      throw new Error(msg || 'Erro ao salvar alterações do extra.');
     }
 
     const mapped = mapExtraPerson(updated);
@@ -1447,6 +1475,53 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (req.id !== requestId) return req;
         return request; // Restaurar request original
       }));
+    }
+  };
+
+  /** Remove um dia da solicitação (sem adicionar observação de "extra faltou"). Usado em Solicitações. */
+  const deleteWorkDay = async (requestId: string, workDate: string) => {
+    const request = requests.find(r => r.id === requestId);
+    if (!request) return;
+
+    const workDay = request.workDays.find(d => d.date === workDate);
+    if (!workDay) return;
+
+    // Atualizar estado local imediatamente (remover workDay, sem alterar observações)
+    setRequests(prev => prev.map(req => {
+      if (req.id !== requestId) return req;
+      const updatedWorkDays = req.workDays.filter(d => d.date !== workDate);
+      return { ...req, workDays: updatedWorkDays, updatedAt: new Date().toISOString() };
+    }));
+
+    try {
+      const { data: workDayData } = await supabase
+        .from('work_days')
+        .select('id')
+        .eq('request_id', requestId)
+        .eq('work_date', workDate)
+        .single();
+
+      if (workDayData) {
+        await supabase.from('time_records').delete().eq('work_day_id', workDayData.id);
+        const { error: deleteError } = await supabase.from('work_days').delete().eq('id', workDayData.id);
+        if (deleteError) throw deleteError;
+      }
+
+      const { data: updatedRequest } = await supabase
+        .from('extra_requests')
+        .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(*, time_records(*))`)
+        .eq('id', requestId)
+        .single();
+
+      if (updatedRequest) {
+        const mappedRequest = mapExtraRequest(updatedRequest, updatedRequest.work_days);
+        const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
+        setRequests(prev => prev.map(req => (req.id === requestId ? { ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf } : req)));
+      }
+    } catch (error) {
+      console.error('Erro ao apagar dia:', error);
+      setRequests(prev => prev.map(req => (req.id === requestId ? request : req)));
+      throw error;
     }
   };
 
@@ -1959,12 +2034,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,
       addShift, updateShift, deleteShift,
-      addExtra, updateExtra, deleteExtra,
+      addExtra, checkCpfExists, updateExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,
       updateTimeRecord,
       appendRequestObservation,
       removeWorkDay,
+      deleteWorkDay,
       getSaldoForWeek,
       addUser, updateUser, deleteUser
     }}>

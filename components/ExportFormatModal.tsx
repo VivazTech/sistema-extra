@@ -3,13 +3,19 @@ import { FileText, FileSpreadsheet, X } from 'lucide-react';
 
 export type ExportFormat = 'pdf' | 'excel';
 
+/** Filtro VIVAZ/AQUAMANIA para exportação de listagem e recibos em massa. */
+export const SECTOR_FILTER_OPTIONS = [
+  { value: 'VIVAZ', label: 'VIVAZ (todos exceto Aquamania)' },
+  { value: 'AQUAMANIA', label: 'AQUAMANIA (apenas Aquamania)' },
+] as const;
+
 interface ExportFormatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Para type 'bulk' pode receber (format, sector?). */
+  /** Para type 'bulk' e 'list' recebe (format, sectorFilter?) onde sectorFilter é 'VIVAZ' ou 'AQUAMANIA'. */
   onExport: (format: ExportFormat, sector?: string) => void;
   type: 'recibo' | 'list' | 'bulk';
-  /** Lista de nomes de setores para filtrar exportação (usado em type 'bulk' e 'list' para Admin). */
+  /** Ignorado para type 'list' e 'bulk' (usa filtro VIVAZ/AQUAMANIA). */
   sectors?: string[];
 }
 
@@ -31,11 +37,15 @@ const LABELS = {
   },
 };
 
-const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, onExport, type, sectors = [] }) => {
+const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, onExport, type }) => {
   const [selected, setSelected] = React.useState<ExportFormat | null>(null);
-  const [selectedSector, setSelectedSector] = React.useState<string>('');
+  const [selectedSector, setSelectedSector] = React.useState<string>('VIVAZ');
   const labels = LABELS[type];
-  const showSectorSelector = (type === 'bulk' || type === 'list') && sectors.length > 0;
+  const showSectorSelector = type === 'bulk' || type === 'list';
+
+  React.useEffect(() => {
+    if (isOpen && showSectorSelector) setSelectedSector('VIVAZ');
+  }, [isOpen, showSectorSelector]);
 
   const handleDownload = () => {
     if (selected) {
@@ -48,7 +58,7 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
 
   const handleClose = () => {
     setSelected(null);
-    setSelectedSector('');
+    setSelectedSector('VIVAZ');
     onClose();
   };
 
@@ -69,19 +79,18 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
 
         {showSectorSelector && (
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Setor</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Filtro</label>
             <select
               value={selectedSector}
               onChange={(e) => setSelectedSector(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-gray-900"
             >
-              <option value="">Todos os setores</option>
-              {sectors.map(name => (
-                <option key={name} value={name}>{name}</option>
+              {SECTOR_FILTER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              {type === 'bulk' ? 'Exportar recibos apenas do setor selecionado ou de todos.' : 'Exportar listagem apenas do setor selecionado ou de todos.'}
+              {type === 'bulk' ? 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.' : 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.'}
             </p>
           </div>
         )}

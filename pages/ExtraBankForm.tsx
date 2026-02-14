@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../context/ExtraContext';
 
 const ExtraBankForm: React.FC = () => {
-  const { sectors, addExtra, extras } = useExtras();
+  const { sectors, addExtra, checkCpfExists } = useExtras();
   const [formData, setFormData] = useState({
     fullName: '',
     birthDate: '',
@@ -170,17 +170,7 @@ const ExtraBankForm: React.FC = () => {
     return cpf.replace(/\D/g, '');
   };
 
-  // Verificar se CPF já existe
-  const cpfExists = (cpfToCheck: string) => {
-    if (!cpfToCheck) return false;
-    const normalizedCpf = normalizeCpf(cpfToCheck);
-    return extras.some(extra => {
-      if (!extra.cpf) return false;
-      return normalizeCpf(extra.cpf) === normalizedCpf;
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdult) {
       alert('É necessário ter 18 anos ou mais para se cadastrar.');
@@ -191,11 +181,14 @@ const ExtraBankForm: React.FC = () => {
       return;
     }
 
-    // Verificar CPF duplicado
+    // Verificar CPF duplicado no banco (fonte de verdade)
     const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
-    if (cpfToCheck && cpfExists(cpfToCheck)) {
-      setCpfError('Este CPF já está cadastrado no banco de extras.');
-      return;
+    if (cpfToCheck) {
+      const exists = await checkCpfExists(cpfToCheck);
+      if (exists) {
+        setCpfError('Este CPF já está cadastrado no banco de extras.');
+        return;
+      }
     }
 
     if (formData.isForeign && !formData.foreignDoc) {
@@ -231,19 +224,28 @@ const ExtraBankForm: React.FC = () => {
       alert('Preencha todos os campos obrigatórios e selecione ao menos um setor.');
       return;
     }
-    addExtra({
-      id: Math.random().toString(36).substr(2, 9),
-      fullName: formData.fullName,
-      birthDate: formData.birthDate,
-      cpf: formData.cpf,
-      contact: `${formData.ddiContact} ${formData.contactNumber}`,
-      address: `${formData.street}, ${formData.number} - ${formData.complement} - ${formData.neighborhood} - ${formData.city}/${formData.state} - CEP ${formData.cep}`,
-      emergencyContact: `${formData.ddiEmergency} ${formData.emergencyContactNumber}`,
-      sector: formData.sectors[0] || '',
-      sectors: formData.sectors,
-      createdAt: new Date().toISOString()
-    });
-    setSubmitted(true);
+    try {
+      await addExtra({
+        id: Math.random().toString(36).substr(2, 9),
+        fullName: formData.fullName,
+        birthDate: formData.birthDate,
+        cpf: formData.isForeign ? formData.foreignDoc : formData.cpf,
+        contact: `${formData.ddiContact} ${formData.contactNumber}`,
+        address: `${formData.street}, ${formData.number} - ${formData.complement} - ${formData.neighborhood} - ${formData.city}/${formData.state} - CEP ${formData.cep}`,
+        emergencyContact: `${formData.ddiEmergency} ${formData.emergencyContactNumber}`,
+        sector: formData.sectors[0] || '',
+        sectors: formData.sectors,
+        createdAt: new Date().toISOString()
+      });
+      setSubmitted(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar. Tente novamente.';
+      if (msg.includes('CPF já está cadastrado')) {
+        setCpfError(msg);
+      } else {
+        alert(msg);
+      }
+    }
   };
 
   if (submitted) {
