@@ -57,6 +57,7 @@ interface ExtraContextType {
   removeWorkDay: (requestId: string, workDate: string, registeredBy: string) => Promise<void>;
   deleteWorkDay: (requestId: string, workDate: string) => Promise<void>;
   getSaldoForWeek: (sector: string, dateStr: string) => number | null | 'no-record';
+  refreshData: () => Promise<void>;
   addUser: (user: Partial<User>) => Promise<void>;
   updateUser: (id: string, user: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
@@ -116,10 +117,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [filterByManagerSector, extraSaldoRecords]
   );
 
-  // Load from Supabase
-  useEffect(() => {
-    const loadData = async () => {
-      try {
+  const loadData = useCallback(async () => {
+    try {
         // Carregar Setores
         const { data: sectorsData, error: sectorsError } = await supabase
           .from('sectors')
@@ -251,16 +250,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }));
           setUsers(mappedUsers);
         }
-      } catch (error) {
-        console.error('Erro ao carregar dados do Supabase:', error);
-        // Nota: Não usar localStorage como fallback - dados devem vir apenas do banco
-        // Se houver erro, o sistema deve mostrar mensagem de erro ao usuário
-        // e tentar recarregar os dados
-      }
-    };
-
-    loadData();
+    } catch (error) {
+      console.error('Erro ao carregar dados do Supabase:', error);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Realtime: quando portaria registra horário (time_records), atualiza requests para o PDF recibo refletir imediatamente
   useEffect(() => {
@@ -2362,6 +2359,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       removeWorkDay,
       deleteWorkDay,
       getSaldoForWeek,
+      refreshData: loadData,
       addUser, updateUser, deleteUser
     }}>
       {children}

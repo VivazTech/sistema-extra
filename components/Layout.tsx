@@ -16,6 +16,7 @@ import {
   FileText,
   User,
   ScrollText,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
@@ -27,6 +28,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { user, logout } = useAuth();
   const { hasPageAccess } = useAccess();
   const navigate = useNavigate();
@@ -95,6 +97,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="p-6 border-t border-emerald-900 flex-shrink-0 sticky bottom-0 bg-emerald-950">
+          <button
+            onClick={() => {
+              setIsRefreshing(true);
+              // Recarrega a página com cache-busting: pega último build do Vercel e dados atualizados
+              const url = new URL(window.location.href);
+              url.searchParams.set('_', String(Date.now()));
+              window.location.href = url.toString();
+            }}
+            disabled={isRefreshing}
+            className="w-full flex items-center gap-3 px-4 py-2 mb-3 rounded-lg bg-emerald-900/50 hover:bg-emerald-800 disabled:opacity-50 text-emerald-200 hover:text-white transition-colors"
+            title="Atualizar dados e recarregar a aplicação com a última versão (build do Vercel)"
+          >
+            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+            <span className="text-sm">{isRefreshing ? 'Atualizando...' : 'Atualizar dados'}</span>
+          </button>
           <div className="mb-4">
             <p className="text-xs text-emerald-500 uppercase font-bold tracking-tighter mb-1">Usuário</p>
             <p className="text-sm font-semibold truncate">{user.name}</p>
