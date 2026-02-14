@@ -78,7 +78,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [users, setUsers] = useState<User[]>([]);
 
   const managerSectorSet = useMemo(() => {
-    if (user?.role !== 'MANAGER') return null;
+    if (user?.role !== 'MANAGER' && user?.role !== 'LEADER') return null;
     const sectorsList = user.sectors || [];
     return new Set(sectorsList);
   }, [user?.role, user?.sectors]);
@@ -103,6 +103,15 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     () => filterByManagerSector(requests, request => request.sector),
     [filterByManagerSector, requests]
   );
+
+  const visibleExtras = useMemo(() => {
+    if (user?.role === 'ADMIN') return extras;
+    if (!managerSectorSet || managerSectorSet.size === 0) return extras;
+    return extras.filter(extra => {
+      const list = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+      return list.some(s => managerSectorSet.has(s));
+    });
+  }, [extras, managerSectorSet, user?.role]);
 
   const visibleExtraSaldoRecords = useMemo(
     () => filterByManagerSector(extraSaldoRecords, record => record.setor),
@@ -250,6 +259,38 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Realtime: quando extra_persons muda (insert/update/delete), atualiza a lista no Banco de Extras
+  useEffect(() => {
+    const channel = supabase
+      .channel('extra_persons_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'extra_persons',
+        },
+        async () => {
+          try {
+            const { data: extrasData, error } = await supabase
+              .from('extra_persons')
+              .select('*, sectors(name)')
+              .eq('active', true)
+              .order('full_name');
+            if (!error && extrasData) {
+              setExtras(extrasData.map(mapExtraPerson));
+            }
+          } catch (e) {
+            console.warn('Realtime extra_persons: erro ao atualizar lista', e);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Realtime: quando portaria registra horário (time_records), atualiza requests para o PDF recibo refletir imediatamente
   useEffect(() => {
@@ -2338,7 +2379,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       requesters,
       reasons,
       shifts,
-      extras: extras,
+      extras: visibleExtras,
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
       users,
