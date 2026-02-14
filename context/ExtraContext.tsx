@@ -130,7 +130,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setSectors(sortSectorsByName(mappedSectors));
         }
 
-        // Carregar Solicitantes (apenas ativos; exclusão é soft delete com active: false)
+        // Carregar Solicitantes (apenas ativos; exclusão é hard delete no Supabase)
         const { data: requestersData, error: requestersError } = await supabase
           .from('requesters')
           .select('*')
@@ -831,8 +831,29 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .single();
 
       if (error) {
-        console.error('Erro ao criar demandante:', error);
+        // 23505 = unique violation - pode ser registro inativo (legado de soft delete)
         if (error.code === '23505') {
+          const { data: existing } = await supabase
+            .from('requesters')
+            .select('*')
+            .eq('name', name)
+            .single();
+          if (existing) {
+            if (existing.active) {
+              throw new Error('Já existe um demandante com esse nome.');
+            }
+            const { data: reactivated, error: updError } = await supabase
+              .from('requesters')
+              .update({ active: true, updated_at: new Date().toISOString() })
+              .eq('id', existing.id)
+              .select()
+              .single();
+            if (!updError && reactivated) {
+              const mapped = mapRequester(reactivated);
+              setRequesters(prev => prev.some(r => r.id === mapped.id) ? prev : [...prev, mapped]);
+              return mapped;
+            }
+          }
           throw new Error('Já existe um demandante com esse nome.');
         }
         throw new Error(error.message || 'Erro ao cadastrar demandante.');
@@ -927,9 +948,16 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       throw new Error('Demandante não encontrado.');
     }
 
+    // Anular referências em extra_requests antes de excluir (evita violação de FK)
+    await supabase
+      .from('extra_requests')
+      .update({ requester_id: null })
+      .eq('requester_id', requesterId);
+
+    // Exclusão real no Supabase (hard delete)
     const { error } = await supabase
       .from('requesters')
-      .update({ active: false })
+      .delete()
       .eq('id', requesterId);
 
     if (error) {
