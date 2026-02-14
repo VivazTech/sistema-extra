@@ -22,8 +22,15 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const sectorNamesSet = (sectors: { name: string }[]) => new Set(sectors.map(s => s.name));
+const getValidSectorNames = (extra: { sector?: string; sectors?: string[] }, validNames: Set<string>) => {
+  const list = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+  return list.filter((n): n is string => !!n && validNames.has(n));
+};
+
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialRequest = null }) => {
   const { sectors, requesters, reasons, shifts, extras, addRequest, updateRequest, getSaldoForWeek } = useExtras();
+  const validSectorNames = useMemo(() => sectorNamesSet(sectors), [sectors]);
   const { logAction } = useActionLog();
   const isEditMode = !!initialRequest?.id;
   const { user } = useAuth();
@@ -456,7 +463,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 {formData.sector ? (
                   <>
                     {availableExtras.map(extra => {
-                      const extraSectors = (extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean);
+                      const extraSectors = getValidSectorNames(extra, validSectorNames);
                       const label = extraSectors.length ? `${extra.fullName} (${extraSectors.join(', ')})` : extra.fullName;
                       return (
                         <option key={extra.id} value={extra.fullName}>
@@ -465,21 +472,24 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                       );
                     })}
                     {isAdmin && extras.filter(e => !availableExtras.some(a => a.id === e.id)).map(extra => {
-                      const extraSectors = (extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean);
+                      const extraSectors = getValidSectorNames(extra, validSectorNames);
                       return (
                         <option key={extra.id} value={extra.fullName}>
-                          {extra.fullName} ({extraSectors.join(', ')})
+                          {extra.fullName} ({extraSectors.length ? extraSectors.join(', ') : 'Sem setor'})
                         </option>
                       );
                     })}
                   </>
                 ) : (
                   isAdmin
-                    ? extras.map(extra => (
-                        <option key={extra.id} value={extra.fullName}>
-                          {extra.fullName} {(extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean).join(', ') || ''}
-                        </option>
-                      ))
+                    ? extras.map(extra => {
+                        const extraSectors = getValidSectorNames(extra, validSectorNames);
+                        return (
+                          <option key={extra.id} value={extra.fullName}>
+                            {extra.fullName} {extraSectors.length ? `(${extraSectors.join(', ')})` : '(Sem setor)'}
+                          </option>
+                        );
+                      })
                     : null
                 )}
               </select>

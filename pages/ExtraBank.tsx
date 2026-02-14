@@ -267,7 +267,7 @@ const ExtraBank: React.FC = () => {
       neighborhood: '',
       city: '',
       state: '',
-      sectors: extra.sectors?.length ? [...extra.sectors] : (extra.sector ? [extra.sector] : []),
+      sectors: getValidSectorNames(extra).length ? getValidSectorNames(extra) : [],
       address: extra.address || '',
     });
     setCpfError('');
@@ -314,10 +314,25 @@ const ExtraBank: React.FC = () => {
     setIsModalOpen(false);
   };
 
+  const hasExtrasSemSetor = useMemo(() => {
+    const validSet = new Set(sectors.map(s => s.name));
+    return extras.some(e => {
+      const list = e.sectors?.length ? e.sectors : (e.sector ? [e.sector] : []);
+      const valid = list.filter(n => n && validSet.has(n));
+      return valid.length === 0 && list.length > 0;
+    });
+  }, [extras, sectors]);
+
   const filteredExtras = useMemo(() => {
     let filtered = extras;
 
-    if (selectedSector !== 'TODOS') {
+    if (selectedSector === 'SEM_SETOR') {
+      const validSet = new Set(sectors.map(s => s.name));
+      filtered = filtered.filter(extra => {
+        const list = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+        return list.length > 0 && list.filter((n): n is string => !!n && validSet.has(n)).length === 0;
+      });
+    } else if (selectedSector !== 'TODOS') {
       filtered = filtered.filter(extra =>
         extra.sectors?.includes(selectedSector) || extra.sector === selectedSector
       );
@@ -340,15 +355,29 @@ const ExtraBank: React.FC = () => {
     }
 
     return sorted;
-  }, [extras, searchTerm, selectedSector, sortOrder]);
+  }, [extras, searchTerm, selectedSector, sortOrder, sectors]);
+
+  const sectorNamesSet = useMemo(() => new Set(sectors.map(s => s.name)), [sectors]);
+
+  const getValidSectorNames = (extra: ExtraPerson) => {
+    const list = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
+    return list.filter((n): n is string => !!n && sectorNamesSet.has(n));
+  };
 
   const grouped = useMemo(() => {
-    return sectors.map(sector => ({
+    const bySector = sectors.map(sector => ({
       sector: sector.name,
       extras: filteredExtras.filter(e =>
         e.sectors?.includes(sector.name) || e.sector === sector.name
       ),
     })).filter(g => g.extras.length > 0);
+
+    const extrasComSetorValido = new Set(bySector.flatMap(g => g.extras.map(e => e.id)));
+    const semSetor = filteredExtras.filter(e => !extrasComSetorValido.has(e.id));
+    if (semSetor.length > 0) {
+      return [...bySector, { sector: 'Sem setor', extras: semSetor }];
+    }
+    return bySector;
   }, [filteredExtras, sectors]);
 
   // Validar contatos em tempo real quando os campos mudarem
@@ -571,6 +600,9 @@ const ExtraBank: React.FC = () => {
                 onChange={(e) => setSelectedSector(e.target.value)}
               >
                 <option value="TODOS">Todos os setores</option>
+                {hasExtrasSemSetor && (
+                  <option value="SEM_SETOR">Sem setor (removido)</option>
+                )}
                 {sectors.map(sector => (
                   <option key={sector.id} value={sector.name}>{sector.name}</option>
                 ))}
@@ -597,7 +629,9 @@ const ExtraBank: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-800">{extra.fullName}</p>
                       <p className="text-xs text-gray-500">{extra.contact} • {extra.cpf}</p>
                       <p className="text-xs text-emerald-600 mt-0.5">
-                        {(extra.sectors?.length ? extra.sectors : [extra.sector]).filter(Boolean).join(' • ')}
+                        {getValidSectorNames(extra).length
+                          ? getValidSectorNames(extra).join(' • ')
+                          : 'Sem setor'}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
