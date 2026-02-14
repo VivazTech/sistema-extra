@@ -167,20 +167,31 @@ const Requests: React.FC = () => {
     setExportModal({ type: 'list' });
   };
 
-  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string) => {
+  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string, listOptions?: { startDate: string; endDate: string }) => {
     if (!exportModal) return;
     if (exportModal.type === 'recibo') {
       if (format === 'pdf') generateSingleReciboPDF(exportModal.request);
       else exportSingleReciboExcel(exportModal.request);
     } else {
       let list = filteredRequests;
+      if (listOptions?.startDate && listOptions?.endDate) {
+        const startD = new Date(listOptions.startDate);
+        const endD = new Date(listOptions.endDate);
+        list = list.filter(req =>
+          req.workDays.some(day => {
+            const dayDate = new Date(day.date);
+            return dayDate >= startD && dayDate <= endD;
+          })
+        );
+      }
       if (sectorFilter === 'VIVAZ') {
-        list = filteredRequests.filter(r => r.sector.toLowerCase() !== 'aquamania');
+        list = list.filter(r => r.sector.toLowerCase() !== 'aquamania');
       } else if (sectorFilter === 'AQUAMANIA') {
-        list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
+        list = list.filter(r => r.sector.toLowerCase() === 'aquamania');
       }
       const sectorSuffix = sectorFilter ? ` - ${sectorFilter}` : '';
-      const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}`;
+      const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
+      const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${periodSuffix}`;
       if (format === 'pdf') generateListPDF(list, title);
       else exportListExcel(list, title);
     }

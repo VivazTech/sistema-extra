@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
@@ -27,7 +28,7 @@ const PunctualityReport: React.FC<PunctualityReportProps> = ({ startDate, endDat
         return hasWorkDayInRange;
       });
     }
-    if (sector) list = list.filter(r => r.sector === sector);
+    if (sector) list = filterBySector(list, sector);
     return list;
   }, [requests, startDate, endDate, sector]);
 

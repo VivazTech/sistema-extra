@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileWarning, AlertCircle, Camera, Clock } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
@@ -27,7 +28,7 @@ const IncompleteRecordsReport: React.FC<IncompleteRecordsReportProps> = ({ start
         return hasWorkDayInRange;
       });
     }
-    if (sector) list = list.filter(r => r.sector === sector);
+    if (sector) list = filterBySector(list, sector);
     return list;
   }, [requests, startDate, endDate, sector]);
 

@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Users, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -26,7 +27,7 @@ const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ startDate, endD
         return hasWorkDayInRange;
       });
     }
-    if (sector) list = list.filter(r => r.sector === sector);
+    if (sector) list = filterBySector(list, sector);
     return list;
   }, [requests, startDate, endDate, sector]);
 

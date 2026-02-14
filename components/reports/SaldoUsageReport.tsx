@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { BarChart3, TrendingDown, AlertCircle } from 'lucide-react';
 
@@ -15,7 +16,13 @@ const SaldoUsageReport: React.FC<SaldoUsageReportProps> = ({ startDate, endDate,
 
   // Calcular saldo utilizado e disponível por setor
   const saldoAnalysis = useMemo(() => {
-    const sectorsToShow = sectorFilter ? sectors.filter(s => s.name === sectorFilter) : sectors;
+    const sectorsToShow = sectorFilter === 'VIVAZ'
+      ? sectors.filter(s => s.name.toLowerCase() !== 'aquamania')
+      : sectorFilter === 'AQUAMANIA'
+        ? sectors.filter(s => s.name.toLowerCase() === 'aquamania')
+        : sectorFilter
+          ? sectors.filter(s => s.name === sectorFilter)
+          : sectors;
     return sectorsToShow.map(sector => {
       // Buscar registro de saldo mais recente para o setor
       const saldoRecord = extraSaldoRecords

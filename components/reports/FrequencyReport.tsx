@@ -1,6 +1,6 @@
-
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { UserX, TrendingDown, Calendar } from 'lucide-react';
 
@@ -26,7 +26,7 @@ const FrequencyReport: React.FC<FrequencyReportProps> = ({ startDate, endDate, s
         return hasWorkDayInRange;
       });
     }
-    if (sector) list = list.filter(r => r.sector === sector);
+    if (sector) list = filterBySector(list, sector);
     return list;
   }, [requests, startDate, endDate, sector]);
 

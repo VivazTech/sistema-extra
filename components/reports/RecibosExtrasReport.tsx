@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
 import { exportBulkRecibosExcel } from '../../services/excelService';
-import ExportFormatModal from '../ExportFormatModal';
+import ExportFormatModal, { filterBySector } from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
 
@@ -62,7 +62,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
       });
       return hasWorkDayInRange;
     });
-    if (propsSector) list = list.filter(r => r.sector === propsSector);
+    if (propsSector) list = filterBySector(list, propsSector);
     return list;
   }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd, propsSector]);
 

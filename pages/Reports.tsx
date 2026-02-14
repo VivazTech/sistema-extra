@@ -34,6 +34,7 @@ import IncompleteRecordsReport from '../components/reports/IncompleteRecordsRepo
 import AuditReport from '../components/reports/AuditReport';
 import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
 import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
+import { SECTOR_FILTER_OPTIONS } from '../components/ExportFormatModal';
 
 interface ReportTab {
   id: string;
@@ -61,11 +62,11 @@ function formatDateCSV(iso?: string): string {
 }
 
 const Reports: React.FC = () => {
-  const { user, requests, sectors } = useExtras();
+  const { user, requests } = useExtras();
   const [activeTab, setActiveTab] = useState('recibos');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedSector, setSelectedSector] = useState<string>('');
+  const [selectedSector, setSelectedSector] = useState<string>('VIVAZ');
 
   const reportTabs: ReportTab[] = [
     { 
@@ -174,7 +175,7 @@ const Reports: React.FC = () => {
 
   const ActiveComponent = availableTabs.find(tab => tab.id === activeTab)?.component ?? availableTabs[0]?.component ?? RecibosExtrasReport;
 
-  // Solicitações filtradas por período e setor (para exportar)
+  // Solicitações filtradas por período e setor (para exportar) - setor usa VIVAZ/AQUAMANIA como Baixar Recibos
   const requestsForExport = useMemo(() => {
     let list = requests;
     if (startDate || endDate) {
@@ -188,8 +189,10 @@ const Reports: React.FC = () => {
         return hasWorkDayInRange;
       });
     }
-    if (selectedSector) {
-      list = list.filter(req => req.sector === selectedSector);
+    if (selectedSector === 'VIVAZ') {
+      list = list.filter(req => req.sector.toLowerCase() !== 'aquamania');
+    } else if (selectedSector === 'AQUAMANIA') {
+      list = list.filter(req => req.sector.toLowerCase() === 'aquamania');
     }
     return list;
   }, [requests, startDate, endDate, selectedSector]);
@@ -244,11 +247,10 @@ const Reports: React.FC = () => {
               value={selectedSector}
               onChange={(e) => setSelectedSector(e.target.value)}
               className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-              title="Filtrar relatórios por setor"
+              title="Filtrar relatórios por setor (VIVAZ ou AQUAMANIA)"
             >
-              <option value="">Todos os setores</option>
-              {sectors.map(s => (
-                <option key={s.id} value={s.name}>{s.name}</option>
+              {SECTOR_FILTER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>

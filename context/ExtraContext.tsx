@@ -104,14 +104,6 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [filterByManagerSector, requests]
   );
 
-  const visibleExtras = useMemo(() => {
-    if (!managerSectorSet || managerSectorSet.size === 0) return extras;
-    return extras.filter(extra => {
-      const list = extra.sectors?.length ? extra.sectors : (extra.sector ? [extra.sector] : []);
-      return list.some(s => managerSectorSet.has(s));
-    });
-  }, [extras, managerSectorSet]);
-
   const visibleExtraSaldoRecords = useMemo(
     () => filterByManagerSector(extraSaldoRecords, record => record.setor),
     [filterByManagerSector, extraSaldoRecords]
@@ -190,7 +182,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .order('full_name');
 
         const mappedExtras = !extrasError && extrasData ? extrasData.map(mapExtraPerson) : [];
-        if (mappedExtras.length > 0) setExtras(mappedExtras);
+        setExtras(mappedExtras);
 
         if (!requestsError && requestsData) {
           const mappedRequests = requestsData.map(req => mapExtraRequest(req, req.work_days));
@@ -2346,7 +2338,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       requesters,
       reasons,
       shifts,
-      extras: visibleExtras,
+      extras: extras,
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
       users,

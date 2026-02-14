@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { Shield, User, Clock, FileText } from 'lucide-react';
 import { formatDateBR, formatDateTimeBR } from '../../utils/date';
 
@@ -23,7 +24,7 @@ const AuditReport: React.FC<AuditReportProps> = ({ startDate, endDate, sector })
         return (!start || reqDate >= start) && (!end || reqDate <= end);
       });
     }
-    if (sector) list = list.filter(r => r.sector === sector);
+    if (sector) list = filterBySector(list, sector);
     return list;
   }, [requests, startDate, endDate, sector]);
 

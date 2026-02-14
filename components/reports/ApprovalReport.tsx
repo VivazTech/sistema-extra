@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { useExtras } from '../../context/ExtraContext';
+import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CheckCircle2, XCircle, Clock, TrendingUp } from 'lucide-react';
 
@@ -23,7 +24,7 @@ const ApprovalReport: React.FC<ApprovalReportProps> = ({ startDate, endDate, sec
         return (!start || reqDate >= start) && (!end || reqDate <= end);
       });
     }
-    if (sector) list = list.filter(r => r.sector === sector);
+    if (sector) list = filterBySector(list, sector);
     return list;
   }, [requests, startDate, endDate, sector]);
 
