@@ -13,13 +13,14 @@ export function roundHoursToOneDecimal(hours: number): number {
 }
 
 /**
- * Arredonda valor monetário para reais inteiros (xxx,00) com regra específica:
+ * Arredonda valor monetário para reais inteiros (xxx,00) com regra específica para facilitar pagamento:
  *
- * 1. Centavos >= 56 → arredonda para cima (100,56 → 101,00)
- * 2. Centavos <= 55 → arredonda para baixo (100,54 → 100,00; 100,55 → 100,00)
- * 3. Resultado não pode ser ímpar: se der 101,00, sobe para 102,00
+ * 1. Centavos >= 51 → arredonda para cima (100,51 → 101,00)
+ * 2. Centavos <= 50 → arredonda para baixo (100,50 → 100,00)
+ * 3. Se resultado ímpar 1 ou 3 → sobe para par (101→102, 103→104)
+ *    Ímpares 5, 7 e 9 ficam como estão (pagáveis: 5 tem nota, 7=5+2, 9=5+2+2)
  *
- * Exemplos: 100,56→102  100,54→100  100,55→100  127,05→128  123,50→124
+ * Exemplos: 100,51→102  100,50→100  101,00→102  103,00→104  105,00→105  127,00→127
  */
 export function roundMoney(value: number): number {
   const intPart = Math.floor(value);
@@ -27,13 +28,14 @@ export function roundMoney(value: number): number {
   const centavos = Math.round(fracPart * 100);
 
   let result: number;
-  if (centavos >= 56) {
+  if (centavos >= 51) {
     result = intPart + 1;
   } else {
     result = intPart;
   }
 
-  if (result % 2 !== 0) {
+  const ultimoDigito = result % 10;
+  if (ultimoDigito === 1 || ultimoDigito === 3) {
     result += 1;
   }
 
