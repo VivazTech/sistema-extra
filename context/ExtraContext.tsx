@@ -29,6 +29,8 @@ interface ExtraContextType {
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
   updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }) => Promise<void>;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
+  approveWorkDay: (requestId: string, workDate: string, approvedBy: string) => Promise<void>;
+  rejectWorkDay: (requestId: string, workDate: string, reason: string) => Promise<void>;
   deleteRequest: (id: string) => void;
   addSector: (sector: Sector) => void;
   updateSector: (id: string, sector: Sector) => void;
@@ -554,6 +556,216 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       throw error; // Re-throw para que o componente possa tratar
+    }
+  };
+
+  /** Aprova apenas um dia específico: cria nova solicitação com esse dia, aprova, e remove o dia da original. */
+  const approveWorkDay = async (requestId: string, workDate: string, approvedBy: string) => {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(approvedBy)) {
+      throw new Error('ID do aprovador inválido. Por favor, faça login novamente.');
+    }
+
+    const request = requests.find(r => r.id === requestId);
+    if (!request) throw new Error('Solicitação não encontrada.');
+
+    const workDay = request.workDays.find(d => d.date === workDate);
+    if (!workDay) throw new Error('Dia de trabalho não encontrado.');
+
+    const { data: sectorRow } = await supabase.from('sectors').select('id').eq('name', request.sector).single();
+    if (!sectorRow) throw new Error('Setor não encontrado.');
+
+    const { data: userData } = await supabase.from('users').select('id, name').eq('id', approvedBy).single();
+    if (!userData) throw new Error('Usuário não encontrado.');
+
+    const { data: newRequest, error: reqErr } = await supabase
+      .from('extra_requests')
+      .insert({
+        sector_id: sectorRow.id,
+        role_name: request.role,
+        leader_id: request.leaderId,
+        leader_name: request.leaderName,
+        requester_name: request.requester,
+        reason_name: request.reason,
+        extra_name: request.extraName,
+        value: request.value,
+        status: 'APROVADO',
+        needs_manager_approval: false,
+        approved_by: userData.id,
+        approved_at: new Date().toISOString(),
+        created_by: request.leaderId,
+        urgency: request.urgency || false,
+        observations: request.observations,
+        contact: request.contact,
+        event_name: request.eventName || null,
+      })
+      .select('id')
+      .single();
+
+    if (reqErr || !newRequest) {
+      console.error('Erro ao criar solicitação para dia aprovado:', reqErr);
+      throw reqErr || new Error('Erro ao criar solicitação.');
+    }
+
+    const shiftValue = (workDay as any).shift || 'Manhã';
+    const { data: newWorkDay, error: wdErr } = await supabase
+      .from('work_days')
+      .insert({
+        request_id: newRequest.id,
+        work_date: workDate,
+        shift: shiftValue,
+        value: request.value,
+      })
+      .select('id')
+      .single();
+
+    if (wdErr || !newWorkDay) {
+      await supabase.from('extra_requests').delete().eq('id', newRequest.id);
+      throw wdErr || new Error('Erro ao criar dia de trabalho.');
+    }
+
+    const tr = workDay.timeRecord;
+    if (tr && (tr.arrival || tr.departure)) {
+      const { data: userReg } = await supabase.from('users').select('id').eq('name', tr.registeredBy || 'Admin').single();
+      await supabase.from('time_records').insert({
+        work_day_id: newWorkDay.id,
+        arrival: tr.arrival || null,
+        break_start: tr.breakStart || null,
+        break_end: tr.breakEnd || null,
+        departure: tr.departure || null,
+        photo_url: tr.photoUrl || null,
+        observations: tr.observations || null,
+        registered_by: userReg?.id || null,
+      });
+    }
+
+    await deleteWorkDay(requestId, workDate);
+
+    const { data: origAfter } = await supabase
+      .from('extra_requests')
+      .select('*, work_days(id)')
+      .eq('id', requestId)
+      .single();
+    const wdList = (origAfter as any)?.work_days ?? [];
+    if (origAfter && wdList.length === 0) {
+      await supabase.from('extra_requests').delete().eq('id', requestId);
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+    }
+
+    const { data: fullNewRequest } = await supabase
+      .from('extra_requests')
+      .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(*, time_records(*))`)
+      .eq('id', newRequest.id)
+      .single();
+
+    if (fullNewRequest) {
+      const mapped = mapExtraRequest(fullNewRequest, fullNewRequest.work_days);
+      const extraCpf = mapped.extraCpf || extras.find(e => e.fullName === mapped.extraName)?.cpf;
+      setRequests(prev =>
+        [...prev, { ...mapped, extraCpf: extraCpf ?? mapped.extraCpf }].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      );
+    }
+  };
+
+  /** Reprova apenas um dia específico: cria nova solicitação REPROVADA com esse dia e remove o dia da original. */
+  const rejectWorkDay = async (requestId: string, workDate: string, reason: string) => {
+    const request = requests.find(r => r.id === requestId);
+    if (!request) throw new Error('Solicitação não encontrada.');
+
+    const workDay = request.workDays.find(d => d.date === workDate);
+    if (!workDay) throw new Error('Dia de trabalho não encontrado.');
+
+    const { data: sectorRow } = await supabase.from('sectors').select('id').eq('name', request.sector).single();
+    if (!sectorRow) throw new Error('Setor não encontrado.');
+
+    const { data: newRequest, error: reqErr } = await supabase
+      .from('extra_requests')
+      .insert({
+        sector_id: sectorRow.id,
+        role_name: request.role,
+        leader_id: request.leaderId,
+        leader_name: request.leaderName,
+        requester_name: request.requester,
+        reason_name: request.reason,
+        extra_name: request.extraName,
+        value: request.value,
+        status: 'REPROVADO',
+        rejection_reason: reason,
+        needs_manager_approval: false,
+        created_by: request.leaderId,
+        urgency: request.urgency || false,
+        observations: request.observations,
+        contact: request.contact,
+        event_name: request.eventName || null,
+      })
+      .select('id')
+      .single();
+
+    if (reqErr || !newRequest) {
+      console.error('Erro ao criar solicitação para dia reprovado:', reqErr);
+      throw reqErr || new Error('Erro ao criar solicitação.');
+    }
+
+    const shiftValue = (workDay as any).shift || 'Manhã';
+    const { data: newWorkDay, error: wdErr } = await supabase
+      .from('work_days')
+      .insert({
+        request_id: newRequest.id,
+        work_date: workDate,
+        shift: shiftValue,
+        value: request.value,
+      })
+      .select('id')
+      .single();
+
+    if (wdErr || !newWorkDay) {
+      await supabase.from('extra_requests').delete().eq('id', newRequest.id);
+      throw wdErr || new Error('Erro ao criar dia de trabalho.');
+    }
+
+    const tr = workDay.timeRecord;
+    if (tr && (tr.arrival || tr.departure)) {
+      const { data: userReg } = await supabase.from('users').select('id').eq('name', tr.registeredBy || 'Admin').single();
+      await supabase.from('time_records').insert({
+        work_day_id: newWorkDay.id,
+        arrival: tr.arrival || null,
+        break_start: tr.breakStart || null,
+        break_end: tr.breakEnd || null,
+        departure: tr.departure || null,
+        photo_url: tr.photoUrl || null,
+        observations: tr.observations || null,
+        registered_by: userReg?.id || null,
+      });
+    }
+
+    await deleteWorkDay(requestId, workDate);
+
+    const { data: origAfter } = await supabase
+      .from('extra_requests')
+      .select('*, work_days(id)')
+      .eq('id', requestId)
+      .single();
+    const wdList = (origAfter as any)?.work_days ?? [];
+    if (origAfter && wdList.length === 0) {
+      await supabase.from('extra_requests').delete().eq('id', requestId);
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+    }
+
+    const { data: fullNewRequest } = await supabase
+      .from('extra_requests')
+      .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(*, time_records(*))`)
+      .eq('id', newRequest.id)
+      .single();
+
+    if (fullNewRequest) {
+      const mapped = mapExtraRequest(fullNewRequest, fullNewRequest.work_days);
+      const extraCpf = mapped.extraCpf || extras.find(e => e.fullName === mapped.extraName)?.cpf;
+      setRequests(prev =>
+        [...prev, { ...mapped, extraCpf: extraCpf ?? mapped.extraCpf }].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      );
     }
   };
 
@@ -2137,7 +2349,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
       users,
-      addRequest, updateRequest, updateStatus, deleteRequest,
+      addRequest, updateRequest, updateStatus, approveWorkDay, rejectWorkDay, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,

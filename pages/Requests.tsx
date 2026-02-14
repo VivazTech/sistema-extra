@@ -30,7 +30,7 @@ import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, updateStatus, updateTimeRecord, deleteRequest, deleteWorkDay } = useExtras();
+  const { requests, updateStatus, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
@@ -40,6 +40,7 @@ const Requests: React.FC = () => {
   const [editingRequest, setEditingRequest] = useState<ExtraRequest | null>(null);
   const [isRejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [selectedWorkDate, setSelectedWorkDate] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [editingTimeRecord, setEditingTimeRecord] = useState<{ requestId: string; workDate: string } | null>(null);
   const [timeRecordForm, setTimeRecordForm] = useState<{
@@ -77,7 +78,6 @@ const Requests: React.FC = () => {
   const handleApprove = async (id: string) => {
     if (confirm('Deseja realmente aprovar esta solicitação?')) {
       try {
-        // Validar se user.id é UUID válido
         if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
           alert('Erro: Usuário não autenticado corretamente. Por favor, faça login novamente.');
           return;
@@ -93,29 +93,50 @@ const Requests: React.FC = () => {
     }
   };
 
-  const handleOpenReject = (id: string) => {
+  const handleApproveDay = async (requestId: string, workDate: string) => {
+    if (!confirm(`Aprovar apenas o dia ${formatDateBR(workDate)}? Os outros dias permanecerão como solicitados.`)) return;
+    try {
+      if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
+        alert('Erro: Usuário não autenticado. Por favor, faça login novamente.');
+        return;
+      }
+      await approveWorkDay(requestId, workDate, user.id);
+      logAction('Solicitações > Aprovar dia', 'OK', { requestId, workDate });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao aprovar dia';
+      logAction('Solicitações > Aprovar dia', `Erro: ${msg}`, { requestId, workDate });
+      console.error('Erro ao aprovar dia:', error);
+      alert('Erro ao aprovar dia. Verifique o console para mais detalhes.');
+    }
+  };
+
+  const handleOpenReject = (id: string, workDate?: string) => {
     setSelectedRequestId(id);
+    setSelectedWorkDate(workDate ?? null);
+    setRejectionReason('');
     setRejectModalOpen(true);
   };
 
   const submitReject = async () => {
     if (!rejectionReason) return alert('O motivo da reprovação é obrigatório.');
-    if (selectedRequestId) {
-      try {
-        // Validar se user.id é UUID válido (não obrigatório para reprovação, mas melhor validar)
-        const userId = user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) 
-          ? user.id 
-          : undefined;
+    if (!selectedRequestId) return;
+    try {
+      if (selectedWorkDate) {
+        await rejectWorkDay(selectedRequestId, selectedWorkDate, rejectionReason);
+        logAction('Solicitações > Reprovar dia', 'OK', { requestId: selectedRequestId, workDate: selectedWorkDate, motivo: rejectionReason });
+      } else {
+        const userId = user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) ? user.id : undefined;
         await updateStatus(selectedRequestId, 'REPROVADO', rejectionReason, userId);
         logAction('Solicitações > Reprovar', 'OK', { requestId: selectedRequestId, motivo: rejectionReason });
-        setRejectModalOpen(false);
-        setRejectionReason('');
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Erro ao reprovar';
-        logAction('Solicitações > Reprovar', `Erro: ${msg}`, { requestId: selectedRequestId });
-        console.error('Erro ao reprovar solicitação:', error);
-        alert('Erro ao reprovar solicitação. Verifique o console para mais detalhes.');
       }
+      setRejectModalOpen(false);
+      setSelectedWorkDate(null);
+      setRejectionReason('');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao reprovar';
+      logAction(selectedWorkDate ? 'Solicitações > Reprovar dia' : 'Solicitações > Reprovar', `Erro: ${msg}`, { requestId: selectedRequestId });
+      console.error('Erro ao reprovar:', error);
+      alert('Erro ao reprovar. Verifique o console para mais detalhes.');
     }
   };
 
@@ -404,6 +425,25 @@ const Requests: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
+                    {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (req.workDays?.length || 0) > 1 && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApprove(req.id)}
+                          className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700"
+                          title="Aprovar todos os dias desta solicitação"
+                        >
+                          Aprovar todos
+                        </button>
+                        <span className="text-gray-300">|</span>
+                        <button
+                          onClick={() => handleOpenReject(req.id)}
+                          className="text-[10px] font-bold text-red-600 hover:text-red-700"
+                          title="Reprovar todos os dias desta solicitação"
+                        >
+                          Reprovar todos
+                        </button>
+                      </div>
+                    )}
                     <span className={`
                       inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide
                       ${req.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : ''}
@@ -543,21 +583,21 @@ const Requests: React.FC = () => {
                                 </button>
                               )}
 
-                              {/* Aprovar/Reprovar por dia (ação aplicada na solicitação, mas disponível em cada dia) */}
+                              {/* Aprovar/Reprovar por dia: aprovar apenas este dia; reprovar toda a solicitação */}
                               {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
                                 <>
                                   <button
-                                    onClick={() => handleApprove(req.id)}
+                                    onClick={() => handleApproveDay(req.id, workDay.date)}
                                     className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
-                                    title="Aprovar"
+                                    title="Aprovar apenas este dia"
                                   >
                                     <Check size={16} />
                                     Aprovar
                                   </button>
                                   <button
-                                    onClick={() => handleOpenReject(req.id)}
+                                    onClick={() => handleOpenReject(req.id, workDay.date)}
                                     className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
-                                    title="Reprovar"
+                                    title="Reprovar apenas este dia"
                                   >
                                     <X size={16} />
                                     Reprovar
@@ -631,17 +671,34 @@ const Requests: React.FC = () => {
       {isRejectModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
-            <h2 className="text-xl font-bold mb-4">Motivo da Reprovação</h2>
-            <textarea 
+            <h2 className="text-xl font-bold mb-4">
+              {selectedWorkDate ? `Reprovar dia ${formatDateBR(selectedWorkDate)}` : 'Motivo da Reprovação'}
+            </h2>
+            <p className="text-sm text-gray-600 mb-2">
+              {selectedWorkDate
+                ? 'Informe o motivo para reprovar apenas este dia. Os outros dias permanecerão como solicitados.'
+                : 'Descreva o motivo por que esta solicitação está sendo negada.'}
+            </p>
+            <textarea
               autoFocus
               className="w-full border border-gray-200 rounded-xl p-3 h-32 focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Descreva o motivo por que esta solicitação está sendo negada..."
+              placeholder="Descreva o motivo..."
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
             />
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setRejectModalOpen(false)} className="flex-1 py-2 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200">Voltar</button>
-              <button onClick={submitReject} className="flex-1 py-2 font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-md">Confirmar Reprovação</button>
+              <button
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setSelectedWorkDate(null);
+                }}
+                className="flex-1 py-2 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200"
+              >
+                Voltar
+              </button>
+              <button onClick={submitReject} className="flex-1 py-2 font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 shadow-md">
+                Confirmar Reprovação
+              </button>
             </div>
           </div>
         </div>

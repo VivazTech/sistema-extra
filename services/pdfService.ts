@@ -376,7 +376,7 @@ function totalWorkedValue(request: ExtraRequest): number {
 /** Espaçamento entre grupos de setor em mm (linhas vazias sem borda). */
 const DIVIDER_PADDING_MM = 2.5;
 
-/** Agrupa solicitações por setor e monta body da tabela com subtotal, espaçamento e total geral (sem linha). */
+/** Agrupa solicitações por setor, consolida por nome do extra e monta body da tabela. */
 function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
   summaryRowIndices: Set<number>;
@@ -392,20 +392,52 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
   for (let i = 0; i < sectors.length; i++) {
     const setor = sectors[i];
     const list = requests.filter(r => r.sector === setor);
-    let totalSetor = 0;
+
+    // Consolida por nome do extra (mesmo setor): junta várias linhas em uma
+    const byName = new Map<string, ExtraRequest[]>();
     for (const r of list) {
-      const valorTrabalhado = totalWorkedValue(r);
-      totalSetor += valorTrabalhado;
-      body.push([
-        formatPeriodRange(r.workDays),
-        r.sector,
-        r.role,
-        r.extraName,
-        r.status,
-        r.approvedBy || '—',
-        roundMoney(valorTrabalhado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      ]);
+      const key = (r.extraName || '').trim();
+      if (!byName.has(key)) byName.set(key, []);
+      byName.get(key)!.push(r);
     }
+
+    let totalSetor = 0;
+    for (const [, group] of byName) {
+      const first = group[0];
+      const valores: number[] = group.map(r => totalWorkedValue(r));
+      const totalGrupo = roundMoney(valores.reduce((a, b) => a + b, 0));
+      totalSetor += totalGrupo;
+
+      // Período: menor data - maior data
+      const allDates: string[] = group.flatMap(r => r.workDays.map(d => d.date));
+      allDates.sort();
+      const periodStr =
+        allDates.length === 0
+          ? ''
+          : allDates.length === 1
+            ? formatDateBR(allDates[0])
+            : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
+
+      // Setores e funções únicas (se diferentes no grupo)
+      const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))];
+      const funcoesUnicas = [...new Set(group.map(r => r.role).filter(Boolean))];
+      const setorStr = setoresUnicos.length > 1 ? setoresUnicos.join(', ') : (first.sector || '');
+      const funcaoStr = funcoesUnicas.length > 1 ? funcoesUnicas.join(', ') : (first.role || '');
+
+      const aprovadoresUnicos = [...new Set(group.map(r => r.approvedBy).filter(Boolean))];
+      const aprovadoStr = aprovadoresUnicos.length > 1 ? aprovadoresUnicos.join(', ') : (first.approvedBy || '—');
+
+      // Valor: se múltiplos, mostra breakdown "127 + 124 + 124 = R$ 375,00"
+      const valorStr =
+        valores.length > 1
+          ? valores.map(v => roundMoney(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })).join(' + ') +
+            ' = ' +
+            totalGrupo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          : totalGrupo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      body.push([periodStr, setorStr, funcaoStr, first.extraName, first.status, aprovadoStr, valorStr]);
+    }
+
     const totalSetorArredondado = roundMoney(totalSetor);
     body.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetorArredondado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
     summaryRowIndices.add(body.length - 1);

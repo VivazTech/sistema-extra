@@ -118,12 +118,6 @@ function totalWorkedValue(request: ExtraRequest): number {
 /** Exporta listagem de solicitações para Excel */
 export function exportListExcel(requests: ExtraRequest[], title: string, filename?: string): void {
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
-  const periodRange = (wd: WorkDay[]) => {
-    if (!wd.length) return '';
-    const first = formatDateBR(wd[0].date);
-    const last = formatDateBR(wd[wd.length - 1].date);
-    return first === last ? first : `${first} - ${last}`;
-  };
 
   const data: (string | number)[][] = [
     ['RELATÓRIO CONTROLE DE EXTRAS'],
@@ -134,20 +128,44 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
   let totalGeral = 0;
   for (const setor of sectors) {
     const list = requests.filter(r => r.sector === setor);
-    let totalSetor = 0;
+
+    // Consolida por nome do extra (mesmo setor)
+    const byName = new Map<string, ExtraRequest[]>();
     for (const r of list) {
-      const valorTrabalhado = totalWorkedValue(r);
-      totalSetor += valorTrabalhado;
-      totalGeral += valorTrabalhado;
-      data.push([
-        periodRange(r.workDays),
-        r.sector,
-        r.role,
-        r.extraName,
-        r.status,
-        r.approvedBy || '—',
-        roundMoney(valorTrabalhado),
-      ]);
+      const key = (r.extraName || '').trim();
+      if (!byName.has(key)) byName.set(key, []);
+      byName.get(key)!.push(r);
+    }
+
+    let totalSetor = 0;
+    for (const [, group] of byName) {
+      const first = group[0];
+      const valores: number[] = group.map(r => totalWorkedValue(r));
+      const totalGrupo = roundMoney(valores.reduce((a, b) => a + b, 0));
+      totalSetor += totalGrupo;
+      totalGeral += totalGrupo;
+
+      const allDates: string[] = group.flatMap(r => r.workDays.map(d => d.date));
+      allDates.sort();
+      const periodStr =
+        allDates.length === 0
+          ? ''
+          : allDates.length === 1
+            ? formatDateBR(allDates[0])
+            : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
+
+      const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))];
+      const funcoesUnicas = [...new Set(group.map(r => r.role).filter(Boolean))];
+      const setorStr = setoresUnicos.length > 1 ? setoresUnicos.join(', ') : (first.sector || '');
+      const funcaoStr = funcoesUnicas.length > 1 ? funcoesUnicas.join(', ') : (first.role || '');
+
+      const aprovadoresUnicos = [...new Set(group.map(r => r.approvedBy).filter(Boolean))];
+      const aprovadoStr = aprovadoresUnicos.length > 1 ? aprovadoresUnicos.join(', ') : (first.approvedBy || '—');
+
+      const valorCell: string | number =
+        valores.length > 1 ? valores.map(v => roundMoney(v)).join(' + ') + ' = ' + totalGrupo : totalGrupo;
+
+      data.push([periodStr, setorStr, funcaoStr, first.extraName, first.status, aprovadoStr, valorCell]);
     }
     const totalSetorArredondado = roundMoney(totalSetor);
     data.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetorArredondado]);
