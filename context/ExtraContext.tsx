@@ -352,6 +352,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { start, end };
   };
 
+  /** Formata Data para YYYY-MM-DD em horário local (evita toISOString que usa UTC e desloca o dia). */
+  const toLocalDateStr = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const isDateInRange = (dateStr: string, start: Date, end: Date) => {
     const date = new Date(`${dateStr}T00:00:00`);
     return date >= start && date <= end;
@@ -365,10 +373,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const getRemainingSaldoForWeek = (sector: string, weekStart: Date, weekEnd: Date) => {
     if (sector === SECTOR_NO_SALDO_LIMIT) return 999;
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    const weekStartStr = toLocalDateStr(weekStart);
+    const weekEndStr = toLocalDateStr(weekEnd);
+    const sectorNorm = (sector || '').trim().toUpperCase();
     const record = extraSaldoRecords.find(r =>
-      r.setor === sector &&
+      (r.setor || '').trim().toUpperCase() === sectorNorm &&
       r.periodoInicio <= weekStartStr &&
       r.periodoFim >= weekEndStr
     );
@@ -1863,14 +1872,25 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const { data: updatedRequest } = await supabase
         .from('extra_requests')
-        .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(*, time_records(*))`)
+        .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(id)`)
         .eq('id', requestId)
         .single();
 
-      if (updatedRequest) {
-        const mappedRequest = mapExtraRequest(updatedRequest, updatedRequest.work_days);
-        const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
-        setRequests(prev => prev.map(req => (req.id === requestId ? { ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf } : req)));
+      const wdList = (updatedRequest as any)?.work_days ?? [];
+      if (updatedRequest && wdList.length === 0) {
+        await supabase.from('extra_requests').delete().eq('id', requestId);
+        setRequests(prev => prev.filter(r => r.id !== requestId));
+      } else if (updatedRequest) {
+        const fullRequest = await supabase
+          .from('extra_requests')
+          .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(*, time_records(*))`)
+          .eq('id', requestId)
+          .single();
+        if (fullRequest?.data) {
+          const mappedRequest = mapExtraRequest(fullRequest.data, fullRequest.data.work_days);
+          const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
+          setRequests(prev => prev.map(req => (req.id === requestId ? { ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf } : req)));
+        }
       }
     } catch (error) {
       console.error('Erro ao apagar dia:', error);
@@ -2043,10 +2063,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!sector || !dateStr) return null;
     if (sector === SECTOR_NO_SALDO_LIMIT) return 999;
     const { start, end } = getWeekRange(dateStr);
-    const weekStartStr = start.toISOString().split('T')[0];
-    const weekEndStr = end.toISOString().split('T')[0];
+    const weekStartStr = toLocalDateStr(start);
+    const weekEndStr = toLocalDateStr(end);
+    const sectorNorm = (sector || '').trim().toUpperCase();
     const record = extraSaldoRecords.find(r =>
-      r.setor === sector &&
+      (r.setor || '').trim().toUpperCase() === sectorNorm &&
       r.periodoInicio <= weekStartStr &&
       r.periodoFim >= weekEndStr
     );

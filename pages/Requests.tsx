@@ -94,7 +94,7 @@ const Requests: React.FC = () => {
   };
 
   const handleApproveDay = async (requestId: string, workDate: string) => {
-    if (!confirm(`Aprovar apenas o dia ${formatDateBR(workDate)}? Os outros dias permanecerão como solicitados.`)) return;
+    if (!confirm(`Aprovar APENAS este dia (${formatDateBR(workDate)})? Será criada uma nova solicitação só com este dia e os outros dias permanecerão em outra solicitação. Para aprovar tudo junto, use "Aprovar todos" no topo do card.`)) return;
     try {
       if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
         alert('Erro: Usuário não autenticado. Por favor, faça login novamente.');
@@ -436,12 +436,12 @@ const Requests: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col items-end gap-1">
-                    {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (req.workDays?.length || 0) > 1 && (
+                    {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleApprove(req.id)}
                           className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700"
-                          title="Aprovar todos os dias desta solicitação"
+                          title="Aprovar todos os dias desta solicitação (mantém tudo em uma única linha)"
                         >
                           Aprovar todos
                         </button>
@@ -476,13 +476,18 @@ const Requests: React.FC = () => {
 
               {/* Dias (cada dia com ações próprias); ocultos até clicar em "Ver dias" */}
               {(() => {
-                const totalDays = req.workDays.length;
+                const totalDays = req.workDays?.length ?? 0;
                 const isExpanded = expandedGroups.has(req.id);
                 const showVerDias = totalDays >= 1;
-                const visibleDays = isExpanded ? req.workDays : [];
+                const visibleDays = isExpanded ? (req.workDays || []) : [];
 
                 return (
                   <div className="divide-y divide-gray-100">
+                    {totalDays === 0 && (
+                      <div className="bg-amber-50/80 p-3 border-t border-amber-100 text-sm text-amber-800">
+                        Nenhum dia lançado (o único dia pode ter sido reprovado ou apagado). Use &quot;Apagar&quot; para remover a solicitação.
+                      </div>
+                    )}
                     {visibleDays.map((workDay: any, idx: number) => {
                       const zebra = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
                       const tr = workDay.timeRecord;
@@ -600,10 +605,10 @@ const Requests: React.FC = () => {
                                   <button
                                     onClick={() => handleApproveDay(req.id, workDay.date)}
                                     className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
-                                    title="Aprovar apenas este dia"
+                                    title="Aprovar só este dia (cria nova linha por dia). Para aprovar tudo junto, use 'Aprovar todos' acima."
                                   >
                                     <Check size={16} />
-                                    Aprovar
+                                    Aprovar só este dia
                                   </button>
                                   <button
                                     onClick={() => handleOpenReject(req.id, workDay.date)}

@@ -128,44 +128,27 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
   let totalGeral = 0;
   for (const setor of sectors) {
     const list = requests.filter(r => r.sector === setor);
-
-    // Consolida por nome do extra (mesmo setor)
-    const byName = new Map<string, ExtraRequest[]>();
-    for (const r of list) {
-      const key = (r.extraName || '').trim();
-      if (!byName.has(key)) byName.set(key, []);
-      byName.get(key)!.push(r);
-    }
-
     let totalSetor = 0;
-    for (const [, group] of byName) {
-      const first = group[0];
-      const valores: number[] = group.map(r => totalWorkedValue(r));
-      const totalGrupo = roundMoney(valores.reduce((a, b) => a + b, 0));
-      totalSetor += totalGrupo;
-      totalGeral += totalGrupo;
-
-      const allDates: string[] = group.flatMap(r => r.workDays.map(d => d.date));
-      allDates.sort();
+    for (const r of list) {
+      const dates = r.workDays.map(d => d.date).sort();
       const periodStr =
-        allDates.length === 0
+        dates.length === 0
           ? ''
-          : allDates.length === 1
-            ? formatDateBR(allDates[0])
-            : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
-
-      const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))];
-      const funcoesUnicas = [...new Set(group.map(r => r.role).filter(Boolean))];
-      const setorStr = setoresUnicos.length > 1 ? setoresUnicos.join(', ') : (first.sector || '');
-      const funcaoStr = funcoesUnicas.length > 1 ? funcoesUnicas.join(', ') : (first.role || '');
-
-      const aprovadoresUnicos = [...new Set(group.map(r => r.approvedBy).filter(Boolean))];
-      const aprovadoStr = aprovadoresUnicos.length > 1 ? aprovadoresUnicos.join(', ') : (first.approvedBy || '—');
-
-      const valorCell: string | number =
-        valores.length > 1 ? valores.map(v => roundMoney(v)).join(' + ') + ' = ' + totalGrupo : totalGrupo;
-
-      data.push([periodStr, setorStr, funcaoStr, first.extraName, first.status, aprovadoStr, valorCell]);
+          : dates.length === 1
+            ? formatDateBR(dates[0])
+            : `${formatDateBR(dates[0])} - ${formatDateBR(dates[dates.length - 1])}`;
+      const valor = totalWorkedValue(r);
+      totalSetor += valor;
+      totalGeral += valor;
+      data.push([
+        periodStr,
+        r.sector || '',
+        r.role || '',
+        r.extraName || '',
+        r.status || '',
+        r.approvedBy || '—',
+        roundMoney(valor)
+      ]);
     }
     const totalSetorArredondado = roundMoney(totalSetor);
     data.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetorArredondado]);

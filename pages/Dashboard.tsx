@@ -18,25 +18,45 @@ import { useAuth } from '../context/AuthContext';
 import { RequestStatus } from '../types';
 import { formatDateBR } from '../utils/date';
 
+/** Retorna segunda e domingo da semana que contém dateStr (YYYY-MM-DD). */
+function getWeekBounds(dateStr: string): { start: string; end: string } {
+  const date = new Date(`${dateStr}T00:00:00`);
+  const day = (date.getDay() + 6) % 7; // Segunda = 0
+  const start = new Date(date);
+  start.setDate(date.getDate() - day);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const y = (d: Date) => d.getFullYear();
+  const m = (d: Date) => String(d.getMonth() + 1).padStart(2, '0');
+  const d = (d: Date) => String(d.getDate()).padStart(2, '0');
+  return {
+    start: `${y(start)}-${m(start)}-${d(start)}`,
+    end: `${y(end)}-${m(end)}-${d(end)}`,
+  };
+}
+
 const Dashboard: React.FC = () => {
   const { requests, sectors, getSaldoForWeek } = useExtras();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-
   const todayStr = new Date().toISOString().split('T')[0];
+  const [saldoPeriodDate, setSaldoPeriodDate] = useState(todayStr);
+
   const sectorsToShow = useMemo(() => {
     if (user?.sectors?.length) return user.sectors;
     return sectors.map((s) => s.name);
   }, [user?.sectors, sectors]);
 
-  // Recalcula quando requests mudam (ex.: após apagar solicitações), para refletir saldo atual
+  const saldoWeekBounds = useMemo(() => getWeekBounds(saldoPeriodDate), [saldoPeriodDate]);
+
+  // Recalcula quando requests mudam ou o período do filtro muda
   const saldoBySector = useMemo(() => {
     return sectorsToShow.map((setor) => {
-      const saldo = getSaldoForWeek(setor, todayStr);
+      const saldo = getSaldoForWeek(setor, saldoPeriodDate);
       return { setor, saldo };
     });
-  }, [sectorsToShow, todayStr, getSaldoForWeek, requests]);
+  }, [sectorsToShow, saldoPeriodDate, getSaldoForWeek, requests]);
 
   const todayRequests = requests.filter(r => r.workDays.some(d => d.date === todayStr));
 
@@ -239,8 +259,34 @@ const Dashboard: React.FC = () => {
               <Calculator size={20} className="text-emerald-600" />
               Saldo dos setores
             </h3>
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="dashboard-saldo-period" className="text-xs font-medium text-gray-600">
+                  Período (semana)
+                </label>
+                {saldoPeriodDate !== todayStr && (
+                  <button
+                    type="button"
+                    onClick={() => setSaldoPeriodDate(todayStr)}
+                    className="text-xs font-semibold text-emerald-600 hover:underline"
+                  >
+                    Semana atual
+                  </button>
+                )}
+              </div>
+              <input
+                id="dashboard-saldo-period"
+                type="date"
+                value={saldoPeriodDate}
+                onChange={(e) => setSaldoPeriodDate(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              />
+              <p className="text-xs text-gray-500">
+                Semana {formatDateBR(saldoWeekBounds.start)} – {formatDateBR(saldoWeekBounds.end)}
+              </p>
+            </div>
             <p className="text-xs text-gray-500 mb-4">
-              Saldo disponível desta semana (extras que ainda podem ser aprovados).
+              Saldo disponível na semana (extras que ainda podem ser aprovados).
             </p>
             <div className="space-y-4">
               {saldoBySector.length === 0 ? (

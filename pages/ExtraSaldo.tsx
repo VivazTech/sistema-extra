@@ -28,6 +28,7 @@ const emptyRow = (): CadastroRow => ({
 const ExtraSaldo: React.FC = () => {
   const {
     sectors,
+    requests,
     extraSaldoRecords,
     extraSaldoSettings,
     addExtraSaldoRecord,
@@ -35,6 +36,18 @@ const ExtraSaldo: React.FC = () => {
     deleteExtraSaldoRecord,
     updateExtraSaldoSettings
   } = useExtras();
+
+  /** Conta dias de trabalho no período [inicio, fim] por setor. Opcional: filtrar por status. */
+  const countWorkDaysInPeriod = (setor: string, inicio: string, fim: string, statusFilter?: 'APROVADO' | 'SOLICITADO') => {
+    return requests.filter(r => {
+      if (r.sector !== setor) return false;
+      if (statusFilter && r.status !== statusFilter) return false;
+      return (r.workDays || []).some(d => d.date >= inicio && d.date <= fim);
+    }).reduce((acc, r) => {
+      const daysInPeriod = (r.workDays || []).filter(d => d.date >= inicio && d.date <= fim).length;
+      return acc + daysInPeriod;
+    }, 0);
+  };
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filters, setFilters] = useState({ setor: '', inicio: '', fim: '' });
@@ -195,14 +208,18 @@ const ExtraSaldo: React.FC = () => {
     return filteredRecords.reduce(
       (acc, record) => {
         const result = calculateExtraSaldo(record, record.valorDiariaSnapshot);
+        const aprovado = countWorkDaysInPeriod(record.setor, record.periodoInicio, record.periodoFim, 'APROVADO');
         acc.valor += result.valor;
         acc.saldo += result.saldo;
         acc.saldoEmReais += result.saldoEmReais;
+        acc.solicitado += countWorkDaysInPeriod(record.setor, record.periodoInicio, record.periodoFim);
+        acc.aprovado += aprovado;
+        acc.estouro += Math.max(0, aprovado - result.totalDiarias);
         return acc;
       },
-      { valor: 0, saldo: 0, saldoEmReais: 0 }
+      { valor: 0, saldo: 0, saldoEmReais: 0, solicitado: 0, aprovado: 0, estouro: 0 }
     );
-  }, [filteredRecords]);
+  }, [filteredRecords, requests]);
 
   return (
     <div className="space-y-6">
@@ -384,6 +401,9 @@ const ExtraSaldo: React.FC = () => {
               <th className="px-4 py-3">Aberto</th>
               <th className="px-4 py-3">Vagas/dia</th>
               <th className="px-4 py-3">Total diárias</th>
+              <th className="px-4 py-3" title="Dias solicitados no período (todas as solicitações)">Solicitado</th>
+              <th className="px-4 py-3" title="Dias aprovados de fato no período">Aprovado</th>
+              <th className="px-4 py-3" title="Estouro = Aprovado além do total de diárias (aprovado − total diárias)">Estouro</th>
               <th className="px-4 py-3">Saldo</th>
               <th className="px-4 py-3">Valor</th>
               <th className="px-4 py-3">Saldo R$</th>
@@ -394,6 +414,9 @@ const ExtraSaldo: React.FC = () => {
             {filteredRecords.map(record => {
               const result = calculateExtraSaldo(record, record.valorDiariaSnapshot);
               const saldoClass = result.saldo < 0 ? 'text-red-600' : 'text-emerald-600';
+              const solicitado = countWorkDaysInPeriod(record.setor, record.periodoInicio, record.periodoFim);
+              const aprovado = countWorkDaysInPeriod(record.setor, record.periodoInicio, record.periodoFim, 'APROVADO');
+              const estouro = Math.max(0, aprovado - result.totalDiarias);
               return (
                 <tr key={record.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 font-semibold">{record.setor}</td>
@@ -407,6 +430,9 @@ const ExtraSaldo: React.FC = () => {
                   <td className="px-4 py-3">{result.quadroAberto}</td>
                   <td className="px-4 py-3">{result.vagasDiarias}</td>
                   <td className="px-4 py-3">{result.totalDiarias}</td>
+                  <td className="px-4 py-3">{solicitado}</td>
+                  <td className="px-4 py-3 font-medium">{aprovado}</td>
+                  <td className={`px-4 py-3 font-bold ${estouro > 0 ? 'text-red-600' : 'text-gray-400'}`}>{estouro > 0 ? estouro : '—'}</td>
                   <td className={`px-4 py-3 font-bold ${saldoClass}`}>{result.saldo}</td>
                   <td className="px-4 py-3">{result.valor.toFixed(2)}</td>
                   <td className={`px-4 py-3 font-bold ${saldoClass}`}>{result.saldoEmReais.toFixed(2)}</td>
@@ -435,7 +461,7 @@ const ExtraSaldo: React.FC = () => {
             })}
             {filteredRecords.length === 0 && (
               <tr>
-                <td className="px-4 py-6 text-center text-gray-400" colSpan={15}>
+                <td className="px-4 py-6 text-center text-gray-400" colSpan={18}>
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -446,6 +472,9 @@ const ExtraSaldo: React.FC = () => {
               <tr>
                 <td className="px-4 py-3" colSpan={8}>Totais</td>
                 <td className="px-4 py-3" colSpan={3}></td>
+                <td className="px-4 py-3">{totals.solicitado}</td>
+                <td className="px-4 py-3">{totals.aprovado}</td>
+                <td className={`px-4 py-3 ${totals.estouro > 0 ? 'text-red-600' : ''}`}>{totals.estouro > 0 ? totals.estouro : '—'}</td>
                 <td className="px-4 py-3">{totals.saldo}</td>
                 <td className="px-4 py-3">{totals.valor.toFixed(2)}</td>
                 <td className="px-4 py-3">{totals.saldoEmReais.toFixed(2)}</td>
