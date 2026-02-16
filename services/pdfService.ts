@@ -61,19 +61,25 @@ function timeToMinutes(t?: string): number | null {
   return h * 60 + m;
 }
 
-/** Calcula minutos trabalhados no dia (departure - arrival - intervalo). Retorna 0 se incompleto. */
+/** Se saída < entrada (ex.: 00:02 vs 15:50), turno passou da meia-noite: considera saída no dia seguinte (+24h). */
+function effectiveDepartureMinutes(arrivalMin: number, departureMin: number): number {
+  return departureMin >= arrivalMin ? departureMin : departureMin + 24 * 60;
+}
+
+/** Calcula minutos trabalhados no dia (departure - arrival - intervalo). Retorna 0 se incompleto. Considera turno após meia-noite (saída no dia seguinte). */
 function minutesWorkedInDay(tr?: TimeRecord): number {
   if (!tr?.arrival || !tr?.departure) return 0;
   const arrival = timeToMinutes(tr.arrival);
   const departure = timeToMinutes(tr.departure);
   if (arrival == null || departure == null) return 0;
+  const departureEffective = effectiveDepartureMinutes(arrival, departure);
   let breakMin = 0;
   if (tr.breakStart && tr.breakEnd) {
     const start = timeToMinutes(tr.breakStart);
     const end = timeToMinutes(tr.breakEnd);
     if (start != null && end != null && end > start) breakMin = end - start;
   }
-  return Math.max(0, departure - arrival - breakMin);
+  return Math.max(0, departureEffective - arrival - breakMin);
 }
 
 /** Calcula horas trabalhadas no dia (departure - arrival - intervalo). Retorna string "X,Xh" ou "". Arredondamento: < 0,50 baixo, >= 0,50 cima. */
@@ -84,7 +90,7 @@ function hoursWorkedInDay(tr?: TimeRecord): string {
   return `${hours.toFixed(1).replace('.', ',')}h`;
 }
 
-/** Soma total de horas trabalhadas (string "Xh"). Arredondamento: < 0,50 baixo, >= 0,50 cima (inteiro). */
+/** Soma total de horas trabalhadas (string "Xh"). Considera turno após meia-noite. */
 function totalHoursWorked(workDays: WorkDay[]): string {
   let totalMin = 0;
   for (const day of workDays) {
@@ -93,13 +99,14 @@ function totalHoursWorked(workDays: WorkDay[]): string {
     const arrival = timeToMinutes(tr.arrival);
     const departure = timeToMinutes(tr.departure);
     if (arrival == null || departure == null) continue;
+    const departureEffective = effectiveDepartureMinutes(arrival, departure);
     let breakMin = 0;
     if (tr.breakStart && tr.breakEnd) {
       const start = timeToMinutes(tr.breakStart);
       const end = timeToMinutes(tr.breakEnd);
       if (start != null && end != null && end > start) breakMin = end - start;
     }
-    totalMin += Math.max(0, departure - arrival - breakMin);
+    totalMin += Math.max(0, departureEffective - arrival - breakMin);
   }
   const hours = roundHoursToInteger(totalMin / 60);
   return `${hours}h`;
