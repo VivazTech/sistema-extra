@@ -14,6 +14,8 @@ const GAP_BEFORE_NEXT_CARD = 6;
 const MIN_CARD_HEIGHT_MM = 70;
 /** Altura da página A4 (mm). */
 const A4_HEIGHT_MM = 297;
+/** Margem inferior mínima (mm) para não cortar recibo. */
+const PAGE_BOTTOM_MARGIN_MM = 15;
 /** Linha de corte fixa no meio da página (PDF em massa: dois recibos por página). */
 const CUT_LINE_Y_MM = A4_HEIGHT_MM / 2;
 /** Margem (mm) entre fim do recibo e a linha de corte (metade superior). */
@@ -28,8 +30,6 @@ const BOTTOM_HALF_START_Y = CUT_LINE_Y_MM + MARGIN_AFTER_CUT_MM;
 const TOP_HALF_MAX_HEIGHT_MM = TOP_HALF_END_Y - PAGE_TOP_MARGIN;
 /** Altura máxima (mm) para um recibo na metade inferior. */
 const BOTTOM_HALF_MAX_HEIGHT_MM = (A4_HEIGHT_MM - PAGE_BOTTOM_MARGIN_MM) - BOTTOM_HALF_START_Y;
-/** Margem inferior mínima (mm) para não cortar recibo. */
-const PAGE_BOTTOM_MARGIN_MM = 15;
 /** Altura do cabeçalho do recibo até o início da tabela (mm). */
 const RECIBO_HEADER_MM = 42;
 /** Altura por linha da tabela (minCellHeight) (mm). */
