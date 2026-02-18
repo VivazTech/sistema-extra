@@ -129,54 +129,63 @@ function totalWorkedValue(request: ExtraRequest): number {
   return roundMoney(total);
 }
 
-/** Exporta listagem de solicitações para Excel: agrupada por nome do extra, sem coluna Aprovado por. */
+/** Exporta listagem para Excel: coluna Setor = todos os setores do extra (ordem alfabética); subtotais por setor no final. */
 export function exportListExcel(requests: ExtraRequest[], title: string, filename?: string): void {
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
 
   const data: (string | number)[][] = [
     ['RELATÓRIO CONTROLE DE EXTRAS'],
     [],
-    ['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Valor'],
+    ['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor'],
   ];
 
+  const subtotaisPorSetor = new Map<string, number>();
   let totalGeral = 0;
-  for (const setor of sectors) {
-    const doSetor = requests.filter(r => r.sector === setor);
-    const byExtra = new Map<string, ExtraRequest[]>();
-    for (const r of doSetor) {
-      const key = r.extraName ?? '';
-      if (!byExtra.has(key)) byExtra.set(key, []);
-      byExtra.get(key)!.push(r);
-    }
-    const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
-
-    let totalSetor = 0;
-    for (const [, group] of extrasOrdenados) {
-      const first = group[0];
-      const allDates = group.flatMap(r => r.workDays.map(d => d.date)).sort();
-      const periodStr =
-        allDates.length === 0
-          ? ''
-          : allDates.length === 1
-            ? formatDateBR(allDates[0])
-            : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
-      const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
-      totalSetor += valor;
-      totalGeral += valor;
-      data.push([
-        periodStr,
-        first.sector || '',
-        first.role || '',
-        first.extraName || '',
-        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
-        valor
-      ]);
-    }
-    const totalSetorArredondado = roundMoney(totalSetor);
-    data.push([`Subtotal (${setor})`, '', '', '', '', totalSetorArredondado]);
-    data.push([], []);
+  for (const r of requests) {
+    const s = r.sector ?? '';
+    if (!s) continue;
+    const v = totalWorkedValue(r);
+    subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + v);
+    totalGeral += v;
   }
-  data.push(['TOTAL GERAL', '', '', '', '', roundMoney(totalGeral)]);
+  for (const s of sectors) {
+    subtotaisPorSetor.set(s, roundMoney(subtotaisPorSetor.get(s) ?? 0));
+  }
+  totalGeral = roundMoney(totalGeral);
+
+  const byExtra = new Map<string, ExtraRequest[]>();
+  for (const r of requests) {
+    const key = r.extraName ?? '';
+    if (!byExtra.has(key)) byExtra.set(key, []);
+    byExtra.get(key)!.push(r);
+  }
+  const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+
+  for (const [, group] of extrasOrdenados) {
+    const first = group[0];
+    const allDates = group.flatMap(r => r.workDays.map(d => d.date)).sort();
+    const periodStr =
+      allDates.length === 0
+        ? ''
+        : allDates.length === 1
+          ? formatDateBR(allDates[0])
+          : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
+    const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
+    const setorStr = setoresUnicos.join(', ');
+    const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
+    data.push([
+      periodStr,
+      setorStr,
+      first.extraName || '',
+      first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
+      valor
+    ]);
+  }
+
+  for (const setor of sectors) {
+    data.push([`Subtotal (${setor})`, '', '', '', subtotaisPorSetor.get(setor) ?? 0]);
+  }
+  data.push(['TOTAL GERAL', '', '', '', totalGeral]);
 
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();

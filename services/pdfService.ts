@@ -403,10 +403,7 @@ function totalWorkedValue(request: ExtraRequest): number {
   return roundMoney(total);
 }
 
-/** Espaçamento entre grupos de setor em mm (linhas vazias sem borda). */
-const DIVIDER_PADDING_MM = 2.5;
-
-/** Agrupa solicitações por setor e por nome do extra; uma linha por extra com período e valor somado. Sem coluna Aprovado por. */
+/** Lista única: uma linha por extra; coluna Setor = todos os setores que o extra trabalhou (ordem alfabética). Subtotais por setor no final. */
 function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
   summaryRowIndices: Set<number>;
@@ -416,58 +413,56 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
   const summaryRowIndices = new Set<number>();
   const spacerRowIndices = new Set<number>();
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
+  const subtotaisPorSetor = new Map<string, number>();
   let totalGeral = 0;
-  const emptyRow = ['', '', '', '', '', ''];
+  for (const r of requests) {
+    const s = r.sector ?? '';
+    if (!s) continue;
+    const v = totalWorkedValue(r);
+    subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + v);
+    totalGeral += v;
+  }
+  for (const s of sectors) {
+    subtotaisPorSetor.set(s, roundMoney(subtotaisPorSetor.get(s) ?? 0));
+  }
+  totalGeral = roundMoney(totalGeral);
 
-  for (let i = 0; i < sectors.length; i++) {
-    const setor = sectors[i];
-    const doSetor = requests.filter(r => r.sector === setor);
+  const byExtra = new Map<string, ExtraRequest[]>();
+  for (const r of requests) {
+    const key = r.extraName ?? '';
+    if (!byExtra.has(key)) byExtra.set(key, []);
+    byExtra.get(key)!.push(r);
+  }
+  const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
 
-    const byExtra = new Map<string, { requests: ExtraRequest[] }>();
-    for (const r of doSetor) {
-      const key = r.extraName ?? '';
-      if (!byExtra.has(key)) byExtra.set(key, { requests: [] });
-      byExtra.get(key)!.requests.push(r);
-    }
-    const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
-
-    let totalSetor = 0;
-    for (const [, { requests: group }] of extrasOrdenados) {
-      const first = group[0];
-      const allDates = group.flatMap(r => r.workDays.map(d => d.date)).sort();
-      const periodStr =
-        allDates.length === 0
-          ? ''
-          : allDates.length === 1
-            ? formatDateBR(allDates[0])
-            : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
-      const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
-      totalSetor += valor;
-      const valorStr = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      body.push([
-        periodStr,
-        first.sector || '',
-        first.role || '',
-        first.extraName || '',
-        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
-        valorStr
-      ]);
-    }
-
-    const totalSetorArredondado = roundMoney(totalSetor);
-    body.push([`Subtotal (${setor})`, '', '', '', '', totalSetorArredondado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
-    summaryRowIndices.add(body.length - 1);
-    totalGeral += totalSetorArredondado;
-
-    if (i < sectors.length - 1) {
-      body.push([...emptyRow]);
-      spacerRowIndices.add(body.length - 1);
-      body.push([...emptyRow]);
-      spacerRowIndices.add(body.length - 1);
-    }
+  for (const [, group] of extrasOrdenados) {
+    const first = group[0];
+    const allDates = group.flatMap(r => r.workDays.map(d => d.date)).sort();
+    const periodStr =
+      allDates.length === 0
+        ? ''
+        : allDates.length === 1
+          ? formatDateBR(allDates[0])
+          : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
+    const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
+    const setorStr = setoresUnicos.join(', ');
+    const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
+    const valorStr = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    body.push([
+      periodStr,
+      setorStr,
+      first.extraName || '',
+      first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
+      valorStr
+    ]);
   }
 
-  body.push(['TOTAL GERAL', '', '', '', '', roundMoney(totalGeral).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  for (const setor of sectors) {
+    const totalSetor = subtotaisPorSetor.get(setor) ?? 0;
+    body.push([`Subtotal (${setor})`, '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+    summaryRowIndices.add(body.length - 1);
+  }
+  body.push(['TOTAL GERAL', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
   summaryRowIndices.add(body.length - 1);
 
   return { body, summaryRowIndices, spacerRowIndices };
@@ -496,7 +491,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Valor']],
+    head: [['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
@@ -509,10 +504,6 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
         if (idx === body.length - 1) {
           data.cell.styles.fillColor = [230, 245, 230];
         }
-      } else if (spacerRowIndices.has(idx)) {
-        data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
-        data.cell.styles.lineWidth = 0;
       }
     }
   });
@@ -530,7 +521,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Valor']],
+    head: [['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
@@ -543,10 +534,6 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
         if (idx === body.length - 1) {
           data.cell.styles.fillColor = [230, 245, 230];
         }
-      } else if (spacerRowIndices.has(idx)) {
-        data.cell.styles.cellPadding = 0;
-        data.cell.styles.minCellHeight = DIVIDER_PADDING_MM;
-        data.cell.styles.lineWidth = 0;
       }
     }
   });
