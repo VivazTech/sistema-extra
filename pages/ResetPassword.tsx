@@ -14,20 +14,24 @@ const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Verificar se há um token de recuperação na URL
-    // O Supabase envia o token no hash da URL (#access_token=...&type=recovery)
+    // Token de recuperação na URL: Supabase envia #access_token=...&type=recovery
+    // Após PASSWORD_RECOVERY o AuthContext redireciona para #/reset-password (sessão já está ativa)
     const hash = window.location.hash.substring(1);
-    const hashParams = new URLSearchParams(hash);
+    const queryPart = hash.includes('?') ? hash.split('?')[1] : hash;
+    const hashParams = new URLSearchParams(queryPart);
     const accessToken = hashParams.get('access_token');
     const type = hashParams.get('type');
 
-    // Se não houver token, pode ser que o usuário acessou diretamente
-    // Nesse caso, não mostrar erro imediatamente, apenas quando tentar atualizar
-    if (hash && (!accessToken || type !== 'recovery')) {
-      // Limpar hash inválido
-      window.location.hash = '';
-      setError('Link de recuperação inválido ou expirado. Por favor, solicite um novo link.');
-    }
+    if (accessToken && type === 'recovery') return; // Token válido na URL, Supabase vai definir a sessão
+
+    // Sem token: verificar se é redirecionamento pós-recovery (sessão já existe) ou link expirado
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) return; // Sessão de recovery ativa, exibir formulário
+      const isResetPasswordPath = hash.startsWith('/reset-password') || hash.startsWith('reset-password');
+      if (isResetPasswordPath && !accessToken) {
+        setError('Link de recuperação inválido ou expirado. Solicite um novo link na tela de login.');
+      }
+    });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,6 +68,8 @@ const ResetPassword: React.FC = () => {
         return;
       }
 
+      // Fazer logout para que o usuário acesse com a nova senha na tela de login
+      await supabase.auth.signOut();
       setSuccess(true);
       setTimeout(() => {
         navigate('/login');

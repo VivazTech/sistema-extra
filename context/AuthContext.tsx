@@ -137,6 +137,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'context/AuthContext.tsx:onAuthStateChange',message:'onAuthStateChange',data:{event,hasSession:!!session,hasSessionUser:!!session?.user},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][C] onAuthStateChange', { event, hasSessionUser: !!session?.user });
       setDebugStep(`onAuthStateChange:${event} hasUser=${!!session?.user}`);
+
+      // Link "Esqueci minha senha": ir para a página de redefinir senha em vez de fazer login
+      if (event === 'PASSWORD_RECOVERY' && session?.user) {
+        setState({ user: null, isAuthenticated: false });
+        setLoading(false);
+        window.location.hash = '#/reset-password';
+        return;
+      }
+
+      // Se a URL tem type=recovery, é clique no link de redefinir senha – não fazer login, só redirecionar (PASSWORD_RECOVERY pode vir em seguida)
+      const hash = typeof window !== 'undefined' ? window.location.hash : '';
+      if (event === 'SIGNED_IN' && session?.user && hash.includes('type=recovery')) {
+        setState({ user: null, isAuthenticated: false });
+        setLoading(false);
+        window.location.hash = '#/reset-password';
+        return;
+      }
+
       if (event === 'SIGNED_IN' && session?.user) {
         if (!loadUserInFlightRef.current) {
           loadUserInFlightRef.current = loadUserData(session.user.id).finally(() => {
