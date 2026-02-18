@@ -51,6 +51,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
     requester: '',
     reason: '',
     extraName: '',
+    valueType: 'por_hora' as 'combinado' | 'por_hora',
     value: 0,
     observations: '',
     eventName: '' as string,
@@ -168,6 +169,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           requester: initialRequest.requester,
           reason: initialRequest.reason,
           extraName: initialRequest.extraName,
+          valueType: initialRequest.valueType ?? 'por_hora',
           value: initialRequest.value,
           observations: initialRequest.observations || '',
           eventName: initialRequest.eventName || '',
@@ -181,6 +183,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           requester: user?.name ?? '',
           reason: '',
           extraName: '',
+          valueType: 'por_hora',
           value: 0,
           observations: '',
           eventName: '',
@@ -226,6 +229,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           requester: formData.requester,
           reason: formData.reason,
           extraName: formData.extraName,
+          valueType: formData.valueType,
           value: formData.value,
           observations: formData.observations || undefined,
           eventName: isEventoReason ? (formData.eventName || undefined) : undefined,
@@ -243,6 +247,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
 
       await addRequest({
         ...formData,
+        valueType: formData.valueType,
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
@@ -254,6 +259,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
         requester: '',
         reason: '',
         extraName: '',
+        valueType: 'por_hora',
         value: 0,
         observations: '',
         eventName: '',
@@ -500,7 +506,26 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Valor Combinado (R$) *</label>
+              <label className="text-xs font-bold text-gray-500 uppercase">Tipo de valor *</label>
+              <select
+                required
+                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.valueType}
+                onChange={(e) => setFormData({ ...formData, valueType: e.target.value as 'combinado' | 'por_hora' })}
+              >
+                <option value="por_hora">Valor por hora</option>
+                <option value="combinado">Valor combinado</option>
+              </select>
+              <p className="text-xs text-gray-500">
+                {formData.valueType === 'combinado'
+                  ? 'Valor fixo total (recibo usa esse valor independente das horas).'
+                  : 'Cálculo por horas trabalhadas (valor de referência ÷ 7h20).'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase">
+                {formData.valueType === 'combinado' ? 'Valor combinado (R$) *' : 'Valor por hora (R$) *'}
+              </label>
               <input
                 required
                 type="number"

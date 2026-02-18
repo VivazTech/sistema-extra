@@ -159,10 +159,9 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   y += 6;
 
   // Controle de Ponto (Portaria)
-  // Colunas: Data, Horário Chegada, Início Intervalo, Fim Intervalo, Horário Saída, Total Horas, Valor
-  // Total horas = (saída - chegada) - (fim intervalo - início intervalo). Ex: 10-12-13-15 → 4h
-  // Valor da hora = valor combinado / 7h20 (7,333h). Valor linha = total horas × valor da hora
-  const valorHora = request.value / HORAS_JORNADA_PADRAO;
+  // Valor combinado: total fixo independente das horas; valor por hora: valor/7h20 × horas trabalhadas
+  const isCombinado = request.valueType === 'combinado';
+  const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
   const head = ['Data', 'Horário Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário Saída', 'Total Horas', 'Valor'];
   const body = request.workDays.map(day => {
@@ -170,8 +169,8 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
     const horasDia = minDay / 60;
-    const valorDia = roundMoney(horasDia * valorHora);
-    const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+    const valorDia = isCombinado ? 0 : roundMoney(horasDia * valorHora);
+    const valorStr = isCombinado ? '' : (valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '');
     return [
       formatDateBR(day.date),
       tr?.arrival || '',
@@ -182,9 +181,11 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
       valorStr
     ];
   });
-  const totalValor = roundMoney(
-    request.workDays.reduce((sum, day) => sum + roundMoney((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
-  );
+  const totalValor = isCombinado
+    ? roundMoney(request.value)
+    : roundMoney(
+        request.workDays.reduce((sum, day) => sum + roundMoney((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
+      );
   body.push(['TOTAL', '', '', '', '', totalHours, totalValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
 
   doc.setFontSize(7);
@@ -369,8 +370,9 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Resultado arredondado com roundMoney. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): valor combinado fixo ou soma por dia das horas efetivas × valor/hora. */
 function totalWorkedValue(request: ExtraRequest): number {
+  if (request.valueType === 'combinado') return roundMoney(request.value);
   const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {
@@ -417,7 +419,7 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
         r.sector || '',
         r.role || '',
         r.extraName || '',
-        r.status || '',
+        r.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
         r.approvedBy || '—',
         valorStr
       ]);
@@ -465,7 +467,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
+    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Aprovado por', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
@@ -499,7 +501,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor']],
+    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Aprovado por', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },

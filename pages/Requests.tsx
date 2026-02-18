@@ -30,7 +30,7 @@ import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, updateStatus, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
+  const { requests, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
@@ -51,6 +51,7 @@ const Requests: React.FC = () => {
   }>({});
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [exportModal, setExportModal] = useState<{ type: 'recibo'; request: ExtraRequest } | { type: 'list' } | null>(null);
+  const [updatingValueTypeId, setUpdatingValueTypeId] = useState<string | null>(null);
 
   const toggleGroupExpanded = (requestId: string) => {
     setExpandedGroups(prev => {
@@ -423,15 +424,47 @@ const Requests: React.FC = () => {
                       </>
                     )}
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
-                    <div className="text-lg font-black text-gray-900">
-                      {(req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </div>
-                    {(req.workDays?.length || 0) > 1 && (
-                      <div className="text-[10px] text-gray-500">
-                        {req.workDays.length} × R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
+                      <div className="text-lg font-black text-gray-900">
+                        {req.valueType === 'combinado'
+                          ? req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          : (req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </div>
+                      {req.valueType !== 'combinado' && (req.workDays?.length || 0) > 1 && (
+                        <div className="text-[10px] text-gray-500">
+                          {req.workDays.length} × R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      )}
+                      {req.valueType === 'combinado' && (
+                        <div className="text-[10px] text-emerald-600 font-semibold">Valor combinado (fixo)</div>
+                      )}
+                    </div>
+                    {user?.role === 'ADMIN' && (
+                      <select
+                        value={req.valueType ?? 'por_hora'}
+                        onChange={async (e) => {
+                          const newType = e.target.value as 'combinado' | 'por_hora';
+                          if (newType === (req.valueType ?? 'por_hora')) return;
+                          setUpdatingValueTypeId(req.id);
+                          try {
+                            await updateRequest(req.id, { valueType: newType });
+                            logAction('Solicitações > Tipo de valor', newType === 'combinado' ? 'Valor combinado' : 'Valor por hora', { requestId: req.id, code: req.code });
+                          } catch (err) {
+                            console.error(err);
+                            alert('Erro ao atualizar tipo de valor.');
+                          } finally {
+                            setUpdatingValueTypeId(null);
+                          }
+                        }}
+                        disabled={updatingValueTypeId === req.id}
+                        className="text-[10px] font-bold text-gray-600 border border-gray-200 rounded-lg px-2 py-1 bg-white min-w-[120px] disabled:opacity-50"
+                        title="Recibo e listagem: combinado = valor fixo; por hora = cálculo pelas horas da portaria"
+                      >
+                        <option value="por_hora">Por hora</option>
+                        <option value="combinado">Valor combinado</option>
+                      </select>
                     )}
                   </div>
 

@@ -11,18 +11,24 @@ function timeToMinutes(t?: string): number | null {
   return h * 60 + m;
 }
 
+/** Se saída < entrada (ex.: 00:02 vs 15:50), turno passou da meia-noite: considera saída no dia seguinte (+24h). */
+function effectiveDepartureMinutes(arrivalMin: number, departureMin: number): number {
+  return departureMin >= arrivalMin ? departureMin : departureMin + 24 * 60;
+}
+
 function minutesWorkedInDay(tr?: TimeRecord): number {
   if (!tr?.arrival || !tr?.departure) return 0;
   const arrival = timeToMinutes(tr.arrival);
   const departure = timeToMinutes(tr.departure);
   if (arrival == null || departure == null) return 0;
+  const departureEffective = effectiveDepartureMinutes(arrival, departure);
   let breakMin = 0;
   if (tr.breakStart && tr.breakEnd) {
     const start = timeToMinutes(tr.breakStart);
     const end = timeToMinutes(tr.breakEnd);
     if (start != null && end != null && end > start) breakMin = end - start;
   }
-  return Math.max(0, departure - arrival - breakMin);
+  return Math.max(0, departureEffective - arrival - breakMin);
 }
 
 function hoursWorkedInDay(tr?: TimeRecord): string {
@@ -40,20 +46,22 @@ function totalHoursWorked(workDays: WorkDay[]): string {
     const arrival = timeToMinutes(tr.arrival);
     const departure = timeToMinutes(tr.departure);
     if (arrival == null || departure == null) continue;
+    const departureEffective = effectiveDepartureMinutes(arrival, departure);
     let breakMin = 0;
     if (tr.breakStart && tr.breakEnd) {
       const start = timeToMinutes(tr.breakStart);
       const end = timeToMinutes(tr.breakEnd);
       if (start != null && end != null && end > start) breakMin = end - start;
     }
-    totalMin += Math.max(0, departure - arrival - breakMin);
+    totalMin += Math.max(0, departureEffective - arrival - breakMin);
   }
   const hours = roundHoursToInteger(totalMin / 60);
   return `${hours}h`;
 }
 
 function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (string | number)[][] } {
-  const valorHora = request.value / HORAS_JORNADA_PADRAO;
+  const isCombinado = request.valueType === 'combinado';
+  const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
   const periodStr = request.workDays.length
     ? `${formatDateBR(request.workDays[0].date)} - ${formatDateBR(request.workDays[request.workDays.length - 1].date)}`
@@ -76,8 +84,8 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
-    const valorDia = roundMoney((minDay / 60) * valorHora);
-    totalValor += valorDia;
+    const valorDia = isCombinado ? 0 : roundMoney((minDay / 60) * valorHora);
+    if (!isCombinado) totalValor += valorDia;
     table.push([
       formatDateBR(day.date),
       tr?.arrival || '',
@@ -85,10 +93,10 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
       tr?.breakEnd || '',
       tr?.departure || '',
       hours,
-      valorDia > 0 ? valorDia.toFixed(2) : '',
+      isCombinado ? '' : (valorDia > 0 ? valorDia.toFixed(2) : ''),
     ]);
   }
-  totalValor = roundMoney(totalValor);
+  totalValor = isCombinado ? roundMoney(request.value) : roundMoney(totalValor);
   table.push(['TOTAL', '', '', '', '', totalHours, totalValor.toFixed(2)]);
 
   return { headers, table };
@@ -104,8 +112,9 @@ export function exportSingleReciboExcel(request: ExtraRequest, filename?: string
   XLSX.writeFile(wb, filename || `recibo-pagamento-${request.code}.xlsx`);
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): soma por dia das horas efetivas × valor/hora. Resultado arredondado com roundMoney. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): valor combinado fixo ou soma por dia das horas efetivas × valor/hora. */
 function totalWorkedValue(request: ExtraRequest): number {
+  if (request.valueType === 'combinado') return roundMoney(request.value);
   const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {
@@ -122,7 +131,7 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
   const data: (string | number)[][] = [
     ['RELATÓRIO CONTROLE DE EXTRAS'],
     [],
-    ['Período', 'Setor', 'Função', 'Nome Extra', 'Status', 'Aprovado por', 'Valor'],
+    ['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Aprovado por', 'Valor'],
   ];
 
   let totalGeral = 0;
@@ -145,7 +154,7 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
         r.sector || '',
         r.role || '',
         r.extraName || '',
-        r.status || '',
+        r.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
         r.approvedBy || '—',
         roundMoney(valor)
       ]);

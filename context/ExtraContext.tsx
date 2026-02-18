@@ -27,7 +27,7 @@ interface ExtraContextType {
   extraSaldoSettings: ExtraSaldoSettings;
   users: User[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
-  updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }) => Promise<void>;
+  updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'valueType' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }) => Promise<void>;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
   approveWorkDay: (requestId: string, workDate: string, approvedBy: string) => Promise<void>;
   rejectWorkDay: (requestId: string, workDate: string, reason: string) => Promise<void>;
@@ -437,6 +437,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           reason_name: data.reason,
           extra_name: data.extraName,
           value: data.value,
+          value_type: data.valueType ?? 'por_hora',
       status: canAutoApprove ? 'APROVADO' : 'SOLICITADO',
           urgency: data.urgency || false,
           observations: data.observations,
@@ -627,6 +628,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         reason_name: request.reason,
         extra_name: request.extraName,
         value: request.value,
+        value_type: request.valueType ?? 'por_hora',
         status: 'APROVADO',
         needs_manager_approval: false,
         approved_by: userData.id,
@@ -729,6 +731,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         reason_name: request.reason,
         extra_name: request.extraName,
         value: request.value,
+        value_type: request.valueType ?? 'por_hora',
         status: 'REPROVADO',
         rejection_reason: reason,
         needs_manager_approval: false,
@@ -810,7 +813,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateRequest = async (
     id: string,
-    data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }
+    data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'valueType' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }
   ) => {
     try {
       const updatePayload: Record<string, unknown> = {
@@ -825,6 +828,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (data.reason !== undefined) updatePayload.reason_name = data.reason;
       if (data.extraName !== undefined) updatePayload.extra_name = data.extraName;
       if (data.value !== undefined) updatePayload.value = data.value;
+      if (data.valueType !== undefined) updatePayload.value_type = data.valueType;
       if (data.observations !== undefined) updatePayload.observations = data.observations;
       if (data.contact !== undefined) updatePayload.contact = data.contact;
       if (data.urgency !== undefined) updatePayload.urgency = data.urgency;
