@@ -5,6 +5,35 @@ import { exportBulkRecibosExcel } from '../../services/excelService';
 import ExportFormatModal from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
+import type { ExtraRequest, WorkDay } from '../../types';
+
+/** Agrupa solicitações por nome do extra e retorna uma lista com um "request" por extra, com todos os workDays consolidados e ordenados por data. */
+function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
+  const byKey = new Map<string, ExtraRequest[]>();
+  for (const r of requests) {
+    const key = (r.extraName || '').trim().toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key)!.push(r);
+  }
+  const result: ExtraRequest[] = [];
+  for (const [, list] of byKey) {
+    const first = list[0];
+    const allWorkDays: WorkDay[] = [];
+    for (const req of list) {
+      for (const wd of req.workDays) {
+        allWorkDays.push({ date: wd.date, shift: wd.shift, timeRecord: wd.timeRecord ? { ...wd.timeRecord } : undefined });
+      }
+    }
+    allWorkDays.sort((a, b) => a.date.localeCompare(b.date));
+    result.push({
+      ...first,
+      id: `${first.id}-agrupado`,
+      code: `${first.code} (agrupado)`,
+      workDays: allWorkDays,
+    });
+  }
+  return result.sort((a, b) => (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR'));
+}
 
 type PeriodPreset = '7' | '30' | '60' | '90' | '365' | 'custom';
 
@@ -70,15 +99,28 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     setShowExportModal(true);
   };
 
-  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string) => {
+  const handleExportFormat = (
+    format: 'pdf' | 'excel',
+    sectorFilter?: string,
+    listOptions?: { groupByExtra?: boolean }
+  ) => {
     let list = filteredRequests;
     if (sectorFilter === 'VIVAZ') {
       list = filteredRequests.filter(r => r.sector.toLowerCase() !== 'aquamania');
     } else if (sectorFilter === 'AQUAMANIA') {
       list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
     }
+    if (listOptions?.groupByExtra && list.length > 0) {
+      list = consolidateRequestsByExtra(list);
+    }
+    list = [...list].sort(
+      (a, b) =>
+        (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR') ||
+        (a.code || '').localeCompare(b.code || '')
+    );
     const sectorSuffix = sectorFilter ? `-${sectorFilter.replace(/\s+/g, '-')}` : '';
-    const filename = `recibos-pagamento-${start}-${end}${sectorSuffix}`;
+    const groupSuffix = listOptions?.groupByExtra ? '-agrupado' : '';
+    const filename = `recibos-pagamento-${start}-${end}${sectorSuffix}${groupSuffix}`;
     if (format === 'pdf') {
       generateBulkRecibosPDF(list, `${filename}.pdf`);
     } else {

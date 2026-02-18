@@ -41,8 +41,8 @@ function getDateRange(preset: PeriodPreset, customStart?: string, customEnd?: st
 interface ExportFormatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Para type 'list' recebe (format, sector?, { startDate, endDate }). Para 'bulk' e 'recibo' (format, sector?). */
-  onExport: (format: ExportFormat, sector?: string, listOptions?: { startDate: string; endDate: string }) => void;
+  /** Para type 'list' recebe (format, sector?, { startDate, endDate }). Para 'bulk' (format, sector?, { groupByExtra?). Para 'recibo' (format, sector?). */
+  onExport: (format: ExportFormat, sector?: string, listOptions?: { startDate: string; endDate: string; groupByExtra?: boolean }) => void;
   type: 'recibo' | 'list' | 'bulk';
   /** Ignorado para type 'list' e 'bulk' (usa filtro VIVAZ/AQUAMANIA). */
   sectors?: string[];
@@ -69,11 +69,13 @@ const LABELS = {
 const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, onExport, type }) => {
   const [selected, setSelected] = React.useState<ExportFormat | null>(null);
   const [selectedSector, setSelectedSector] = React.useState<string>('VIVAZ');
+  const [groupByExtra, setGroupByExtra] = React.useState(false);
   const [periodPreset, setPeriodPreset] = React.useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = React.useState('');
   const [customEnd, setCustomEnd] = React.useState('');
   const labels = LABELS[type];
   const showSectorSelector = type === 'bulk' || type === 'list';
+  const showGroupByExtra = type === 'bulk';
   const showPeriodSelector = type === 'list';
 
   const { start: periodStart, end: periodEnd } = React.useMemo(
@@ -83,12 +85,13 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
 
   React.useEffect(() => {
     if (isOpen && showSectorSelector) setSelectedSector('VIVAZ');
+    if (isOpen && showGroupByExtra) setGroupByExtra(false);
     if (isOpen && showPeriodSelector) {
       setPeriodPreset('30');
       setCustomStart('');
       setCustomEnd('');
     }
-  }, [isOpen, showSectorSelector, showPeriodSelector]);
+  }, [isOpen, showSectorSelector, showGroupByExtra, showPeriodSelector]);
 
   const canDownload = selected && (!showPeriodSelector || periodPreset !== 'custom' || (customStart && customEnd));
 
@@ -98,11 +101,14 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
         const start = periodPreset === 'custom' ? customStart : periodStart;
         const end = periodPreset === 'custom' ? customEnd : periodEnd;
         if (start && end) onExport(selected, selectedSector || undefined, { startDate: start, endDate: end });
+      } else if (type === 'bulk') {
+        onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined, { groupByExtra });
       } else {
         onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined);
       }
       setSelected(null);
       setSelectedSector('VIVAZ');
+      setGroupByExtra(false);
       onClose();
     }
   };
@@ -110,6 +116,7 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
   const handleClose = () => {
     setSelected(null);
     setSelectedSector('VIVAZ');
+    setGroupByExtra(false);
     onClose();
   };
 
@@ -143,6 +150,22 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
             <p className="text-xs text-gray-500 mt-1">
               {type === 'bulk' ? 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.' : 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.'}
             </p>
+          </div>
+        )}
+
+        {showGroupByExtra && (
+          <div className="mb-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={groupByExtra}
+                onChange={(e) => setGroupByExtra(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-sm text-gray-700">
+                <strong>Agrupar por funcionário</strong> — Um recibo por extra com todos os dias trabalhados no período (em vez de um recibo por solicitação).
+              </span>
+            </label>
           </div>
         )}
 

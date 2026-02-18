@@ -247,7 +247,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
 
       await addRequest({
         ...formData,
-        valueType: isAdmin ? formData.valueType : 'combinado',
+        valueType: 'por_hora',
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
