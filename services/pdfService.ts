@@ -159,7 +159,7 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   y += 6;
 
   // Controle de Ponto (Portaria)
-  // Valor combinado: total fixo independente das horas; valor por hora: valor/7h20 × horas trabalhadas
+  // Valor combinado: valor por dia/turno × dias; valor por hora: valor/7h20 × horas trabalhadas
   const isCombinado = request.valueType === 'combinado';
   const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
@@ -169,8 +169,8 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
     const horasDia = minDay / 60;
-    const valorDia = isCombinado ? 0 : roundMoney(horasDia * valorHora);
-    const valorStr = isCombinado ? '' : (valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '');
+    const valorDia = isCombinado ? roundMoney(request.value) : roundMoney(horasDia * valorHora);
+    const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     return [
       formatDateBR(day.date),
       tr?.arrival || '',
@@ -182,7 +182,7 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
     ];
   });
   const totalValor = isCombinado
-    ? roundMoney(request.value)
+    ? roundMoney(request.value * (request.workDays?.length || 1))
     : roundMoney(
         request.workDays.reduce((sum, day) => sum + roundMoney((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
       );
@@ -370,9 +370,9 @@ function formatPeriodRange(workDays: ExtraRequest['workDays']): string {
   return first === last ? first : `${first} - ${last}`;
 }
 
-/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): valor combinado fixo ou soma por dia das horas efetivas × valor/hora. */
+/** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): valor combinado = valor por dia/turno × dias; por hora = soma por dia das horas efetivas × valor/hora. */
 function totalWorkedValue(request: ExtraRequest): number {
-  if (request.valueType === 'combinado') return roundMoney(request.value);
+  if (request.valueType === 'combinado') return roundMoney(request.value * (request.workDays?.length || 1));
   const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
   for (const day of request.workDays) {

@@ -98,7 +98,7 @@ export interface ExtraRequest {
   /** CPF do funcionário extra (quando vinculado a extra_persons). */
   extraCpf?: string;
   value: number;
-  /** 'combinado' = valor fixo total (recibo usa esse valor); 'por_hora' = cálculo por horas (valor/7h20 × horas). */
+  /** 'combinado' = valor por dia/turno (total = valor × quantidade de dias); 'por_hora' = cálculo por horas (valor/7h20 × horas). */
   valueType?: 'combinado' | 'por_hora';
   status: RequestStatus;
   needsManagerApproval?: boolean;

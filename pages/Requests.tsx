@@ -428,17 +428,15 @@ const Requests: React.FC = () => {
                     <div className="text-right">
                       <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
                       <div className="text-lg font-black text-gray-900">
-                        {req.valueType === 'combinado'
-                          ? req.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                          : (req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {(req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </div>
-                      {req.valueType !== 'combinado' && (req.workDays?.length || 0) > 1 && (
+                      {(req.workDays?.length || 0) > 1 && (
                         <div className="text-[10px] text-gray-500">
                           {req.workDays.length} × R$ {req.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       )}
                       {req.valueType === 'combinado' && (
-                        <div className="text-[10px] text-emerald-600 font-semibold">Valor combinado (fixo)</div>
+                        <div className="text-[10px] text-emerald-600 font-semibold">Valor combinado (por dia/turno)</div>
                       )}
                     </div>
                     {user?.role === 'ADMIN' && (
@@ -460,7 +458,7 @@ const Requests: React.FC = () => {
                         }}
                         disabled={updatingValueTypeId === req.id}
                         className="text-[10px] font-bold text-gray-600 border border-gray-200 rounded-lg px-2 py-1 bg-white min-w-[120px] disabled:opacity-50"
-                        title="Recibo e listagem: combinado = valor fixo; por hora = cálculo pelas horas da portaria"
+                        title="Combinado = valor por dia/turno × dias; por hora = cálculo pelas horas da portaria"
                       >
                         <option value="por_hora">Por hora</option>
                         <option value="combinado">Valor combinado</option>

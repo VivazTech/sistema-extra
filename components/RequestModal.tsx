@@ -247,7 +247,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
 
       await addRequest({
         ...formData,
-        valueType: formData.valueType,
+        valueType: isAdmin ? formData.valueType : 'combinado',
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
@@ -505,26 +505,30 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 </p>
               )}
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Tipo de valor *</label>
-              <select
-                required
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.valueType}
-                onChange={(e) => setFormData({ ...formData, valueType: e.target.value as 'combinado' | 'por_hora' })}
-              >
-                <option value="por_hora">Valor por hora</option>
-                <option value="combinado">Valor combinado</option>
-              </select>
-              <p className="text-xs text-gray-500">
-                {formData.valueType === 'combinado'
-                  ? 'Valor fixo total (recibo usa esse valor independente das horas).'
-                  : 'Cálculo por horas trabalhadas (valor de referência ÷ 7h20).'}
-              </p>
-            </div>
+            {isAdmin && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">Tipo de valor *</label>
+                <select
+                  required
+                  className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                  value={formData.valueType}
+                  onChange={(e) => setFormData({ ...formData, valueType: e.target.value as 'combinado' | 'por_hora' })}
+                >
+                  <option value="por_hora">Valor por hora</option>
+                  <option value="combinado">Valor combinado</option>
+                </select>
+                <p className="text-xs text-gray-500">
+                  {formData.valueType === 'combinado'
+                    ? 'Valor por dia/turno (total = valor × quantidade de dias na solicitação).'
+                    : 'Cálculo por horas trabalhadas (valor de referência ÷ 7h20).'}
+                </p>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">
-                {formData.valueType === 'combinado' ? 'Valor combinado (R$) *' : 'Valor por hora (R$) *'}
+                {isAdmin
+                  ? (formData.valueType === 'combinado' ? 'Valor combinado (R$) *' : 'Valor por hora (R$) *')
+                  : 'Valor combinado (R$) *'}
               </label>
               <input
                 required
