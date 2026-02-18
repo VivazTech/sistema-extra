@@ -529,6 +529,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                   Limite para este motivo: R$ {maxValueForReason.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               )}
+              <p className="text-[10px] text-gray-500">Sempre valor por hora. Para valor combinado (por dia/turno), o admin altera na listagem de Solicitações.</p>
             </div>
           </div>
 

@@ -7,6 +7,19 @@ import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
 import type { ExtraRequest, WorkDay } from '../../types';
 
+/** Ordenação alfabética por nome do extra (e desempate por setor e código). Usada para VIVAZ e AQUAMANIA. */
+function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
+  return [...list].sort((a, b) => {
+    const na = (a.extraName || '').trim();
+    const nb = (b.extraName || '').trim();
+    const cmp = na.localeCompare(nb, 'pt-BR', { sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+    const sa = (a.sector || '').localeCompare(b.sector || '', 'pt-BR');
+    if (sa !== 0) return sa;
+    return (a.code || '').localeCompare(b.code || '');
+  });
+}
+
 /** Agrupa solicitações por nome do extra e retorna uma lista com um "request" por extra, com todos os workDays consolidados e ordenados por data. */
 function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
   const byKey = new Map<string, ExtraRequest[]>();
@@ -32,7 +45,7 @@ function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
       workDays: allWorkDays,
     });
   }
-  return result.sort((a, b) => (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR'));
+  return result;
 }
 
 type PeriodPreset = '7' | '30' | '60' | '90' | '365' | 'custom';
@@ -122,11 +135,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     if (listOptions?.groupByExtra && list.length > 0) {
       list = consolidateRequestsByExtra(list);
     }
-    list = [...list].sort(
-      (a, b) =>
-        (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR') ||
-        (a.code || '').localeCompare(b.code || '')
-    );
+    list = sortRequestsByExtraName(list);
     const sectorSuffix = sectorFilter ? `-${sectorFilter.replace(/\s+/g, '-')}` : '';
     const groupSuffix = listOptions?.groupByExtra ? '-agrupado' : '';
     const filename = `recibos-pagamento-${start}-${end}${sectorSuffix}${groupSuffix}`;

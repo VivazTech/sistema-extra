@@ -14,6 +14,20 @@ const GAP_BEFORE_NEXT_CARD = 6;
 const MIN_CARD_HEIGHT_MM = 70;
 /** Altura da página A4 (mm). */
 const A4_HEIGHT_MM = 297;
+/** Linha de corte fixa no meio da página (PDF em massa: dois recibos por página). */
+const CUT_LINE_Y_MM = A4_HEIGHT_MM / 2;
+/** Margem (mm) entre fim do recibo e a linha de corte (metade superior). */
+const MARGIN_BEFORE_CUT_MM = 3;
+/** Margem (mm) entre linha de corte e início do recibo (metade inferior). */
+const MARGIN_AFTER_CUT_MM = 5;
+/** Limite Y (mm) até onde o recibo da metade superior pode ir. */
+const TOP_HALF_END_Y = CUT_LINE_Y_MM - MARGIN_BEFORE_CUT_MM;
+/** Início Y (mm) do slot da metade inferior. */
+const BOTTOM_HALF_START_Y = CUT_LINE_Y_MM + MARGIN_AFTER_CUT_MM;
+/** Altura máxima (mm) para um recibo na metade superior. */
+const TOP_HALF_MAX_HEIGHT_MM = TOP_HALF_END_Y - PAGE_TOP_MARGIN;
+/** Altura máxima (mm) para um recibo na metade inferior. */
+const BOTTOM_HALF_MAX_HEIGHT_MM = (A4_HEIGHT_MM - PAGE_BOTTOM_MARGIN_MM) - BOTTOM_HALF_START_Y;
 /** Margem inferior mínima (mm) para não cortar recibo. */
 const PAGE_BOTTOM_MARGIN_MM = 15;
 /** Altura do cabeçalho do recibo até o início da tabela (mm). */
@@ -316,7 +330,33 @@ function drawThreeRecibos(doc: jsPDF, request: ExtraRequest): void {
   }
 }
 
-/** Gera PDF com recibos em massa: um recibo por extra, em sequência na mesma página, separados por linha tracejada. */
+/** Preenche o PDF em massa com layout fixo: linha de corte no meio da página, dois recibos por página (um em cima, um em baixo). */
+function fillBulkRecibosFixedLayout(doc: jsPDF, approved: ExtraRequest[]): void {
+  let i = 0;
+  while (i < approved.length) {
+    if (i > 0) doc.addPage();
+    drawDashedDivider(doc, CUT_LINE_Y_MM);
+
+    const reqTop = approved[i];
+    const topHeight = estimateReciboHeightMm(reqTop);
+    if (topHeight > TOP_HALF_MAX_HEIGHT_MM) {
+      buildIndividualPDF(doc, reqTop, PAGE_TOP_MARGIN);
+      i++;
+      continue;
+    }
+    buildIndividualPDF(doc, reqTop, PAGE_TOP_MARGIN);
+    i++;
+
+    if (i >= approved.length) break;
+    const reqBottom = approved[i];
+    const bottomHeight = estimateReciboHeightMm(reqBottom);
+    if (bottomHeight > BOTTOM_HALF_MAX_HEIGHT_MM) continue;
+    buildIndividualPDF(doc, reqBottom, BOTTOM_HALF_START_Y);
+    i++;
+  }
+}
+
+/** Gera PDF com recibos em massa: dois recibos por página, linha de corte fixa no meio. */
 export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
   const doc = new jsPDF();
   const approved = requests.filter(r => r.status === 'APROVADO');
@@ -325,23 +365,11 @@ export const getBulkRecibosPDFBlobUrl = (requests: ExtraRequest[]): string => {
     doc.text('Nenhuma solicitação aprovada no período selecionado.', 20, 30);
     return URL.createObjectURL(doc.output('blob'));
   }
-  let offsetY = PAGE_TOP_MARGIN;
-  approved.forEach((req, index) => {
-    offsetY = ensureReciboFitsPage(doc, req, offsetY);
-    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
-      doc.addPage();
-      offsetY = PAGE_TOP_MARGIN;
-    }
-    const cardBottom = buildIndividualPDF(doc, req, offsetY);
-    if (index < approved.length - 1) {
-      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
-      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
-    }
-  });
+  fillBulkRecibosFixedLayout(doc, approved);
   return URL.createObjectURL(doc.output('blob'));
 };
 
-/** Gera e baixa PDF de recibos em massa: um recibo por extra, em sequência, separados por linha tracejada. */
+/** Gera e baixa PDF de recibos em massa: dois recibos por página, linha de corte fixa no meio. */
 export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: string) => {
   const approved = requests.filter(r => r.status === 'APROVADO');
   const doc = new jsPDF();
@@ -351,19 +379,7 @@ export const generateBulkRecibosPDF = (requests: ExtraRequest[], filename?: stri
     doc.save(filename || 'recibos-pagamento.pdf');
     return;
   }
-  let offsetY = PAGE_TOP_MARGIN;
-  approved.forEach((req, index) => {
-    offsetY = ensureReciboFitsPage(doc, req, offsetY);
-    if (offsetY + MIN_CARD_HEIGHT_MM > A4_HEIGHT_MM) {
-      doc.addPage();
-      offsetY = PAGE_TOP_MARGIN;
-    }
-    const cardBottom = buildIndividualPDF(doc, req, offsetY);
-    if (index < approved.length - 1) {
-      drawDashedDivider(doc, cardBottom + MARGIN_AFTER_CARD);
-      offsetY = cardBottom + MARGIN_AFTER_CARD + GAP_BEFORE_NEXT_CARD;
-    }
-  });
+  fillBulkRecibosFixedLayout(doc, approved);
   doc.save(filename || `recibos-pagamento-${new Date().getTime()}.pdf`);
 };
 
@@ -390,7 +406,7 @@ function totalWorkedValue(request: ExtraRequest): number {
 /** Espaçamento entre grupos de setor em mm (linhas vazias sem borda). */
 const DIVIDER_PADDING_MM = 2.5;
 
-/** Agrupa solicitações por setor, consolida por nome do extra e monta body da tabela. */
+/** Agrupa solicitações por setor e por nome do extra; uma linha por extra com período e valor somado. Sem coluna Aprovado por. */
 function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
   summaryRowIndices: Set<number>;
@@ -401,39 +417,45 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
   const spacerRowIndices = new Set<number>();
   const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
   let totalGeral = 0;
-  const emptyRow = ['', '', '', '', '', '', ''];
+  const emptyRow = ['', '', '', '', '', ''];
 
   for (let i = 0; i < sectors.length; i++) {
     const setor = sectors[i];
-    const list = requests
-      .filter(r => r.sector === setor)
-      .sort((a, b) => (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR'));
+    const doSetor = requests.filter(r => r.sector === setor);
+
+    const byExtra = new Map<string, { requests: ExtraRequest[] }>();
+    for (const r of doSetor) {
+      const key = r.extraName ?? '';
+      if (!byExtra.has(key)) byExtra.set(key, { requests: [] });
+      byExtra.get(key)!.requests.push(r);
+    }
+    const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
 
     let totalSetor = 0;
-    for (const r of list) {
-      const dates = r.workDays.map(d => d.date).sort();
+    for (const [, { requests: group }] of extrasOrdenados) {
+      const first = group[0];
+      const allDates = group.flatMap(r => r.workDays.map(d => d.date)).sort();
       const periodStr =
-        dates.length === 0
+        allDates.length === 0
           ? ''
-          : dates.length === 1
-            ? formatDateBR(dates[0])
-            : `${formatDateBR(dates[0])} - ${formatDateBR(dates[dates.length - 1])}`;
-      const valor = totalWorkedValue(r);
+          : allDates.length === 1
+            ? formatDateBR(allDates[0])
+            : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
+      const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
       totalSetor += valor;
-      const valorStr = roundMoney(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const valorStr = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
       body.push([
         periodStr,
-        r.sector || '',
-        r.role || '',
-        r.extraName || '',
-        r.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
-        r.approvedBy || '—',
+        first.sector || '',
+        first.role || '',
+        first.extraName || '',
+        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
         valorStr
       ]);
     }
 
     const totalSetorArredondado = roundMoney(totalSetor);
-    body.push([`Subtotal (${setor})`, '', '', '', '', '', totalSetorArredondado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+    body.push([`Subtotal (${setor})`, '', '', '', '', totalSetorArredondado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
     summaryRowIndices.add(body.length - 1);
     totalGeral += totalSetorArredondado;
 
@@ -445,7 +467,7 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
     }
   }
 
-  body.push(['TOTAL GERAL', '', '', '', '', '', roundMoney(totalGeral).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  body.push(['TOTAL GERAL', '', '', '', '', roundMoney(totalGeral).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
   summaryRowIndices.add(body.length - 1);
 
   return { body, summaryRowIndices, spacerRowIndices };
@@ -474,7 +496,7 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Aprovado por', 'Valor']],
+    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
@@ -508,7 +530,7 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Aprovado por', 'Valor']],
+    head: [['Período', 'Setor', 'Função', 'Nome Extra', 'Tipo de valor', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
