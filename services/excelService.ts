@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR } from '../utils/date';
-import { roundHoursToInteger, roundHoursToOneDecimal, roundMoney } from '../utils/round';
+import { roundMoney } from '../utils/round';
 
 const HORAS_JORNADA_PADRAO = 7 + 20 / 60;
 
@@ -31,11 +31,17 @@ function minutesWorkedInDay(tr?: TimeRecord): number {
   return Math.max(0, departureEffective - arrival - breakMin);
 }
 
+/** Converte minutos totais em string HH:MM (ex.: 426 → "07:06"). */
+function minutesToHHMM(totalMin: number): string {
+  if (totalMin <= 0) return '';
+  const h = Math.floor(totalMin / 60);
+  const m = Math.round(totalMin % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function hoursWorkedInDay(tr?: TimeRecord): string {
   const totalMin = minutesWorkedInDay(tr);
-  if (totalMin <= 0) return '';
-  const hours = roundHoursToOneDecimal(totalMin / 60);
-  return `${hours.toFixed(1).replace('.', ',')}h`;
+  return minutesToHHMM(totalMin);
 }
 
 function totalHoursWorked(workDays: WorkDay[]): string {
@@ -55,8 +61,7 @@ function totalHoursWorked(workDays: WorkDay[]): string {
     }
     totalMin += Math.max(0, departureEffective - arrival - breakMin);
   }
-  const hours = roundHoursToInteger(totalMin / 60);
-  return `${hours}h`;
+  return minutesToHHMM(totalMin);
 }
 
 function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (string | number)[][] } {
@@ -136,7 +141,9 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
 
   let totalGeral = 0;
   for (const setor of sectors) {
-    const list = requests.filter(r => r.sector === setor);
+    const list = requests
+      .filter(r => r.sector === setor)
+      .sort((a, b) => (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR'));
     let totalSetor = 0;
     for (const r of list) {
       const dates = r.workDays.map(d => d.date).sort();

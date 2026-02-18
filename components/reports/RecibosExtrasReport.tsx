@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
 import { exportBulkRecibosExcel } from '../../services/excelService';
-import ExportFormatModal, { filterBySector } from '../ExportFormatModal';
+import ExportFormatModal from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
 
@@ -36,7 +36,7 @@ interface RecibosExtrasReportProps {
   sector?: string;
 }
 
-const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd, sector: propsSector }) => {
+const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd }) => {
   const { requests } = useExtras();
   const [period, setPeriod] = useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = useState('');
@@ -50,9 +50,10 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     return getDateRange(period, customStart || undefined, customEnd || undefined);
   }, [period, customStart, customEnd, propsStart, propsEnd]);
 
+  // Lista apenas por período; o filtro de setor (VIVAZ/AQUAMANIA) é aplicado só no modal "Baixar Recibos"
   const filteredRequests = useMemo(() => {
     if (period === 'custom' && (!customStart || !customEnd) && !propsStart && !propsEnd) return [];
-    let list = requests.filter(req => {
+    return requests.filter(req => {
       if (req.status !== 'APROVADO') return false;
       const startD = new Date(start);
       const endD = new Date(end);
@@ -62,9 +63,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
       });
       return hasWorkDayInRange;
     });
-    if (propsSector) list = filterBySector(list, propsSector);
-    return list;
-  }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd, propsSector]);
+  }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd]);
 
   const handleGenerate = () => {
     if (period === 'custom' && (!customStart || !customEnd)) return;

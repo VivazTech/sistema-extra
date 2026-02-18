@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR, formatDateTimeBR } from '../utils/date';
-import { roundHoursToInteger, roundHoursToOneDecimal, roundMoney } from '../utils/round';
+import { roundMoney } from '../utils/round';
 
 /** Margem superior da página (mm). */
 const PAGE_TOP_MARGIN = 10;
@@ -82,15 +82,21 @@ function minutesWorkedInDay(tr?: TimeRecord): number {
   return Math.max(0, departureEffective - arrival - breakMin);
 }
 
-/** Calcula horas trabalhadas no dia (departure - arrival - intervalo). Retorna string "X,Xh" ou "". Arredondamento: < 0,50 baixo, >= 0,50 cima. */
-function hoursWorkedInDay(tr?: TimeRecord): string {
-  const totalMin = minutesWorkedInDay(tr);
+/** Converte minutos totais em string HH:MM (ex.: 426 → "07:06"). */
+function minutesToHHMM(totalMin: number): string {
   if (totalMin <= 0) return '';
-  const hours = roundHoursToOneDecimal(totalMin / 60);
-  return `${hours.toFixed(1).replace('.', ',')}h`;
+  const h = Math.floor(totalMin / 60);
+  const m = Math.round(totalMin % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/** Soma total de horas trabalhadas (string "Xh"). Considera turno após meia-noite. */
+/** Calcula horas trabalhadas no dia. Retorna string HH:MM ou "". */
+function hoursWorkedInDay(tr?: TimeRecord): string {
+  const totalMin = minutesWorkedInDay(tr);
+  return minutesToHHMM(totalMin);
+}
+
+/** Soma total de horas trabalhadas (string HH:MM). Considera turno após meia-noite. */
 function totalHoursWorked(workDays: WorkDay[]): string {
   let totalMin = 0;
   for (const day of workDays) {
@@ -108,8 +114,7 @@ function totalHoursWorked(workDays: WorkDay[]): string {
     }
     totalMin += Math.max(0, departureEffective - arrival - breakMin);
   }
-  const hours = roundHoursToInteger(totalMin / 60);
-  return `${hours}h`;
+  return minutesToHHMM(totalMin);
 }
 
 /**
@@ -400,7 +405,9 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
 
   for (let i = 0; i < sectors.length; i++) {
     const setor = sectors[i];
-    const list = requests.filter(r => r.sector === setor);
+    const list = requests
+      .filter(r => r.sector === setor)
+      .sort((a, b) => (a.extraName || '').localeCompare(b.extraName || '', 'pt-BR'));
 
     let totalSetor = 0;
     for (const r of list) {
