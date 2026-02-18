@@ -49,3 +49,51 @@ WHERE username = 'admin';
 - **Senha:** `Admin@2024`
 
 ⚠️ **IMPORTANTE:** Altere a senha após o primeiro login!
+
+---
+
+## Sincronizar Usuários com o Auth (Erro "Invalid login credentials")
+
+Quando um usuário existe na tabela `users` mas **não existe em `auth.users`**, o login falha com "Invalid login credentials". Use este script para criar a conta no Supabase Auth:
+
+### Sincronizar um usuário (por email)
+
+```bash
+node scripts/sync-user-auth.js tiago@vivazcataratas.com.br
+```
+
+### Sincronizar todos os usuários desincronizados
+
+```bash
+node scripts/sync-user-auth.js --all
+```
+
+### O que o script faz
+
+1. Verifica se o usuário existe na tabela `users`
+2. Verifica se já existe em `auth.users`
+3. Cria o usuário no Supabase Auth (se necessário)
+4. Envia email de **"Esqueci minha senha"** para o usuário definir sua senha
+
+O usuário deve acessar o link recebido por email para definir a senha e conseguir fazer login.
+
+---
+
+## Reparar Usuário "Sumido" (repair-user-from-auth.js)
+
+Se após executar o sync-user-auth.js o usuário **sumiu** da lista "Gerenciar Usuários" (existe em auth.users mas não em users), use este script para reinseri-lo:
+
+```bash
+node scripts/repair-user-from-auth.js tiago@vivazcataratas.com.br --role LEADER
+```
+
+### Parâmetros opcionais
+
+- `--role LEADER` – perfil do usuário (ADMIN, MANAGER, LEADER, VIEWER, PORTARIA). Padrão: VIEWER
+- `--sectors "SETOR1,SETOR2"` – setores vinculados (separados por vírgula)
+
+### Exemplo completo
+
+```bash
+node scripts/repair-user-from-auth.js tiago@vivazcataratas.com.br --role LEADER --sectors "ZELADORIA,RECEPCAO"
+```

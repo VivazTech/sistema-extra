@@ -355,9 +355,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Enviar email de recuperação de senha
-      // Usar hash router (#) para funcionar com HashRouter
+      // VITE_APP_URL = URL pública do app em produção (ex: https://sistema-extras.vivazcataratas.com.br)
+      // Evita que o link do email aponte para localhost quando acessado de produção
+      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const redirectTo = `${appUrl.replace(/\/$/, '')}/#/reset-password`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/#/reset-password`,
+        redirectTo,
       });
 
       if (resetError) {

@@ -89,6 +89,8 @@ Após aplicar o schema, você precisará das seguintes variáveis no seu projeto
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-chave-anon-key
+# URL pública do app (produção) - obrigatório para o link "Esqueci minha senha" funcionar
+VITE_APP_URL=https://seu-dominio.com.br
 ```
 
 ## 📝 Próximos Passos
@@ -98,6 +100,13 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon-key
 3. ✅ Atualizar o código para usar Supabase Client
 4. ✅ Testar autenticação
 5. ✅ Testar CRUD de solicitações
+
+## 📧 Email "Esqueci minha senha" abre localhost ou dá "link expired"
+
+1. **Defina `VITE_APP_URL`** no Vercel/Hosting com a URL pública do app (ex: `https://sistema-extras.vivazcataratas.com.br`)
+2. **No Supabase Dashboard** → Authentication → URL Configuration:
+   - **Site URL:** a mesma URL do app em produção
+   - **Redirect URLs:** adicione `https://seu-dominio.com.br/#/reset-password` e `https://seu-dominio.com.br/**`
 
 ## 🐛 Troubleshooting
 

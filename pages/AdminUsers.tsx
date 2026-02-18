@@ -257,10 +257,12 @@ const AdminUsers: React.FC = () => {
           setAdminPasswordError(
             'Função de redefinição não disponível. Faça o deploy da Edge Function "admin-set-password" no Supabase ou use "Enviar email" na tela de login.'
           );
-        } else if (res.status === 401 && (data?.message === 'Invalid JWT' || data?.error?.includes('JWT'))) {
-          setAdminPasswordError(
-            'Token inválido. Saia do sistema, faça login novamente e tente outra vez. Se persistir, confira em Vercel se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY são do mesmo projeto do Supabase onde a função foi publicada.'
-          );
+        } else if (res.status === 401) {
+          const baseMsg = data?.error || data?.message || 'Token inválido';
+          const hint = baseMsg.toLowerCase().includes('jwt') || baseMsg.toLowerCase().includes('token')
+            ? ' Confira em Vercel/Hosting se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY são do MESMO projeto Supabase onde a Edge Function foi publicada.'
+            : '';
+          setAdminPasswordError(baseMsg + hint);
         } else {
           setAdminPasswordError(data?.error || data?.message || `Erro ${res.status}`);
         }
