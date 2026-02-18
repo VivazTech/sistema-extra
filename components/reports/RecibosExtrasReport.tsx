@@ -110,6 +110,15 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     } else if (sectorFilter === 'AQUAMANIA') {
       list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
     }
+    // Garantir que a exportação respeite SEMPRE o período selecionado:
+    // como a lista base inclui solicitações que têm "algum" dia no período,
+    // aqui recortamos os workDays para manter apenas os dias dentro de [start, end].
+    list = list
+      .map(r => ({
+        ...r,
+        workDays: (r.workDays || []).filter(d => d.date >= start && d.date <= end),
+      }))
+      .filter(r => (r.workDays?.length || 0) > 0);
     if (listOptions?.groupByExtra && list.length > 0) {
       list = consolidateRequestsByExtra(list);
     }
