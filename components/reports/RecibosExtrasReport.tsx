@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
-import { exportBulkRecibosExcel } from '../../services/excelService';
+import { exportBulkRecibosExcel, totalWorkedValue } from '../../services/excelService';
 import ExportFormatModal from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
@@ -20,7 +20,7 @@ function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
   });
 }
 
-/** Agrupa solicitações por nome do extra e retorna uma lista com um "request" por extra, com todos os workDays consolidados e ordenados por data. */
+/** Agrupa solicitações por nome do extra e retorna uma lista com um "request" por extra, com todos os workDays consolidados e ordenados por data. O total do recibo é a soma dos valores de cada solicitação (igual ao relatório). */
 function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
   const byKey = new Map<string, ExtraRequest[]>();
   for (const r of requests) {
@@ -38,11 +38,13 @@ function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
       }
     }
     allWorkDays.sort((a, b) => a.date.localeCompare(b.date));
+    const consolidatedTotal = list.reduce((s, r) => s + totalWorkedValue(r), 0);
     result.push({
       ...first,
       id: `${first.id}-agrupado`,
       code: `${first.code} (agrupado)`,
       workDays: allWorkDays,
+      consolidatedTotal: Math.round(consolidatedTotal * 100) / 100,
     });
   }
   return result;

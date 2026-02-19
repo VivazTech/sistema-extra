@@ -100,6 +100,8 @@ export interface ExtraRequest {
   value: number;
   /** 'combinado' = valor por dia/turno (total = valor × quantidade de dias); 'por_hora' = cálculo por horas (valor/7h20 × horas). */
   valueType?: 'combinado' | 'por_hora';
+  /** Quando preenchido, recibo/relatório usa este total (ex.: solicitações agrupadas por extra = soma dos valores de cada uma). */
+  consolidatedTotal?: number;
   status: RequestStatus;
   needsManagerApproval?: boolean;
   urgency?: boolean;

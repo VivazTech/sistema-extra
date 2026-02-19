@@ -65,7 +65,8 @@ function totalHoursWorked(workDays: WorkDay[]): string {
 }
 
 function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (string | number)[][] } {
-  const isCombinado = request.valueType === 'combinado';
+  const useConsolidatedTotal = request.consolidatedTotal != null;
+  const isCombinado = !useConsolidatedTotal && request.valueType === 'combinado';
   const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
   const periodStr = request.workDays.length
@@ -89,8 +90,8 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
-    const valorDia = isCombinado ? roundMoney(request.value) : roundMoney((minDay / 60) * valorHora);
-    totalValor += valorDia;
+    const valorDia = useConsolidatedTotal ? 0 : (isCombinado ? roundMoney(request.value) : roundMoney((minDay / 60) * valorHora));
+    if (!useConsolidatedTotal) totalValor += valorDia;
     table.push([
       formatDateBR(day.date),
       tr?.arrival || '',
@@ -98,10 +99,10 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
       tr?.breakEnd || '',
       tr?.departure || '',
       hours,
-      valorDia > 0 ? valorDia.toFixed(2) : '',
+      useConsolidatedTotal ? '' : (valorDia > 0 ? valorDia.toFixed(2) : ''),
     ]);
   }
-  totalValor = roundMoney(totalValor);
+  totalValor = useConsolidatedTotal ? roundMoney(request.consolidatedTotal!) : roundMoney(totalValor);
   table.push(['TOTAL', '', '', '', '', totalHours, totalValor.toFixed(2)]);
 
   return { headers, table };
@@ -118,7 +119,8 @@ export function exportSingleReciboExcel(request: ExtraRequest, filename?: string
 }
 
 /** Calcula o valor total trabalhado (igual ao RECIBO DE PAGAMENTO): valor combinado = valor por dia/turno × dias; por hora = soma por dia das horas efetivas × valor/hora. */
-function totalWorkedValue(request: ExtraRequest): number {
+export function totalWorkedValue(request: ExtraRequest): number {
+  if (request.consolidatedTotal != null) return roundMoney(request.consolidatedTotal);
   if (request.valueType === 'combinado') return roundMoney(request.value * (request.workDays?.length || 1));
   const valorHora = request.value / HORAS_JORNADA_PADRAO;
   let total = 0;
