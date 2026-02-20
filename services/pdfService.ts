@@ -177,19 +177,27 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.text(periodStr || 'N/A', col2 + 22, y + offsetY);
   y += 6;
 
-  // Controle de Ponto (Portaria). Agrupado (consolidatedTotal): total fixo, valor por dia em branco.
+  // Controle de Ponto (Portaria). Agrupado (consolidatedTotal): total fixo; valor por dia proporcional às horas trabalhadas.
   const useConsolidatedTotal = request.consolidatedTotal != null;
   const isCombinado = !useConsolidatedTotal && request.valueType === 'combinado';
   const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
+  const totalMinutos = request.workDays.reduce((sum, day) => sum + minutesWorkedInDay(day.timeRecord), 0);
   const head = ['Data', 'Horário Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário Saída', 'Total Horas', 'Valor'];
   const body = request.workDays.map(day => {
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
     const horasDia = minDay / 60;
-    const valorDia = useConsolidatedTotal ? 0 : (isCombinado ? roundMoney(request.value) : roundMoney(horasDia * valorHora));
-    const valorStr = useConsolidatedTotal ? '' : (valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '');
+    let valorDia: number;
+    if (useConsolidatedTotal) {
+      valorDia = totalMinutos > 0
+        ? roundMoney((minDay / totalMinutos) * request.consolidatedTotal!)
+        : 0;
+    } else {
+      valorDia = isCombinado ? roundMoney(request.value) : roundMoney(horasDia * valorHora);
+    }
+    const valorStr = valorDia > 0 ? valorDia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
     return [
       formatDateBR(day.date),
       tr?.arrival || '',
