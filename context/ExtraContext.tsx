@@ -437,7 +437,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           reason_name: data.reason,
           extra_name: data.extraName,
           value: data.value,
-          value_type: 'por_hora', // Novas solicitações sempre "Valor por hora"; só muda para "combinado" se o admin alterar na listagem de Solicitações.
+          value_type: data.valueType ?? 'por_hora',
       status: canAutoApprove ? 'APROVADO' : 'SOLICITADO',
           urgency: data.urgency || false,
           observations: data.observations,

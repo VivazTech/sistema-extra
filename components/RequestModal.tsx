@@ -247,7 +247,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
 
       await addRequest({
         ...formData,
-        valueType: 'por_hora',
+        valueType: formData.valueType,
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
@@ -506,6 +506,23 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
               )}
             </div>
             <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase">Tipo de valor *</label>
+              <select
+                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.valueType}
+                onChange={(e) => setFormData({ ...formData, valueType: e.target.value as 'combinado' | 'por_hora' })}
+                title="Por hora = valor de referência (7h20) para cálculo pelas horas da portaria; Combinado = valor fixo por dia/turno."
+              >
+                <option value="por_hora">Por hora (cálculo pelas horas trabalhadas)</option>
+                <option value="combinado">Valor combinado (por dia/turno)</option>
+              </select>
+              <p className="text-[10px] text-gray-500">
+                {formData.valueType === 'combinado'
+                  ? 'Valor informado é por dia/turno; total = valor × quantidade de dias.'
+                  : 'Valor de referência para a jornada de 7h20; o recibo calcula pelas horas lançadas na portaria.'}
+              </p>
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Valor (R$) *</label>
               <input
                 required
@@ -529,7 +546,6 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                   Limite para este motivo: R$ {maxValueForReason.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               )}
-              <p className="text-[10px] text-gray-500">Sempre valor por hora. Para valor combinado (por dia/turno), o admin altera na listagem de Solicitações.</p>
             </div>
           </div>
 
