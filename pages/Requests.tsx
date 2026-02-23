@@ -24,18 +24,19 @@ import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
 import { generateSingleReciboPDF, generateListPDF, generateIndividualPDF } from '../services/pdfService';
 import { exportSingleReciboExcel, exportListExcel } from '../services/excelService';
-import ExportFormatModal from '../components/ExportFormatModal';
+import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../components/ExportFormatModal';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
+  const { requests, sectors, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterSector, setFilterSector] = useState('');
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExtraRequest | null>(null);
   const [isRejectModalOpen, setRejectModalOpen] = useState(false);
@@ -67,13 +68,14 @@ const Requests: React.FC = () => {
     const matchesSearch = r.extraName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           r.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
+    const matchesSector = !isAdmin || !filterSector || r.sector === filterSector;
     
     // Managers only see their sectors if restricted
     const isManagerAuthorized = user?.role !== 'MANAGER' || (user.sectors?.includes(r.sector));
     // Líder só vê solicitações do próprio setor
     const isLeaderAuthorized = user?.role !== 'LEADER' || (user.sectors?.length && user.sectors.includes(r.sector));
     
-    return matchesSearch && matchesStatus && isManagerAuthorized && isLeaderAuthorized;
+    return matchesSearch && matchesStatus && matchesSector && isManagerAuthorized && isLeaderAuthorized;
   });
 
   const handleApprove = async (id: string) => {
@@ -168,7 +170,7 @@ const Requests: React.FC = () => {
     setExportModal({ type: 'list' });
   };
 
-  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string, listOptions?: { startDate: string; endDate: string }) => {
+  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string, listOptions?: { startDate: string; endDate: string }, eventoFilter?: EventoFilterValue) => {
     if (!exportModal) return;
     if (exportModal.type === 'recibo') {
       if (format === 'pdf') generateSingleReciboPDF(exportModal.request);
@@ -190,9 +192,11 @@ const Requests: React.FC = () => {
       } else if (sectorFilter === 'AQUAMANIA') {
         list = list.filter(r => r.sector.toLowerCase() === 'aquamania');
       }
+      list = filterByEvento(list, eventoFilter);
       const sectorSuffix = sectorFilter ? ` - ${sectorFilter}` : '';
+      const eventoSuffix = eventoFilter === 'VIVAZ_EVENTOS' ? ' - VIVAZ EVENTOS' : eventoFilter === 'AQUAMANIA_EVENTOS' ? ' - AQUAMANIA EVENTOS' : '';
       const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
-      const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${periodSuffix}`;
+      const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${eventoSuffix}${periodSuffix}`;
       if (format === 'pdf') generateListPDF(list, title);
       else exportListExcel(list, title);
     }
@@ -352,6 +356,21 @@ const Requests: React.FC = () => {
             <option value="CANCELADO">Cancelado</option>
           </select>
         </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <select 
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              value={filterSector}
+              onChange={(e) => setFilterSector(e.target.value)}
+              title="Filtrar por setor (apenas admin)"
+            >
+              <option value="">Todos os setores</option>
+              {sectors.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Table */}

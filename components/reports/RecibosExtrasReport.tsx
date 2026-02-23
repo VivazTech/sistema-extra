@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
 import { exportBulkRecibosExcel, totalWorkedValue } from '../../services/excelService';
-import ExportFormatModal from '../ExportFormatModal';
+import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
 import type { ExtraRequest, WorkDay } from '../../types';
@@ -117,7 +117,8 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
   const handleExportFormat = (
     format: 'pdf' | 'excel',
     sectorFilter?: string,
-    listOptions?: { groupByExtra?: boolean }
+    listOptions?: { groupByExtra?: boolean },
+    eventoFilter?: EventoFilterValue
   ) => {
     let list = filteredRequests;
     if (sectorFilter === 'VIVAZ') {
@@ -125,6 +126,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     } else if (sectorFilter === 'AQUAMANIA') {
       list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
     }
+    list = filterByEvento(list, eventoFilter);
     // Garantir que a exportação respeite SEMPRE o período selecionado:
     // como a lista base inclui solicitações que têm "algum" dia no período,
     // aqui recortamos os workDays para manter apenas os dias dentro de [start, end].

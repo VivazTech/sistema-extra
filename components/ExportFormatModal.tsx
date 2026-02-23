@@ -9,12 +9,29 @@ export const SECTOR_FILTER_OPTIONS = [
   { value: 'AQUAMANIA', label: 'AQUAMANIA (apenas Aquamania)' },
 ] as const;
 
+/** Filtro por motivo EVENTO: exportar somente solicitações cujo motivo seja EVENTO (por setor). */
+export type EventoFilterValue = '' | 'VIVAZ_EVENTOS' | 'AQUAMANIA_EVENTOS';
+export const EVENTO_FILTER_OPTIONS: { value: EventoFilterValue; label: string }[] = [
+  { value: '', label: 'Não (todos os motivos)' },
+  { value: 'VIVAZ_EVENTOS', label: 'VIVAZ EVENTOS (motivo EVENTO, exceto Aquamania)' },
+  { value: 'AQUAMANIA_EVENTOS', label: 'AQUAMANIA EVENTOS (motivo EVENTO, apenas Aquamania)' },
+];
+
 /** Filtra lista por setor (VIVAZ = todos exceto Aquamania, AQUAMANIA = só Aquamania). */
 export function filterBySector<T extends { sector: string }>(list: T[], sector?: string): T[] {
   if (!sector) return list;
   if (sector === 'VIVAZ') return list.filter(r => r.sector.toLowerCase() !== 'aquamania');
   if (sector === 'AQUAMANIA') return list.filter(r => r.sector.toLowerCase() === 'aquamania');
   return list.filter(r => r.sector === sector);
+}
+
+/** Filtra lista por motivo EVENTO + setor (VIVAZ_EVENTOS = motivo EVENTO e setor não Aquamania; AQUAMANIA_EVENTOS = motivo EVENTO e Aquamania). */
+export function filterByEvento<T extends { sector: string; reason?: string }>(list: T[], eventoFilter?: EventoFilterValue): T[] {
+  if (!eventoFilter || eventoFilter === '') return list;
+  const isEvento = (r: T) => (r.reason || '').toUpperCase().trim() === 'EVENTO';
+  if (eventoFilter === 'VIVAZ_EVENTOS') return list.filter(r => isEvento(r) && r.sector.toLowerCase() !== 'aquamania');
+  if (eventoFilter === 'AQUAMANIA_EVENTOS') return list.filter(r => isEvento(r) && r.sector.toLowerCase() === 'aquamania');
+  return list;
 }
 
 type PeriodPreset = '7' | '30' | '60' | '90' | '365' | 'custom';
@@ -41,8 +58,8 @@ function getDateRange(preset: PeriodPreset, customStart?: string, customEnd?: st
 interface ExportFormatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Para type 'list' recebe (format, sector?, { startDate, endDate }). Para 'bulk' (format, sector?, { groupByExtra?). Para 'recibo' (format, sector?). */
-  onExport: (format: ExportFormat, sector?: string, listOptions?: { startDate: string; endDate: string; groupByExtra?: boolean }) => void;
+  /** Para type 'list' recebe (format, sector?, { startDate, endDate }, eventoFilter?). Para 'bulk' (format, sector?, { groupByExtra? }, eventoFilter?). Para 'recibo' (format, sector?). */
+  onExport: (format: ExportFormat, sector?: string, listOptions?: { startDate: string; endDate: string; groupByExtra?: boolean }, eventoFilter?: EventoFilterValue) => void;
   type: 'recibo' | 'list' | 'bulk';
   /** Ignorado para type 'list' e 'bulk' (usa filtro VIVAZ/AQUAMANIA). */
   sectors?: string[];
@@ -69,12 +86,14 @@ const LABELS = {
 const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, onExport, type }) => {
   const [selected, setSelected] = React.useState<ExportFormat | null>(null);
   const [selectedSector, setSelectedSector] = React.useState<string>('VIVAZ');
+  const [eventoFilter, setEventoFilter] = React.useState<EventoFilterValue>('');
   const [groupByExtra, setGroupByExtra] = React.useState(false);
   const [periodPreset, setPeriodPreset] = React.useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = React.useState('');
   const [customEnd, setCustomEnd] = React.useState('');
   const labels = LABELS[type];
   const showSectorSelector = type === 'bulk' || type === 'list';
+  const showEventoFilter = type === 'bulk' || type === 'list';
   const showGroupByExtra = type === 'bulk';
   const showPeriodSelector = type === 'list';
 
@@ -85,29 +104,32 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
 
   React.useEffect(() => {
     if (isOpen && showSectorSelector) setSelectedSector('VIVAZ');
+    if (isOpen && showEventoFilter) setEventoFilter('');
     if (isOpen && showGroupByExtra) setGroupByExtra(false);
     if (isOpen && showPeriodSelector) {
       setPeriodPreset('30');
       setCustomStart('');
       setCustomEnd('');
     }
-  }, [isOpen, showSectorSelector, showGroupByExtra, showPeriodSelector]);
+  }, [isOpen, showSectorSelector, showEventoFilter, showGroupByExtra, showPeriodSelector]);
 
   const canDownload = selected && (!showPeriodSelector || periodPreset !== 'custom' || (customStart && customEnd));
 
   const handleDownload = () => {
     if (selected) {
+      const evFilter = showEventoFilter && eventoFilter ? eventoFilter : undefined;
       if (type === 'list' && showPeriodSelector) {
         const start = periodPreset === 'custom' ? customStart : periodStart;
         const end = periodPreset === 'custom' ? customEnd : periodEnd;
-        if (start && end) onExport(selected, selectedSector || undefined, { startDate: start, endDate: end });
+        if (start && end) onExport(selected, selectedSector || undefined, { startDate: start, endDate: end }, evFilter);
       } else if (type === 'bulk') {
-        onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined, { groupByExtra });
+        onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined, { groupByExtra }, evFilter);
       } else {
-        onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined);
+        onExport(selected, showSectorSelector && selectedSector ? selectedSector : undefined, undefined, evFilter);
       }
       setSelected(null);
       setSelectedSector('VIVAZ');
+      setEventoFilter('');
       setGroupByExtra(false);
       onClose();
     }
@@ -116,6 +138,7 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
   const handleClose = () => {
     setSelected(null);
     setSelectedSector('VIVAZ');
+    setEventoFilter('');
     setGroupByExtra(false);
     onClose();
   };
@@ -149,6 +172,24 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
             </select>
             <p className="text-xs text-gray-500 mt-1">
               {type === 'bulk' ? 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.' : 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.'}
+            </p>
+          </div>
+        )}
+
+        {showEventoFilter && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Exportar somente motivo EVENTO</label>
+            <select
+              value={eventoFilter}
+              onChange={(e) => setEventoFilter(e.target.value as EventoFilterValue)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-gray-900"
+            >
+              {EVENTO_FILTER_OPTIONS.map(opt => (
+                <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Filtra por motivo da solicitação (EVENTO). VIVAZ EVENTOS / AQUAMANIA EVENTOS aplicam setor além do motivo.
             </p>
           </div>
         )}
