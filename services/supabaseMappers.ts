@@ -166,7 +166,7 @@ export const prepareRequestForInsert = (request: Omit<ExtraRequest, 'id' | 'code
     reason_name: request.reason,
     extra_name: request.extraName,
     value: request.value,
-    value_type: request.valueType ?? 'por_hora',
+    value_type: request.valueType === 'combinado' ? 'combinado' : 'por_hora',
     urgency: request.urgency || false,
     observations: request.observations,
     contact: request.contact,

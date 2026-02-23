@@ -175,8 +175,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           eventName: initialRequest.eventName || '',
         });
       } else {
-        setFormData(prev => ({
-          ...prev,
+        setFormData({
           sector: leaderSector ?? '',
           role: '',
           workDays: [{ date: todayStr, shift: initialShift }],
@@ -187,7 +186,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
           value: 0,
           observations: '',
           eventName: '',
-        }));
+        });
       }
     }
   }, [isOpen, todayStr, shiftOptions.join(','), leaderSector, initialRequest?.id, user?.name]);
@@ -247,7 +246,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
 
       await addRequest({
         ...formData,
-        valueType: formData.valueType,
+        valueType: formData.valueType === 'combinado' ? 'combinado' : 'por_hora',
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
@@ -513,13 +512,13 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 onChange={(e) => setFormData({ ...formData, valueType: e.target.value as 'combinado' | 'por_hora' })}
                 title="Por hora = valor de referência (7h20) para cálculo pelas horas da portaria; Combinado = valor fixo por dia/turno."
               >
-                <option value="por_hora">Por hora (cálculo pelas horas trabalhadas)</option>
-                <option value="combinado">Valor combinado (por dia/turno)</option>
+                <option value="por_hora">Por hora (padrão — cálculo pelas horas da portaria)</option>
+                <option value="combinado">Valor combinado (só em algumas solicitações — valor fixo por dia/turno)</option>
               </select>
               <p className="text-[10px] text-gray-500">
                 {formData.valueType === 'combinado'
                   ? 'Valor informado é por dia/turno; total = valor × quantidade de dias.'
-                  : 'Valor de referência para a jornada de 7h20; o recibo calcula pelas horas lançadas na portaria.'}
+                  : 'Padrão: valor de referência (7h20). O recibo calcula pelas horas lançadas na portaria.'}
               </p>
             </div>
             <div className="space-y-1">

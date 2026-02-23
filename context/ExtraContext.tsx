@@ -437,7 +437,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           reason_name: data.reason,
           extra_name: data.extraName,
           value: data.value,
-          value_type: data.valueType ?? 'por_hora',
+          value_type: data.valueType === 'combinado' ? 'combinado' : 'por_hora',
       status: canAutoApprove ? 'APROVADO' : 'SOLICITADO',
           urgency: data.urgency || false,
           observations: data.observations,
