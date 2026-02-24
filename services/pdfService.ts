@@ -423,28 +423,19 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
   const body: string[][] = [];
   const summaryRowIndices = new Set<number>();
   const spacerRowIndices = new Set<number>();
-  const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
-  const subtotaisPorSetor = new Map<string, number>();
-  let totalGeral = 0;
-  for (const r of requests) {
-    const s = r.sector ?? '';
-    if (!s) continue;
-    const v = totalWorkedValue(r);
-    subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + v);
-    totalGeral += v;
-  }
-  for (const s of sectors) {
-    subtotaisPorSetor.set(s, roundMoney(subtotaisPorSetor.get(s) ?? 0));
-  }
-  totalGeral = roundMoney(totalGeral);
+  const sectors = [...new Set(requests.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
 
   const byExtra = new Map<string, ExtraRequest[]>();
   for (const r of requests) {
     const key = r.extraName ?? '';
+    if (!key) continue;
     if (!byExtra.has(key)) byExtra.set(key, []);
     byExtra.get(key)!.push(r);
   }
   const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+
+  /** Por linha: valor exibido (arredondado) e por setor o valor bruto para repartição proporcional. */
+  const rowMeta: { displayedValor: number; bySectorRaw: Record<string, number>; totalRaw: number }[] = [];
 
   for (const [, group] of extrasOrdenados) {
     const first = group[0];
@@ -457,7 +448,15 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
           : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
-    const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
+    const totalRaw = group.reduce((s, r) => s + totalWorkedValue(r), 0);
+    const valor = roundMoney(totalRaw);
+    const bySectorRaw: Record<string, number> = {};
+    for (const r of group) {
+      const s = r.sector ?? '';
+      if (!s) continue;
+      bySectorRaw[s] = (bySectorRaw[s] ?? 0) + totalWorkedValue(r);
+    }
+    rowMeta.push({ displayedValor: valor, bySectorRaw, totalRaw });
     const valorStr = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     body.push([
       periodStr,
@@ -466,6 +465,29 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
       first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
       valorStr
     ]);
+  }
+
+  // Subtotais = soma dos valores exibidos por linha atribuídos a cada setor (proporcional se a linha tem mais de um setor)
+  const subtotaisPorSetor = new Map<string, number>();
+  for (const s of sectors) {
+    subtotaisPorSetor.set(s, 0);
+  }
+  for (const row of rowMeta) {
+    if (row.totalRaw <= 0) continue;
+    for (const s of sectors) {
+      const part = row.bySectorRaw[s] ?? 0;
+      if (part <= 0) continue;
+      const attributed = row.displayedValor * (part / row.totalRaw);
+      subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + attributed);
+    }
+  }
+  // Arredondar cada subtotal para exibição (reais inteiros)
+  for (const s of sectors) {
+    subtotaisPorSetor.set(s, roundMoney(subtotaisPorSetor.get(s) ?? 0));
+  }
+  let totalGeral = 0;
+  for (const setor of sectors) {
+    totalGeral += subtotaisPorSetor.get(setor) ?? 0;
   }
 
   for (const setor of sectors) {
