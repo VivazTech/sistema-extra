@@ -481,13 +481,28 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
       subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + attributed);
     }
   }
-  // Arredondar cada subtotal para exibição (reais inteiros)
+  // Total geral = soma dos valores exibidos nas linhas (para bater com a soma da coluna Valor)
+  const totalGeral = rowMeta.reduce((s, row) => s + row.displayedValor, 0);
+
+  // Arredondar cada subtotal para exibição; ajustar para que a soma dos subtotais = totalGeral
+  const rounded = new Map<string, number>();
+  let sumRounded = 0;
+  const remainders: { setor: string; remainder: number }[] = [];
   for (const s of sectors) {
-    subtotaisPorSetor.set(s, roundMoney(subtotaisPorSetor.get(s) ?? 0));
+    const raw = subtotaisPorSetor.get(s) ?? 0;
+    const value = roundMoney(raw);
+    rounded.set(s, value);
+    sumRounded += value;
+    remainders.push({ setor: s, remainder: raw - Math.floor(raw) });
   }
-  let totalGeral = 0;
-  for (const setor of sectors) {
-    totalGeral += subtotaisPorSetor.get(setor) ?? 0;
+  let diff = totalGeral - sumRounded;
+  if (diff !== 0) {
+    remainders.sort((a, b) => b.remainder - a.remainder);
+    const setorAjuste = diff > 0 ? remainders[0].setor : remainders[remainders.length - 1].setor;
+    rounded.set(setorAjuste, (rounded.get(setorAjuste) ?? 0) + diff);
+  }
+  for (const s of sectors) {
+    subtotaisPorSetor.set(s, rounded.get(s) ?? 0);
   }
 
   for (const setor of sectors) {

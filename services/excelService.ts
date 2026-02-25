@@ -131,29 +131,15 @@ export function totalWorkedValue(request: ExtraRequest): number {
   return roundMoney(total);
 }
 
-/** Exporta listagem para Excel: coluna Setor = todos os setores do extra (ordem alfabética); subtotais por setor no final. */
+/** Exporta listagem para Excel: coluna Setor = todos os setores do extra (ordem alfabética); subtotais por setor no final. Total geral = soma dos valores das linhas. */
 export function exportListExcel(requests: ExtraRequest[], title: string, filename?: string): void {
-  const sectors = [...new Set(requests.map(r => r.sector))].sort((a, b) => a.localeCompare(b));
+  const sectors = [...new Set(requests.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
 
   const data: (string | number)[][] = [
     ['RELATÓRIO CONTROLE DE EXTRAS'],
     [],
     ['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor'],
   ];
-
-  const subtotaisPorSetor = new Map<string, number>();
-  let totalGeral = 0;
-  for (const r of requests) {
-    const s = r.sector ?? '';
-    if (!s) continue;
-    const v = totalWorkedValue(r);
-    subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + v);
-    totalGeral += v;
-  }
-  for (const s of sectors) {
-    subtotaisPorSetor.set(s, roundMoney(subtotaisPorSetor.get(s) ?? 0));
-  }
-  totalGeral = roundMoney(totalGeral);
 
   const byExtra = new Map<string, ExtraRequest[]>();
   for (const r of requests) {
@@ -162,6 +148,9 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
     byExtra.get(key)!.push(r);
   }
   const extrasOrdenados = [...byExtra.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+
+  type RowMeta = { displayedValor: number; bySectorRaw: Record<string, number>; totalRaw: number };
+  const rowMeta: RowMeta[] = [];
 
   for (const [, group] of extrasOrdenados) {
     const first = group[0];
@@ -174,7 +163,15 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
           : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
-    const valor = roundMoney(group.reduce((s, r) => s + totalWorkedValue(r), 0));
+    const totalRaw = group.reduce((s, r) => s + totalWorkedValue(r), 0);
+    const valor = roundMoney(totalRaw);
+    const bySectorRaw: Record<string, number> = {};
+    for (const r of group) {
+      const s = r.sector ?? '';
+      if (!s) continue;
+      bySectorRaw[s] = (bySectorRaw[s] ?? 0) + totalWorkedValue(r);
+    }
+    rowMeta.push({ displayedValor: valor, bySectorRaw, totalRaw });
     data.push([
       periodStr,
       setorStr,
@@ -182,6 +179,41 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
       first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
       valor
     ]);
+  }
+
+  // Total geral = soma dos valores exibidos nas linhas (para bater com a soma da coluna Valor)
+  const totalGeral = rowMeta.reduce((s, row) => s + row.displayedValor, 0);
+
+  // Subtotais = repartição proporcional dos valores das linhas por setor; arredondar e ajustar para somar totalGeral
+  const subtotaisPorSetor = new Map<string, number>();
+  for (const s of sectors) subtotaisPorSetor.set(s, 0);
+  for (const row of rowMeta) {
+    if (row.totalRaw <= 0) continue;
+    for (const s of sectors) {
+      const part = row.bySectorRaw[s] ?? 0;
+      if (part <= 0) continue;
+      const attributed = row.displayedValor * (part / row.totalRaw);
+      subtotaisPorSetor.set(s, (subtotaisPorSetor.get(s) ?? 0) + attributed);
+    }
+  }
+  const rounded = new Map<string, number>();
+  let sumRounded = 0;
+  const remainders: { setor: string; remainder: number }[] = [];
+  for (const s of sectors) {
+    const raw = subtotaisPorSetor.get(s) ?? 0;
+    const value = roundMoney(raw);
+    rounded.set(s, value);
+    sumRounded += value;
+    remainders.push({ setor: s, remainder: raw - Math.floor(raw) });
+  }
+  let diff = totalGeral - sumRounded;
+  if (diff !== 0) {
+    remainders.sort((a, b) => b.remainder - a.remainder);
+    const setorAjuste = diff > 0 ? remainders[0].setor : remainders[remainders.length - 1].setor;
+    rounded.set(setorAjuste, (rounded.get(setorAjuste) ?? 0) + diff);
+  }
+  for (const s of sectors) {
+    subtotaisPorSetor.set(s, rounded.get(s) ?? 0);
   }
 
   for (const setor of sectors) {
