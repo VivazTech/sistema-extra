@@ -178,14 +178,17 @@ const Requests: React.FC = () => {
     } else {
       let list = filteredRequests;
       if (listOptions?.startDate && listOptions?.endDate) {
-        const startD = new Date(listOptions.startDate);
-        const endD = new Date(listOptions.endDate);
-        list = list.filter(req =>
-          req.workDays.some(day => {
-            const dayDate = new Date(day.date);
-            return dayDate >= startD && dayDate <= endD;
-          })
-        );
+        const start = listOptions.startDate;
+        const end = listOptions.endDate;
+        list = list
+          .filter(req =>
+            req.workDays.some(day => day.date >= start && day.date <= end)
+          )
+          .map(req => ({
+            ...req,
+            workDays: req.workDays.filter(d => d.date >= start && d.date <= end),
+          }))
+          .filter(req => req.workDays.length > 0);
       }
       if (sectorFilter === 'VIVAZ') {
         list = list.filter(r => r.sector.toLowerCase() !== 'aquamania');
