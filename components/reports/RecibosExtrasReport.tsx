@@ -136,9 +136,12 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
         workDays: (r.workDays || []).filter(d => d.date >= start && d.date <= end),
       }))
       .filter(r => (r.workDays?.length || 0) > 0);
-    // Recibo agrupado: não incluir solicitações com motivo EVENTO
+    // Recibo agrupado: não incluir motivo EVENTO apenas quando o usuário NÃO filtrou por EVENTO
+    // (se filtrou "Exportar somente motivo EVENTO", manter os eventos e permitir agrupar)
     if (listOptions?.groupByExtra) {
-      list = list.filter(r => (r.reason || '').toUpperCase().trim() !== 'EVENTO');
+      if (!eventoFilter) {
+        list = list.filter(r => (r.reason || '').toUpperCase().trim() !== 'EVENTO');
+      }
       if (list.length > 0) {
         list = consolidateRequestsByExtra(list);
       }
