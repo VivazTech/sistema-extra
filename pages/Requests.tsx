@@ -196,6 +196,10 @@ const Requests: React.FC = () => {
         list = list.filter(r => r.sector.toLowerCase() === 'aquamania');
       }
       list = filterByEvento(list, eventoFilter);
+      // Listagem: se "Exportar somente motivo EVENTO" = Não, excluir solicitações de evento
+      if (exportModal.type === 'list' && !eventoFilter) {
+        list = list.filter(r => (r.reason || '').toUpperCase().trim() !== 'EVENTO');
+      }
       const sectorSuffix = sectorFilter ? ` - ${sectorFilter}` : '';
       const eventoSuffix = eventoFilter === 'VIVAZ_EVENTOS' ? ' - VIVAZ EVENTOS' : eventoFilter === 'AQUAMANIA_EVENTOS' ? ' - AQUAMANIA EVENTOS' : '';
       const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
