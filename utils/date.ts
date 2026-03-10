@@ -6,6 +6,20 @@ export function parseISODate(dateStr?: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Normaliza qualquer string de data para YYYY-MM-DD para comparação segura (evita inconsistência entre DATE do Postgres e input type="date"). */
+export function toDateOnlyString(dateStr?: string | Date | null): string {
+  if (dateStr == null) return '';
+  if (dateStr instanceof Date) {
+    const iso = dateStr.toISOString().slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '';
+  }
+  if (typeof dateStr !== 'string') return '';
+  const s = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const iso = s.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '';
+}
+
 export function formatDateBR(date?: Date | string | null): string {
   const d = date instanceof Date ? date : parseISODate(date || undefined);
   if (!d) return '-';

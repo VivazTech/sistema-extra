@@ -26,7 +26,7 @@ import { generateSingleReciboPDF, generateListPDF, generateIndividualPDF } from 
 import { exportSingleReciboExcel, exportListExcel } from '../services/excelService';
 import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../components/ExportFormatModal';
 import RequestModal from '../components/RequestModal';
-import { formatDateBR } from '../utils/date';
+import { formatDateBR, toDateOnlyString } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
@@ -178,17 +178,25 @@ const Requests: React.FC = () => {
     } else {
       let list = filteredRequests;
       if (listOptions?.startDate && listOptions?.endDate) {
-        const start = listOptions.startDate;
-        const end = listOptions.endDate;
-        list = list
-          .filter(req =>
-            req.workDays.some(day => day.date >= start && day.date <= end)
-          )
-          .map(req => ({
-            ...req,
-            workDays: req.workDays.filter(d => d.date >= start && d.date <= end),
-          }))
-          .filter(req => req.workDays.length > 0);
+        const start = toDateOnlyString(listOptions.startDate);
+        const end = toDateOnlyString(listOptions.endDate);
+        if (start && end) {
+          list = list
+            .filter(req =>
+              req.workDays.some(day => {
+                const d = toDateOnlyString(day.date);
+                return d >= start && d <= end;
+              })
+            )
+            .map(req => ({
+              ...req,
+              workDays: req.workDays.filter(d => {
+                const dStr = toDateOnlyString(d.date);
+                return dStr >= start && dStr <= end;
+              }),
+            }))
+            .filter(req => req.workDays.length > 0);
+        }
       }
       if (sectorFilter === 'VIVAZ') {
         list = list.filter(r => r.sector.toLowerCase() !== 'aquamania');
