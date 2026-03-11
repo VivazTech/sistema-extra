@@ -26,6 +26,7 @@ export const ACCESS_PAGES = [
   { key: 'requests', label: 'Solicitações', path: '/solicitacoes' },
   { key: 'portaria', label: 'Portaria', path: '/portaria' },
   { key: 'reports', label: 'Relatórios', path: '/relatorios' },
+  { key: 'graficos', label: 'Gráficos', path: '/graficos' },
   { key: 'catalogs', label: 'Cadastros', path: '/admin/cadastros' },
   { key: 'users', label: 'Usuários', path: '/admin/usuarios' },
   { key: 'saldo', label: 'Saldo de Extras', path: '/admin/saldo-extras' },
@@ -50,11 +51,11 @@ export const ACCESS_ACTIONS = [
 
 export const DEFAULT_ROLE_ACCESS: RoleAccess = {
   ADMIN: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs'],
+    pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs'],
     actions: ['manage_users', 'manage_catalogs', 'manage_extras', 'manage_saldo', 'approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard'],
   },
   MANAGER: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'saldo', 'tv'],
+    pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'saldo', 'tv'],
     actions: ['approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard'],
   },
   LEADER: {

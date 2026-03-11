@@ -6,6 +6,7 @@ export type AccessPageKey =
   | 'requests'
   | 'portaria'
   | 'reports'
+  | 'graficos'
   | 'catalogs'
   | 'users'
   | 'saldo'

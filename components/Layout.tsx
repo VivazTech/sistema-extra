@@ -17,6 +17,7 @@ import {
   User,
   ScrollText,
   RefreshCw,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
@@ -40,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Clock, label: 'Portaria', path: '/portaria', page: 'portaria' as AccessPageKey },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', page: 'tv' as AccessPageKey },
     { icon: FileText, label: 'Relatórios', path: '/relatorios', page: 'reports' as AccessPageKey },
+    { icon: BarChart3, label: 'Gráficos', path: '/graficos', page: 'graficos' as AccessPageKey },
     { icon: Users, label: 'Usuários', path: '/admin/usuarios', page: 'users' as AccessPageKey },
     { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', page: 'saldo' as AccessPageKey },
     { icon: Database, label: 'Banco de Extras', path: '/admin/extras', page: 'extras' as AccessPageKey },
