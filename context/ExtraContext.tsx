@@ -168,7 +168,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setShifts(shiftsData.map(mapShift));
         }
 
-        // Carregar Solicitações com work_days e time_records
+        // Carregar Solicitações com work_days e time_records (limite alto para incluir histórico; Supabase padrão é 1000)
         const { data: requestsData, error: requestsError } = await supabase
           .from('extra_requests')
           .select(`
@@ -181,7 +181,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               time_records(*)
             )
           `)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(10000);
 
         // Carregar Extras primeiro (para enriquecer CPF das solicitações)
         const { data: extrasData, error: extrasError } = await supabase
