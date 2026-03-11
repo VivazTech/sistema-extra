@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
-import { exportBulkRecibosExcel, totalWorkedValue } from '../../services/excelService';
+import { exportBulkRecibosExcel, totalWorkedValue, valorForDay } from '../../services/excelService';
 import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
@@ -20,7 +20,7 @@ function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
   });
 }
 
-/** Agrupa solicitações por nome do extra e retorna uma lista com um "request" por extra, com todos os workDays consolidados e ordenados por data. O total do recibo é a soma dos valores de cada solicitação (igual ao relatório). */
+/** Agrupa solicitações por nome do extra e retorna uma lista com um "request" por extra, com todos os workDays consolidados e ordenados por data. Cada dia mantém o valor conforme o tipo da solicitação de origem (por hora ou combinado). */
 function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
   const byKey = new Map<string, ExtraRequest[]>();
   for (const r of requests) {
@@ -32,19 +32,25 @@ function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
   for (const [, list] of byKey) {
     const first = list[0];
     const allWorkDays: WorkDay[] = [];
+    const dayValues: number[] = [];
     for (const req of list) {
       for (const wd of req.workDays) {
         allWorkDays.push({ date: wd.date, shift: wd.shift, timeRecord: wd.timeRecord ? { ...wd.timeRecord } : undefined });
+        dayValues.push(valorForDay(req, wd));
       }
     }
-    allWorkDays.sort((a, b) => a.date.localeCompare(b.date));
-    const consolidatedTotal = list.reduce((s, r) => s + totalWorkedValue(r), 0);
+    const byDate = allWorkDays.map((wd, i) => ({ wd, val: dayValues[i] }));
+    byDate.sort((a, b) => a.wd.date.localeCompare(b.wd.date));
+    const sortedWorkDays = byDate.map(x => x.wd);
+    const sortedDayValues = byDate.map(x => x.val);
+    const consolidatedTotal = Math.round(sortedDayValues.reduce((s, v) => s + v, 0) * 100) / 100;
     result.push({
       ...first,
       id: `${first.id}-agrupado`,
       code: `${first.code} (agrupado)`,
-      workDays: allWorkDays,
-      consolidatedTotal: Math.round(consolidatedTotal * 100) / 100,
+      workDays: sortedWorkDays,
+      consolidatedTotal,
+      consolidatedDayValues: sortedDayValues,
     });
   }
   return result;

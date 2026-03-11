@@ -177,20 +177,23 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
   doc.text(periodStr || 'N/A', col2 + 22, y + offsetY);
   y += 6;
 
-  // Controle de Ponto (Portaria). Agrupado (consolidatedTotal): total fixo; valor por dia proporcional às horas trabalhadas.
+  // Controle de Ponto (Portaria). Agrupado: se consolidatedDayValues existe, cada dia usa o valor da sua solicitação de origem; senão reparte consolidatedTotal por minutos.
   const useConsolidatedTotal = request.consolidatedTotal != null;
-  const isCombinado = !useConsolidatedTotal && request.valueType === 'combinado';
+  const useDayValues = request.consolidatedDayValues != null && request.consolidatedDayValues.length === request.workDays.length;
+  const isCombinado = !useConsolidatedTotal && !useDayValues && request.valueType === 'combinado';
   const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
   const totalMinutos = request.workDays.reduce((sum, day) => sum + minutesWorkedInDay(day.timeRecord), 0);
   const head = ['Data', 'Horário Chegada', 'Início Intervalo', 'Fim Intervalo', 'Horário Saída', 'Total Horas', 'Valor'];
-  const body = request.workDays.map(day => {
+  const body = request.workDays.map((day, i) => {
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
     const horasDia = minDay / 60;
     let valorDia: number;
-    if (useConsolidatedTotal) {
+    if (useDayValues) {
+      valorDia = request.consolidatedDayValues![i];
+    } else if (useConsolidatedTotal) {
       valorDia = totalMinutos > 0
         ? roundMoney((minDay / totalMinutos) * request.consolidatedTotal!)
         : 0;
@@ -208,13 +211,15 @@ function buildIndividualPDF(doc: jsPDF, request: ExtraRequest, offsetY: number =
       valorStr
     ];
   });
-  const totalValor = useConsolidatedTotal
-    ? roundMoney(request.consolidatedTotal!)
-    : isCombinado
-      ? roundMoney(request.value * (request.workDays?.length || 1))
-      : roundMoney(
-          request.workDays.reduce((sum, day) => sum + roundMoney((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
-        );
+  const totalValor = useDayValues
+    ? roundMoney(request.consolidatedDayValues!.reduce((s, v) => s + v, 0))
+    : useConsolidatedTotal
+      ? roundMoney(request.consolidatedTotal!)
+      : isCombinado
+        ? roundMoney(request.value * (request.workDays?.length || 1))
+        : roundMoney(
+            request.workDays.reduce((sum, day) => sum + roundMoney((minutesWorkedInDay(day.timeRecord) / 60) * valorHora), 0)
+          );
   body.push(['TOTAL', '', '', '', '', totalHours, totalValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
 
   doc.setFontSize(7);

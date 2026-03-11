@@ -102,6 +102,8 @@ export interface ExtraRequest {
   valueType?: 'combinado' | 'por_hora';
   /** Quando preenchido, recibo/relatório usa este total (ex.: solicitações agrupadas por extra = soma dos valores de cada uma). */
   consolidatedTotal?: number;
+  /** Valores por dia na ordem de workDays; usado no recibo agrupado para respeitar o tipo de valor de cada solicitação de origem. */
+  consolidatedDayValues?: number[];
   status: RequestStatus;
   needsManagerApproval?: boolean;
   urgency?: boolean;

@@ -4,6 +4,7 @@ import { useExtras } from '../../context/ExtraContext';
 import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, PieChart as PieChartIcon } from 'lucide-react';
+import { totalWorkedValue } from '../../services/excelService';
 
 interface FinancialReportProps {
   startDate?: string;
@@ -34,11 +35,12 @@ const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate, s
   // Cálculo de custos
   const approvedRequests = filteredRequests.filter(r => r.status === 'APROVADO');
   
+  // Custo total = soma dos valores exatamente como no recibo (considerando tipo de valor e horas)
   const totalCost = approvedRequests.reduce((sum, req) => {
-    return sum + (req.value * req.workDays.length);
+    return sum + totalWorkedValue(req);
   }, 0);
 
-  // Custo por setor
+  // Custo por setor (usando o mesmo total do recibo; custo da solicitação distribuído igualmente pelos dias para médias)
   const sectorCosts = useMemo(() => {
     const sectorMap: { [key: string]: { cost: number; days: number; requests: number } } = {};
     
@@ -46,8 +48,8 @@ const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate, s
       if (!sectorMap[req.sector]) {
         sectorMap[req.sector] = { cost: 0, days: 0, requests: 0 };
       }
-      const cost = req.value * req.workDays.length;
-      sectorMap[req.sector].cost += cost;
+      const costReq = totalWorkedValue(req);
+      sectorMap[req.sector].cost += costReq;
       sectorMap[req.sector].days += req.workDays.length;
       sectorMap[req.sector].requests += 1;
     });
@@ -61,7 +63,7 @@ const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate, s
     })).sort((a, b) => b.custo - a.custo);
   }, [approvedRequests]);
 
-  // Custo mensal
+  // Custo mensal (distribui o total da solicitação igualmente pelos dias para não perder a igualdade com o total dos recibos)
   const monthlyCosts = useMemo(() => {
     const months: { [key: string]: { cost: number; requests: number } } = {};
     const now = new Date();
@@ -73,11 +75,14 @@ const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate, s
     }
 
     approvedRequests.forEach(req => {
+      const costReq = totalWorkedValue(req);
+      const daysCount = req.workDays.length || 1;
+      const costPerDay = costReq / daysCount;
       req.workDays.forEach(day => {
         const date = new Date(day.date);
         const monthKey = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
         if (months[monthKey]) {
-          months[monthKey].cost += req.value;
+          months[monthKey].cost += costPerDay;
           months[monthKey].requests += 1;
         }
       });
@@ -90,13 +95,13 @@ const FinancialReport: React.FC<FinancialReportProps> = ({ startDate, endDate, s
     }));
   }, [approvedRequests]);
 
-  // Custo por função
+  // Custo por função (usando o mesmo total do recibo)
   const roleCosts = useMemo(() => {
     const roleMap: { [key: string]: number } = {};
     
     approvedRequests.forEach(req => {
-      const cost = req.value * req.workDays.length;
-      roleMap[req.role] = (roleMap[req.role] || 0) + cost;
+      const costReq = totalWorkedValue(req);
+      roleMap[req.role] = (roleMap[req.role] || 0) + costReq;
     });
 
     return Object.entries(roleMap)

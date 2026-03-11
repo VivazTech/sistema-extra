@@ -64,9 +64,18 @@ function totalHoursWorked(workDays: WorkDay[]): string {
   return minutesToHHMM(totalMin);
 }
 
+/** Valor de um único dia conforme a solicitação (combinado = valor fixo; por hora = proporcional às horas). Usado no recibo agrupado. */
+export function valorForDay(request: ExtraRequest, day: WorkDay): number {
+  if (request.valueType === 'combinado') return roundMoney(request.value);
+  const minDay = minutesWorkedInDay(day.timeRecord);
+  const valorHora = request.value / HORAS_JORNADA_PADRAO;
+  return roundMoney((minDay / 60) * valorHora);
+}
+
 function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (string | number)[][] } {
   const useConsolidatedTotal = request.consolidatedTotal != null;
-  const isCombinado = !useConsolidatedTotal && request.valueType === 'combinado';
+  const useDayValues = request.consolidatedDayValues != null && request.consolidatedDayValues.length === request.workDays.length;
+  const isCombinado = !useConsolidatedTotal && !useDayValues && request.valueType === 'combinado';
   const valorHora = isCombinado ? 0 : request.value / HORAS_JORNADA_PADRAO;
   const totalHours = totalHoursWorked(request.workDays);
   const periodStr = request.workDays.length
@@ -86,12 +95,19 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
   const table: (string | number)[][] = [tableHeaders];
 
   let totalValor = 0;
-  for (const day of request.workDays) {
+  request.workDays.forEach((day, i) => {
     const tr = day.timeRecord;
     const hours = hoursWorkedInDay(tr);
     const minDay = minutesWorkedInDay(tr);
-    const valorDia = useConsolidatedTotal ? 0 : (isCombinado ? roundMoney(request.value) : roundMoney((minDay / 60) * valorHora));
-    if (!useConsolidatedTotal) totalValor += valorDia;
+    let valorDia: number;
+    if (useDayValues) {
+      valorDia = request.consolidatedDayValues![i];
+    } else if (useConsolidatedTotal) {
+      valorDia = 0;
+    } else {
+      valorDia = isCombinado ? roundMoney(request.value) : roundMoney((minDay / 60) * valorHora);
+    }
+    if (!useConsolidatedTotal || useDayValues) totalValor += valorDia;
     table.push([
       formatDateBR(day.date),
       tr?.arrival || '',
@@ -99,10 +115,10 @@ function buildReciboData(request: ExtraRequest): { headers: string[][]; table: (
       tr?.breakEnd || '',
       tr?.departure || '',
       hours,
-      useConsolidatedTotal ? '' : (valorDia > 0 ? valorDia.toFixed(2) : ''),
+      valorDia > 0 ? valorDia.toFixed(2) : '',
     ]);
-  }
-  totalValor = useConsolidatedTotal ? roundMoney(request.consolidatedTotal!) : roundMoney(totalValor);
+  });
+  totalValor = useDayValues ? roundMoney(totalValor) : (useConsolidatedTotal ? roundMoney(request.consolidatedTotal!) : roundMoney(totalValor));
   table.push(['TOTAL', '', '', '', '', totalHours, totalValor.toFixed(2)]);
 
   return { headers, table };
