@@ -16,6 +16,7 @@ import Portaria from './pages/Portaria';
 import AdminCatalogs from './pages/AdminCatalogs';
 import AdminUsers from './pages/AdminUsers';
 import TestSupabase from './pages/TestSupabase';
+import TestExtraRequestsOld from './pages/TestExtraRequestsOld';
 import ExtraBank from './pages/ExtraBank';
 import ExtraBankForm from './pages/ExtraBankForm';
 import ExtraSaldo from './pages/ExtraSaldo';
@@ -45,6 +46,7 @@ const AppRoutes = () => {
       <Route path="/solicitacoes" element={<PrivateRoute page="requests"><Requests /></PrivateRoute>} />
       <Route path="/portaria" element={<PrivateRoute page="portaria"><Portaria /></PrivateRoute>} />
       <Route path="/test-supabase" element={<PrivateRoute page="test"><TestSupabase /></PrivateRoute>} />
+      <Route path="/test-extra-requests-old" element={<PrivateRoute><TestExtraRequestsOld /></PrivateRoute>} />
       <Route path="/preview-pdf" element={<PrivateRoute><PDFPreview /></PrivateRoute>} />
       <Route path="/admin/cadastros" element={<PrivateRoute page="catalogs"><AdminCatalogs /></PrivateRoute>} />
       <Route path="/admin/usuarios" element={<PrivateRoute page="users"><AdminUsers /></PrivateRoute>} />
