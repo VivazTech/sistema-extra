@@ -17,7 +17,8 @@ import {
   Edit,
   ChevronDown,
   ChevronUp,
-  Trash2
+  Trash2,
+  Calendar
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +54,23 @@ const Requests: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [exportModal, setExportModal] = useState<{ type: 'recibo'; request: ExtraRequest } | { type: 'list' } | null>(null);
   const [updatingValueTypeId, setUpdatingValueTypeId] = useState<string | null>(null);
+  const [filterDatePreset, setFilterDatePreset] = useState<'' | '7' | '30' | '60' | '90' | '365' | 'custom'>('');
+  const [filterDateStart, setFilterDateStart] = useState('');
+  const [filterDateEnd, setFilterDateEnd] = useState('');
+
+  const dateRange = React.useMemo(() => {
+    if (!filterDatePreset || filterDatePreset === '') return null;
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    if (filterDatePreset === 'custom') {
+      if (filterDateStart && filterDateEnd) return { start: filterDateStart, end: filterDateEnd };
+      return null;
+    }
+    const days = parseInt(filterDatePreset, 10);
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - days);
+    return { start: startDate.toISOString().slice(0, 10), end };
+  }, [filterDatePreset, filterDateStart, filterDateEnd]);
 
   const toggleGroupExpanded = (requestId: string) => {
     setExpandedGroups(prev => {
@@ -69,13 +87,17 @@ const Requests: React.FC = () => {
                           r.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
     const matchesSector = !isAdmin || !filterSector || r.sector === filterSector;
-    
+    const matchesDate = !dateRange || (r.workDays || []).some(d => {
+      const dStr = toDateOnlyString(d.date);
+      return dStr >= dateRange.start && dStr <= dateRange.end;
+    });
+
     // Managers only see their sectors if restricted
     const isManagerAuthorized = user?.role !== 'MANAGER' || (user.sectors?.includes(r.sector));
     // Líder só vê solicitações do próprio setor
     const isLeaderAuthorized = user?.role !== 'LEADER' || (user.sectors?.length && user.sectors.includes(r.sector));
-    
-    return matchesSearch && matchesStatus && matchesSector && isManagerAuthorized && isLeaderAuthorized;
+
+    return matchesSearch && matchesStatus && matchesSector && matchesDate && isManagerAuthorized && isLeaderAuthorized;
   });
 
   const handleApprove = async (id: string) => {
@@ -386,6 +408,42 @@ const Requests: React.FC = () => {
             </select>
           </div>
         )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar size={18} className="text-gray-400 shrink-0" />
+          <select 
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            value={filterDatePreset}
+            onChange={(e) => setFilterDatePreset(e.target.value as typeof filterDatePreset)}
+            title="Filtrar por período (data dos dias trabalhados)"
+          >
+            <option value="">Todos os períodos</option>
+            <option value="7">Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="60">Últimos 60 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="365">Último ano</option>
+            <option value="custom">Personalizado</option>
+          </select>
+          {filterDatePreset === 'custom' && (
+            <>
+              <input
+                type="date"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={filterDateStart}
+                onChange={(e) => setFilterDateStart(e.target.value)}
+                title="Data inicial"
+              />
+              <span className="text-gray-400 text-sm">até</span>
+              <input
+                type="date"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={filterDateEnd}
+                onChange={(e) => setFilterDateEnd(e.target.value)}
+                title="Data final"
+              />
+            </>
+          )}
+        </div>
       </div>
 
       {/* Table */}
