@@ -178,7 +178,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const mappedExtras = !extrasError && extrasData ? extrasData.map(mapExtraPerson) : [];
         setExtras(mappedExtras);
 
-        // Carregar Solicitações com work_days e time_records: paginar para evitar limite 1000 do Supabase e trazer todo o histórico
+        // Carregar Solicitações com work_days e time_records: paginar para contornar max_rows (ex.: 1000 no config.toml e no Supabase Cloud)
+        // Usar página de 500 para cada request ficar abaixo do limite e permitir buscar todo o histórico
         const selectQuery = `
             *,
             sectors(name),
@@ -189,12 +190,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               time_records(*)
             )
           `;
-        const pageSize = 1000;
+        const pageSize = 500;
+        const maxPages = 200;
         let allRequestsData: any[] = [];
         let page = 0;
         let hasMore = true;
         let requestsError: Error | null = null;
-        while (hasMore) {
+        while (hasMore && page < maxPages) {
           const from = page * pageSize;
           const to = from + pageSize - 1;
           const { data: pageData, error: pageError } = await supabase

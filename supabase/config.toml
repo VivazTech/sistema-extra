@@ -13,8 +13,8 @@ port = 54321
 schemas = ["public", "graphql_public"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
-# The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
-# for accidental or malicious requests.
+# The maximum number of rows per request (Supabase/PostgREST). A app carrega solicitações em páginas de 500
+# para contornar este limite e exibir todo o histórico. Aumentar (ex.: 5000) acelera o carregamento inicial.
 max_rows = 1000
 
 [api.tls]
