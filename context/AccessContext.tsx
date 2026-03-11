@@ -27,13 +27,23 @@ const mapRoleAccessFromDB = (dbData: any[]): RoleAccess => {
   dbData.forEach((row) => {
     const role = row.role as UserRole;
     if (role && result[role]) {
+      let dbPages = Array.isArray(row.pages) 
+        ? row.pages.filter((p: string) => isValidPage(p)) as AccessPageKey[]
+        : result[role].pages;
+      
+      let dbActions = Array.isArray(row.actions)
+        ? row.actions.filter((a: string) => isValidAction(a)) as AccessActionKey[]
+        : result[role].actions;
+        
+      // Garante que o ADMIN nunca perca acesso a novas páginas/ações recém-criadas no código
+      if (role === 'ADMIN') {
+        dbPages = Array.from(new Set([...dbPages, ...result[role].pages])) as AccessPageKey[];
+        dbActions = Array.from(new Set([...dbActions, ...result[role].actions])) as AccessActionKey[];
+      }
+
       result[role] = {
-        pages: Array.isArray(row.pages) 
-          ? row.pages.filter((p: string) => isValidPage(p)) as AccessPageKey[]
-          : result[role].pages,
-        actions: Array.isArray(row.actions)
-          ? row.actions.filter((a: string) => isValidAction(a)) as AccessActionKey[]
-          : result[role].actions,
+        pages: dbPages,
+        actions: dbActions,
       };
     }
   });
