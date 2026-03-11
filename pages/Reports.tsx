@@ -64,12 +64,19 @@ function formatDateCSV(iso?: string): string {
 
 const Reports: React.FC = () => {
   const { user, requests } = useExtras();
-  const [activeTab, setActiveTab] = useState('recibos');
+  const [activeTab, setActiveTab] = useState('resumo-graficos');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSector, setSelectedSector] = useState<string>('VIVAZ');
 
   const reportTabs: ReportTab[] = [
+    { 
+      id: 'resumo-graficos', 
+      label: 'Resumo e Gráficos', 
+      icon: BarChart3, 
+      component: ReportsOverviewCharts,
+      roles: ['ADMIN', 'MANAGER']
+    },
     { 
       id: 'recibos', 
       label: 'Recibos de Extras', 
@@ -82,13 +89,6 @@ const Reports: React.FC = () => {
       label: 'Dashboard Executivo', 
       icon: LayoutDashboard, 
       component: ExecutiveDashboard,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'resumo-graficos', 
-      label: 'Resumo e Gráficos', 
-      icon: BarChart3, 
-      component: ReportsOverviewCharts,
       roles: ['ADMIN', 'MANAGER']
     },
     { 
