@@ -34,6 +34,7 @@ import IncompleteRecordsReport from '../components/reports/IncompleteRecordsRepo
 import AuditReport from '../components/reports/AuditReport';
 import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
 import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
+import ReportsOverviewCharts from '../components/reports/ReportsOverviewCharts';
 import { SECTOR_FILTER_OPTIONS } from '../components/ExportFormatModal';
 
 interface ReportTab {
@@ -81,6 +82,13 @@ const Reports: React.FC = () => {
       label: 'Dashboard Executivo', 
       icon: LayoutDashboard, 
       component: ExecutiveDashboard,
+      roles: ['ADMIN', 'MANAGER']
+    },
+    { 
+      id: 'resumo-graficos', 
+      label: 'Resumo e Gráficos', 
+      icon: BarChart3, 
+      component: ReportsOverviewCharts,
       roles: ['ADMIN', 'MANAGER']
     },
     { 
