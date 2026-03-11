@@ -178,8 +178,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const mappedExtras = !extrasError && extrasData ? extrasData.map(mapExtraPerson) : [];
         setExtras(mappedExtras);
 
-        // Carregar Solicitações com work_days e time_records: paginar para contornar max_rows (ex.: 1000 no config.toml e no Supabase Cloud)
-        // Usar página de 500 para cada request ficar abaixo do limite e permitir buscar todo o histórico
+        // Carregar Solicitações com work_days e time_records: paginação por cursor (created_at) para contornar max_rows e range do Supabase
         const selectQuery = `
             *,
             sectors(name),
@@ -193,25 +192,25 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const pageSize = 500;
         const maxPages = 200;
         let allRequestsData: any[] = [];
-        let page = 0;
-        let hasMore = true;
         let requestsError: Error | null = null;
-        while (hasMore && page < maxPages) {
-          const from = page * pageSize;
-          const to = from + pageSize - 1;
-          const { data: pageData, error: pageError } = await supabase
+        let cursor: string | null = null;
+        for (let page = 0; page < maxPages; page++) {
+          let query = supabase
             .from('extra_requests')
             .select(selectQuery)
             .order('created_at', { ascending: false })
-            .range(from, to);
+            .limit(pageSize);
+          if (cursor) query = query.lt('created_at', cursor);
+          const { data: pageData, error: pageError } = await query;
           if (pageError) {
             requestsError = pageError;
             break;
           }
           const list = pageData ?? [];
           allRequestsData = allRequestsData.concat(list);
-          hasMore = list.length === pageSize;
-          page++;
+          if (list.length < pageSize) break;
+          cursor = list[list.length - 1]?.created_at ?? null;
+          if (!cursor) break;
         }
 
         if (!requestsError) {
