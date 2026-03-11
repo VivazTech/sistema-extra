@@ -168,22 +168,6 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setShifts(shiftsData.map(mapShift));
         }
 
-        // Carregar Solicitações com work_days e time_records (limite alto para incluir histórico; Supabase padrão é 1000)
-        const { data: requestsData, error: requestsError } = await supabase
-          .from('extra_requests')
-          .select(`
-            *,
-            sectors(name),
-            users!extra_requests_approved_by_fkey(name),
-            extra_persons(cpf),
-            work_days(
-              *,
-              time_records(*)
-            )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(10000);
-
         // Carregar Extras primeiro (para enriquecer CPF das solicitações)
         const { data: extrasData, error: extrasError } = await supabase
           .from('extra_persons')
@@ -194,14 +178,50 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const mappedExtras = !extrasError && extrasData ? extrasData.map(mapExtraPerson) : [];
         setExtras(mappedExtras);
 
-        if (!requestsError && requestsData) {
-          const mappedRequests = requestsData.map(req => mapExtraRequest(req, req.work_days));
+        // Carregar Solicitações com work_days e time_records: paginar para evitar limite 1000 do Supabase e trazer todo o histórico
+        const selectQuery = `
+            *,
+            sectors(name),
+            users!extra_requests_approved_by_fkey(name),
+            extra_persons(cpf),
+            work_days(
+              *,
+              time_records(*)
+            )
+          `;
+        const pageSize = 1000;
+        let allRequestsData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+        let requestsError: Error | null = null;
+        while (hasMore) {
+          const from = page * pageSize;
+          const to = from + pageSize - 1;
+          const { data: pageData, error: pageError } = await supabase
+            .from('extra_requests')
+            .select(selectQuery)
+            .order('created_at', { ascending: false })
+            .range(from, to);
+          if (pageError) {
+            requestsError = pageError;
+            break;
+          }
+          const list = pageData ?? [];
+          allRequestsData = allRequestsData.concat(list);
+          hasMore = list.length === pageSize;
+          page++;
+        }
+
+        if (!requestsError) {
+          const mappedRequests = allRequestsData.map((req: any) => mapExtraRequest(req, req.work_days));
           // Preencher CPF a partir do banco de extras quando o extra estiver vinculado pelo nome
           const enriched = mappedRequests.map(r => {
             const cpf = r.extraCpf || mappedExtras.find(e => e.fullName === r.extraName)?.cpf;
             return cpf != null ? { ...r, extraCpf: cpf } : r;
           });
           setRequests(enriched);
+        } else if (requestsError) {
+          console.error('Erro ao carregar solicitações:', requestsError);
         }
 
         // Carregar Saldo Records
