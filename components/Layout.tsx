@@ -18,6 +18,7 @@ import {
   ScrollText,
   RefreshCw,
   BarChart3,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
@@ -45,6 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Users, label: 'Usuários', path: '/admin/usuarios', page: 'users' as AccessPageKey },
     { icon: Calculator, label: 'Saldo de Extras', path: '/admin/saldo-extras', page: 'saldo' as AccessPageKey },
     { icon: Database, label: 'Banco de Extras', path: '/admin/extras', page: 'extras' as AccessPageKey },
+    { icon: CalendarDays, label: 'Escalas', path: '/admin/escala', page: 'escala' as AccessPageKey },
     { icon: Settings, label: 'Cadastros', path: '/admin/cadastros', page: 'catalogs' as AccessPageKey },
     { icon: ScrollText, label: 'Logs', path: '/admin/logs', page: 'logs' as AccessPageKey },
   ].filter(item => (user ? hasPageAccess(user.role, item.page) : false));

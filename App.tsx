@@ -14,6 +14,7 @@ import Requests from './pages/Requests';
 import TVDashboard from './pages/TVDashboard';
 import Portaria from './pages/Portaria';
 import AdminCatalogs from './pages/AdminCatalogs';
+import AdminEscala from './pages/AdminEscala';
 import AdminUsers from './pages/AdminUsers';
 import TestSupabase from './pages/TestSupabase';
 import TestExtraRequestsOld from './pages/TestExtraRequestsOld';
@@ -50,6 +51,7 @@ const AppRoutes = () => {
       <Route path="/test-extra-requests-old" element={<PrivateRoute><TestExtraRequestsOld /></PrivateRoute>} />
       <Route path="/preview-pdf" element={<PrivateRoute><PDFPreview /></PrivateRoute>} />
       <Route path="/admin/cadastros" element={<PrivateRoute page="catalogs"><AdminCatalogs /></PrivateRoute>} />
+      <Route path="/admin/escala" element={<PrivateRoute page="escala"><AdminEscala /></PrivateRoute>} />
       <Route path="/admin/usuarios" element={<PrivateRoute page="users"><AdminUsers /></PrivateRoute>} />
       <Route path="/admin/logs" element={<PrivateRoute page="logs"><Logs /></PrivateRoute>} />
       <Route path="/admin/saldo-extras" element={<PrivateRoute page="saldo"><ExtraSaldo /></PrivateRoute>} />

@@ -34,6 +34,7 @@ export const ACCESS_PAGES = [
   { key: 'tv', label: 'Painel 24h', path: '/tv' },
   { key: 'test', label: 'Testes Supabase', path: '/test-supabase' },
   { key: 'logs', label: 'Logs de ação', path: '/admin/logs' },
+  { key: 'escala', label: 'Escalas', path: '/admin/escala' },
 ] as const;
 
 export const ACCESS_ACTIONS = [
@@ -47,12 +48,13 @@ export const ACCESS_ACTIONS = [
   { key: 'view_reports', label: 'Visualizar relatórios' },
   { key: 'view_dashboard', label: 'Visualizar dashboard' },
   { key: 'view_only', label: 'Acesso somente leitura' },
+  { key: 'manage_escala', label: 'Gerenciar escalas' },
 ] as const;
 
 export const DEFAULT_ROLE_ACCESS: RoleAccess = {
   ADMIN: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs'],
-    actions: ['manage_users', 'manage_catalogs', 'manage_extras', 'manage_saldo', 'approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard'],
+    pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs', 'escala'],
+    actions: ['manage_users', 'manage_catalogs', 'manage_extras', 'manage_saldo', 'approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard', 'manage_escala'],
   },
   MANAGER: {
     pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'saldo', 'tv'],

@@ -13,7 +13,8 @@ export type AccessPageKey =
   | 'extras'
   | 'tv'
   | 'test'
-  | 'logs';
+  | 'logs'
+  | 'escala';
 
 export type AccessActionKey =
   | 'manage_users'
@@ -25,7 +26,8 @@ export type AccessActionKey =
   | 'register_time'
   | 'view_reports'
   | 'view_dashboard'
-  | 'view_only';
+  | 'view_only'
+  | 'manage_escala';
 
 export type RoleAccess = Record<UserRole, { pages: AccessPageKey[]; actions: AccessActionKey[] }>;
 
@@ -140,6 +142,14 @@ export interface ExtraPerson {
   createdAt: string;
 }
 
+export interface Employee {
+  id: string;
+  name: string;
+  sector: string; // resolved sector name
+  sectorId?: string; // the database id of the sector
+  active?: boolean;
+}
+
 export interface ExtraSaldoInput {
   setor: string;
   periodoInicio: string;
@@ -183,4 +193,24 @@ export interface ActionLog {
   action_where: string;
   result: string;
   details?: Record<string, unknown>;
+}
+
+export interface EscalaUser {
+  userId: string;
+  userName: string;
+  fixedDayOff: number; // 0=Domingo, 1=Segunda, etc.
+  escalaTime: string; // Ex: 08:00 12:00 / 13:00 17:00
+  extraDaysOff: string[]; // ['2026-03-05', '2026-03-12']
+  holidays: string[]; // Feriados específicos ['2026-03-25']
+  customDays?: Record<string, string>; // Dias específicos de folga ou horários únicos
+}
+
+export interface EscalaRecord {
+  id: string;
+  month: number;
+  year: number;
+  sector: string;
+  data: EscalaUser[];
+  createdAt: string;
+  updatedAt: string;
 }

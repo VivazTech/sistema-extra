@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -61,6 +61,10 @@ interface ExtraContextType {
   addUser: (user: Partial<User>) => Promise<void>;
   updateUser: (id: string, user: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
+  employees: Employee[];
+  addEmployee: (employee: Omit<Employee, 'id'>) => Promise<Employee | null>;
+  updateEmployee: (id: string, employee: Partial<Employee>) => Promise<void>;
+  deleteEmployee: (id: string) => Promise<void>;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -76,6 +80,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
   const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   const managerSectorSet = useMemo(() => {
     if (user?.role !== 'MANAGER' && user?.role !== 'LEADER') return null;
@@ -273,6 +278,25 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }));
           setUsers(mappedUsers);
         }
+
+        // Carregar Funcionários Registrados
+        const { data: empData, error: empError } = await supabase
+          .from('employees')
+          .select('*, sectors(name)')
+          .eq('active', true)
+          .order('name');
+          
+        if (!empError && empData) {
+          const mappedEmp = empData.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            sectorId: e.sector_id,
+            sector: e.sectors?.name || '',
+            active: e.active
+          }));
+          setEmployees(mappedEmp);
+        }
+
     } catch (error) {
       console.error('Erro ao carregar dados do Supabase:', error);
     }
@@ -2419,6 +2443,78 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const addEmployee = async (employee: Omit<Employee, 'id'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .insert({
+          name: employee.name,
+          sector_id: employee.sectorId,
+        })
+        .select('*, sectors(name)')
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        const mapped: Employee = {
+          id: data.id,
+          name: data.name,
+          sectorId: data.sector_id,
+          sector: data.sectors?.name || '',
+          active: data.active
+        };
+        setEmployees(prev => [...prev, mapped].sort((a,b) => a.name.localeCompare(b.name)));
+        return mapped;
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao adicionar funcionário:', error);
+      throw error;
+    }
+  };
+
+  const updateEmployee = async (id: string, employee: Partial<Employee>) => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .update({
+          name: employee.name,
+          sector_id: employee.sectorId,
+          active: employee.active,
+        })
+        .eq('id', id)
+        .select('*, sectors(name)')
+        .single();
+        
+      if (error) throw error;
+      if (data) {
+        const mapped: Employee = {
+          id: data.id,
+          name: data.name,
+          sectorId: data.sector_id,
+          sector: data.sectors?.name || '',
+          active: data.active
+        };
+        setEmployees(prev => prev.map(e => e.id === id ? mapped : e).sort((a,b) => a.name.localeCompare(b.name)));
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar funcionário:', error);
+      throw error;
+    }
+  };
+
+  const deleteEmployee = async (id: string) => {
+    try {
+      // Soft delete for safety, if we prefer we can hard delete
+      const { error } = await supabase.from('employees').update({ active: false }).eq('id', id);
+      if (error) throw error;
+      setEmployees(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Erro ao excluir funcionário:', error);
+      throw error;
+    }
+  };
+
   return (
     <ExtraContext.Provider value={{ 
       requests: visibleRequests,
@@ -2430,6 +2526,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
       users,
+      employees,
       addRequest, updateRequest, updateStatus, approveWorkDay, rejectWorkDay, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
@@ -2444,7 +2541,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deleteWorkDay,
       getSaldoForWeek,
       refreshData: loadData,
-      addUser, updateUser, deleteUser
+      addUser, updateUser, deleteUser,
+      addEmployee, updateEmployee, deleteEmployee
     }}>
       {children}
     </ExtraContext.Provider>
