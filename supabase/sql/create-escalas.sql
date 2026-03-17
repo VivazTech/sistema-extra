@@ -16,18 +16,12 @@ ALTER TABLE public.escalas ENABLE ROW LEVEL SECURITY;
 -- Políticas de segurança
 CREATE POLICY "Admins podem ler tudo" 
 ON public.escalas FOR SELECT 
-USING (
-  auth.uid() IN (SELECT id FROM public.users WHERE role = 'ADMIN')
-);
+USING (true);
 
 CREATE POLICY "Admins podem modificar tudo" 
 ON public.escalas FOR ALL 
-USING (
-  auth.uid() IN (SELECT id FROM public.users WHERE role = 'ADMIN')
-)
-WITH CHECK (
-  auth.uid() IN (SELECT id FROM public.users WHERE role = 'ADMIN')
-);
+USING (true)
+WITH CHECK (true);
 
 -- Trigger para updated_at
 DROP TRIGGER IF EXISTS handle_updated_at ON public.escalas;

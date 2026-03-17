@@ -52,8 +52,12 @@ const AdminEscala: React.FC = () => {
   useEffect(() => {
     if (selectedSector) {
       loadEscala();
+    } else {
+      setEscalaRecord(null);
+      setEscalaUsers([]);
     }
-  }, [selectedSector, currentMonth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSector, currentMonth, sectorUsers.length]);
 
   const loadEscala = async () => {
     setLoading(true);
@@ -368,6 +372,7 @@ const AdminEscala: React.FC = () => {
                   <th className="px-4 py-3 border-b">Horário (Escala)</th>
                   <th className="px-4 py-3 border-b">Dia Fixo de Folga</th>
                   <th className="px-4 py-3 border-b">Outras Folgas no Mês</th>
+                  <th className="px-4 py-3 border-b text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm border-b">
@@ -414,6 +419,17 @@ const AdminEscala: React.FC = () => {
                           }}
                         />
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        title="Salvar alterações na escala"
+                        className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1 shadow-sm disabled:opacity-50 min-w-[80px] ml-auto"
+                      >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        Lançar
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -477,6 +493,20 @@ const AdminEscala: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+            
+            <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Legenda</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                {Object.entries(LEGENDA).map(([key, label]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-6 h-6 flex items-center justify-center bg-white border border-gray-300 rounded text-xs font-bold text-gray-700 shadow-sm">
+                      {key}
+                    </span>
+                    <span className="text-xs text-gray-600 font-medium">{label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
