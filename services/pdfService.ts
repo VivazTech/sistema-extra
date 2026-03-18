@@ -454,7 +454,9 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
     const totalRaw = group.reduce((s, r) => s + totalWorkedValue(r), 0);
-    const valor = roundMoney(totalRaw);
+    // totalWorkedValue() já entrega o valor final arredondado (mesma regra do recibo).
+    // Arredondar de novo aqui alterava valores (duplo arredondamento) e gerava divergência.
+    const valor = totalRaw;
     const bySectorRaw: Record<string, number> = {};
     for (const r of group) {
       const s = r.sector ?? '';

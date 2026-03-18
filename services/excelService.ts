@@ -180,7 +180,9 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
     const totalRaw = group.reduce((s, r) => s + totalWorkedValue(r), 0);
-    const valor = roundMoney(totalRaw);
+    // totalWorkedValue() já retorna o valor final arredondado (mesma regra do recibo).
+    // Reaplicar roundMoney aqui causava "duplo arredondamento" e divergência na listagem.
+    const valor = totalRaw;
     const bySectorRaw: Record<string, number> = {};
     for (const r of group) {
       const s = r.sector ?? '';
