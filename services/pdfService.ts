@@ -419,6 +419,23 @@ function totalWorkedValue(request: ExtraRequest): number {
   return roundMoney(total);
 }
 
+function valueForDay(request: ExtraRequest, day: WorkDay): number {
+  if (request.valueType === 'combinado') return roundMoney(request.value);
+  const minDay = minutesWorkedInDay(day.timeRecord);
+  const valorHora = request.value / HORAS_JORNADA_PADRAO;
+  return roundMoney((minDay / 60) * valorHora);
+}
+
+function totalWorkedValueByExtraGroup(group: ExtraRequest[]): number {
+  const dayValues: number[] = [];
+  for (const req of group) {
+    for (const day of req.workDays) {
+      dayValues.push(valueForDay(req, day));
+    }
+  }
+  return roundMoney(dayValues.reduce((s, v) => s + v, 0));
+}
+
 /** Lista única: uma linha por extra; coluna Setor = todos os setores que o extra trabalhou (ordem alfabética). Subtotais por setor no final. */
 function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
@@ -453,15 +470,15 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
           : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
-    const totalRaw = group.reduce((s, r) => s + totalWorkedValue(r), 0);
-    // totalWorkedValue() já entrega o valor final arredondado (mesma regra do recibo).
-    // Arredondar de novo aqui alterava valores (duplo arredondamento) e gerava divergência.
+    // Para linha agrupada por funcionário, usar a mesma regra do recibo agrupado:
+    // somar valores de cada dia e aplicar roundMoney apenas no total final.
+    const totalRaw = totalWorkedValueByExtraGroup(group);
     const valor = totalRaw;
     const bySectorRaw: Record<string, number> = {};
     for (const r of group) {
       const s = r.sector ?? '';
       if (!s) continue;
-      bySectorRaw[s] = (bySectorRaw[s] ?? 0) + totalWorkedValue(r);
+      bySectorRaw[s] = (bySectorRaw[s] ?? 0) + r.workDays.reduce((acc, d) => acc + valueForDay(r, d), 0);
     }
     rowMeta.push({ displayedValor: valor, bySectorRaw, totalRaw });
     const valorStr = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

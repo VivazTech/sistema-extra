@@ -147,6 +147,16 @@ export function totalWorkedValue(request: ExtraRequest): number {
   return roundMoney(total);
 }
 
+function totalWorkedValueByExtraGroup(group: ExtraRequest[]): number {
+  const dayValues: number[] = [];
+  for (const req of group) {
+    for (const day of req.workDays) {
+      dayValues.push(valorForDay(req, day));
+    }
+  }
+  return roundMoney(dayValues.reduce((s, v) => s + v, 0));
+}
+
 /** Exporta listagem para Excel: coluna Setor = todos os setores do extra (ordem alfabética); subtotais por setor no final. Total geral = soma dos valores das linhas. */
 export function exportListExcel(requests: ExtraRequest[], title: string, filename?: string): void {
   const sectors = [...new Set(requests.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
@@ -179,15 +189,15 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
           : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
-    const totalRaw = group.reduce((s, r) => s + totalWorkedValue(r), 0);
-    // totalWorkedValue() já retorna o valor final arredondado (mesma regra do recibo).
-    // Reaplicar roundMoney aqui causava "duplo arredondamento" e divergência na listagem.
+    // Para linha agrupada por funcionário, usar a mesma regra do recibo agrupado:
+    // somar valores de cada dia e aplicar roundMoney apenas no total final.
+    const totalRaw = totalWorkedValueByExtraGroup(group);
     const valor = totalRaw;
     const bySectorRaw: Record<string, number> = {};
     for (const r of group) {
       const s = r.sector ?? '';
       if (!s) continue;
-      bySectorRaw[s] = (bySectorRaw[s] ?? 0) + totalWorkedValue(r);
+      bySectorRaw[s] = (bySectorRaw[s] ?? 0) + r.workDays.reduce((acc, d) => acc + valorForDay(r, d), 0);
     }
     rowMeta.push({ displayedValor: valor, bySectorRaw, totalRaw });
     data.push([
