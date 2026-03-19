@@ -42,6 +42,13 @@ const AdminCatalogs: React.FC = () => {
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [newEmployeeSectorId, setNewEmployeeSectorId] = useState('');
+  const [isModalNewEmployeeOpen, setIsModalNewEmployeeOpen] = useState(false);
+  const [modalEmployeeName, setModalEmployeeName] = useState('');
+  const [modalEmployeeSectorId, setModalEmployeeSectorId] = useState('');
+  const [modalEmployeeTurnos, setModalEmployeeTurnos] = useState<string[]>([]);
+  const [modalEmployeeEscalaTime, setModalEmployeeEscalaTime] = useState('');
+  const [modalEmployeeFixedDayOff, setModalEmployeeFixedDayOff] = useState<number>(-1);
+  const [modalEmployeeFixedDayOffDate, setModalEmployeeFixedDayOffDate] = useState<string>('');
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [editEmployeeName, setEditEmployeeName] = useState('');
   const [editEmployeeSectorId, setEditEmployeeSectorId] = useState('');
@@ -313,17 +320,57 @@ const AdminCatalogs: React.FC = () => {
     setEditEmployeeSectorId('');
   };
 
+  const handleOpenNewEmployeeModal = () => {
+    setModalEmployeeName(newEmployeeName);
+    setModalEmployeeSectorId(newEmployeeSectorId);
+    setModalEmployeeTurnos([]);
+    setModalEmployeeEscalaTime('');
+    setModalEmployeeFixedDayOff(-1);
+    setModalEmployeeFixedDayOffDate('');
+    setIsModalNewEmployeeOpen(true);
+  };
+
+  const handleCloseNewEmployeeModal = () => {
+    setIsModalNewEmployeeOpen(false);
+    setModalEmployeeName('');
+    setModalEmployeeSectorId('');
+    setModalEmployeeTurnos([]);
+    setModalEmployeeEscalaTime('');
+    setModalEmployeeFixedDayOff(-1);
+    setModalEmployeeFixedDayOffDate('');
+  };
+
   const handleAddEmployee = async () => {
-    const name = newEmployeeName.trim();
-    if (!name || !newEmployeeSectorId) {
+    const name = modalEmployeeName.trim();
+    if (!name || !modalEmployeeSectorId) {
       alert('Informe o nome e selecione o setor do funcionário.');
       return;
     }
+    if (modalEmployeeTurnos.length === 0) {
+      alert('Selecione pelo menos 1 turno para o funcionário.');
+      return;
+    }
+    if (!modalEmployeeEscalaTime.trim()) {
+      alert('Informe a escala (horário de trabalho) do funcionário.');
+      return;
+    }
+    if (modalEmployeeFixedDayOff < 0) {
+      alert('Selecione o dia fixo de folga do funcionário.');
+      return;
+    }
     try {
-      const created = await addEmployee({ name, sector: '', sectorId: newEmployeeSectorId });
+      const created = await addEmployee({
+        name,
+        sector: '',
+        sectorId: modalEmployeeSectorId,
+        turnos: modalEmployeeTurnos,
+        escalaTime: modalEmployeeEscalaTime.trim(),
+        fixedDayOff: modalEmployeeFixedDayOff,
+      });
       if (created) {
         setNewEmployeeName('');
         setNewEmployeeSectorId('');
+        handleCloseNewEmployeeModal();
         alert('Funcionário cadastrado com sucesso.');
       } else {
         alert('Erro ao cadastrar funcionário. Tente novamente.');
@@ -721,7 +768,7 @@ const AdminCatalogs: React.FC = () => {
               ))}
             </select>
             <button
-              onClick={handleAddEmployee}
+              onClick={handleOpenNewEmployeeModal}
               className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
             >
               <Plus size={16} /> Novo Funcionário
@@ -788,6 +835,135 @@ const AdminCatalogs: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Modal Novo Funcionário */}
+      {isModalNewEmployeeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Novo Funcionário</h3>
+              <button
+                onClick={handleCloseNewEmployeeModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Nome do funcionário *</label>
+                <input
+                  type="text"
+                  placeholder="Ex.: José Beltrán Dias"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  value={modalEmployeeName}
+                  onChange={(e) => setModalEmployeeName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Setor *</label>
+                <select
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  value={modalEmployeeSectorId}
+                  onChange={(e) => setModalEmployeeSectorId(e.target.value)}
+                >
+                  <option value="">Selecione o setor...</option>
+                  {sectors.map((sector) => (
+                    <option key={sector.id} value={sector.id}>
+                      {sector.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Turno *</label>
+                {shifts.length === 0 ? (
+                  <p className="text-sm text-gray-500">Nenhum turno cadastrado em `Cadastros > Turnos`.</p>
+                ) : (
+                  <>
+                    <select
+                      multiple
+                      size={4}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      value={modalEmployeeTurnos}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions).map(o => o.value);
+                        setModalEmployeeTurnos(selected);
+                      }}
+                    >
+                      {shifts.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Dica: para selecionar mais de um turno, segure `Ctrl` (ou `Cmd` no Mac).
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Escala (horário de trabalho) *</label>
+                <input
+                  type="text"
+                  placeholder="Ex.: 07:00-15:20 / 08:00-16:20"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  value={modalEmployeeEscalaTime}
+                  onChange={(e) => setModalEmployeeEscalaTime(e.target.value)}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Dia de folga fixo (Calendario) *</label>
+                <input
+                  type="date"
+                  value={modalEmployeeFixedDayOffDate}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setModalEmployeeFixedDayOffDate(v);
+                    if (!v) {
+                      setModalEmployeeFixedDayOff(-1);
+                      return;
+                    }
+                    // Usamos o dia da semana da data selecionada como folga fixa.
+                    // `new Date('YYYY-MM-DD')` pode sofrer deslocamento por timezone, então fixamos hora.
+                    const weekday = new Date(`${v}T12:00:00`).getDay(); // 0=Dom ... 6=Sáb
+                    setModalEmployeeFixedDayOff(weekday);
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  A data selecionada define o dia da semana da folga fixa.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleAddEmployee}
+                disabled={!modalEmployeeName.trim() || !modalEmployeeSectorId || modalEmployeeTurnos.length === 0 || !modalEmployeeEscalaTime.trim() || modalEmployeeFixedDayOff < 0}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700"
+              >
+                <Save size={16} /> Salvar
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseNewEmployeeModal}
+                className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Novo Setor */}
       {isModalNewSectorOpen && (

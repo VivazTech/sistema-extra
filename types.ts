@@ -148,6 +148,12 @@ export interface Employee {
   sector: string; // resolved sector name
   sectorId?: string; // the database id of the sector
   active?: boolean;
+  /** Nome(s) dos turnos do funcionário (ex.: "Manhã,Tarde,Noite"). Usado como metadado da escala. */
+  turnos?: string[];
+  /** Horário (escala) em texto livre (ex.: "07:00-15:20 / 08:00-16:20"). */
+  escalaTime?: string;
+  /** Dia fixo de folga: 0=Domingo ... 6=Sábado. -1 = não configurado. */
+  fixedDayOff?: number;
 }
 
 export interface ExtraSaldoInput {

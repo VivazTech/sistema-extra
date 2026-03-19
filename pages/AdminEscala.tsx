@@ -88,8 +88,8 @@ const AdminEscala: React.FC = () => {
         return {
           userId: u.id,
           userName: u.name,
-          fixedDayOff: -1, // Not configured
-          escalaTime: 'Sem Escala',
+          fixedDayOff: typeof u.fixedDayOff === 'number' ? u.fixedDayOff : -1, // Not configured
+          escalaTime: u.escalaTime?.trim() ? u.escalaTime : 'Sem Escala',
           extraDaysOff: [],
           holidays: [],
           customDays: {},

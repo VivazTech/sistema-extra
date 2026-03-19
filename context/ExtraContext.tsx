@@ -292,7 +292,15 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             name: e.name,
             sectorId: e.sector_id,
             sector: e.sectors?.name || '',
-            active: e.active
+            active: e.active,
+            // Campos opcionais de configuração da escala (quando existirem no banco)
+            turnos: typeof e.turnos === 'string' && e.turnos.trim()
+              ? e.turnos.split(',').map((t: string) => t.trim()).filter(Boolean)
+              : undefined,
+            escalaTime: typeof e.escala_time === 'string' && e.escala_time.trim()
+              ? e.escala_time
+              : undefined,
+            fixedDayOff: typeof e.fixed_day_off === 'number' ? e.fixed_day_off : undefined,
           }));
           setEmployees(mappedEmp);
         }
@@ -2450,6 +2458,10 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .insert({
           name: employee.name,
           sector_id: employee.sectorId,
+          // Campos opcionais (podem não existir no banco se a migração não foi aplicada)
+          ...(employee.turnos ? { turnos: employee.turnos.join(',') } : {}),
+          ...(employee.escalaTime != null ? { escala_time: employee.escalaTime } : {}),
+          ...(employee.fixedDayOff != null ? { fixed_day_off: employee.fixedDayOff } : {}),
         })
         .select('*, sectors(name)')
         .single();
@@ -2475,13 +2487,25 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateEmployee = async (id: string, employee: Partial<Employee>) => {
     try {
+      const updateData: any = {};
+      if (employee.name != null) updateData.name = employee.name;
+      if (employee.sectorId != null) updateData.sector_id = employee.sectorId;
+      if (employee.active != null) updateData.active = employee.active;
+
+      // Não sobrescreve campos com undefined (importante para o "editar" inline só mudar nome/setor).
+      if ('turnos' in employee) {
+        updateData.turnos = employee.turnos ? employee.turnos.join(',') : null;
+      }
+      if ('escalaTime' in employee) {
+        updateData.escala_time = employee.escalaTime ?? null;
+      }
+      if ('fixedDayOff' in employee) {
+        updateData.fixed_day_off = employee.fixedDayOff ?? null;
+      }
+
       const { data, error } = await supabase
         .from('employees')
-        .update({
-          name: employee.name,
-          sector_id: employee.sectorId,
-          active: employee.active,
-        })
+        .update(updateData)
         .eq('id', id)
         .select('*, sectors(name)')
         .single();
@@ -2493,7 +2517,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           name: data.name,
           sectorId: data.sector_id,
           sector: data.sectors?.name || '',
-          active: data.active
+          active: data.active,
+          turnos: typeof data.turnos === 'string' && data.turnos.trim()
+            ? data.turnos.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : undefined,
+          escalaTime: typeof data.escala_time === 'string' && data.escala_time.trim()
+            ? data.escala_time
+            : undefined,
+          fixedDayOff: typeof data.fixed_day_off === 'number' ? data.fixed_day_off : undefined,
         };
         setEmployees(prev => prev.map(e => e.id === id ? mapped : e).sort((a,b) => a.name.localeCompare(b.name)));
       }
