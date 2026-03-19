@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
-import { exportBulkRecibosExcel, totalWorkedValue, valorForDay } from '../../services/excelService';
+import { exportBulkRecibosExcel, valorForDay } from '../../services/excelService';
 import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
-import { formatDateBR } from '../../utils/date';
+import { formatDateBR, toDateOnlyString } from '../../utils/date';
 import type { ExtraRequest, WorkDay } from '../../types';
+import { roundMoney } from '../../utils/round';
 
 /** Ordenação alfabética por nome do extra (e desempate por setor e código). Usada para VIVAZ e AQUAMANIA. */
 function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
@@ -35,15 +36,19 @@ function consolidateRequestsByExtra(requests: ExtraRequest[]): ExtraRequest[] {
     const dayValues: number[] = [];
     for (const req of list) {
       for (const wd of req.workDays) {
-        allWorkDays.push({ date: wd.date, shift: wd.shift, timeRecord: wd.timeRecord ? { ...wd.timeRecord } : undefined });
+        allWorkDays.push({
+          date: toDateOnlyString(wd.date) || wd.date,
+          shift: wd.shift,
+          timeRecord: wd.timeRecord ? { ...wd.timeRecord } : undefined
+        });
         dayValues.push(valorForDay(req, wd));
       }
     }
     const byDate = allWorkDays.map((wd, i) => ({ wd, val: dayValues[i] }));
-    byDate.sort((a, b) => a.wd.date.localeCompare(b.wd.date));
+    byDate.sort((a, b) => (toDateOnlyString(a.wd.date) || a.wd.date).localeCompare(toDateOnlyString(b.wd.date) || b.wd.date));
     const sortedWorkDays = byDate.map(x => x.wd);
     const sortedDayValues = byDate.map(x => x.val);
-    const consolidatedTotal = Math.round(sortedDayValues.reduce((s, v) => s + v, 0) * 100) / 100;
+    const consolidatedTotal = roundMoney(sortedDayValues.reduce((s, v) => s + v, 0));
     result.push({
       ...first,
       id: `${first.id}-agrupado`,
@@ -103,13 +108,14 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
   // Lista apenas por período; o filtro de setor (VIVAZ/AQUAMANIA) é aplicado só no modal "Baixar Recibos"
   const filteredRequests = useMemo(() => {
     if (period === 'custom' && (!customStart || !customEnd) && !propsStart && !propsEnd) return [];
+    const startKey = toDateOnlyString(start);
+    const endKey = toDateOnlyString(end);
+    if (!startKey || !endKey) return [];
     return requests.filter(req => {
       if (req.status !== 'APROVADO') return false;
-      const startD = new Date(start);
-      const endD = new Date(end);
       const hasWorkDayInRange = req.workDays.some(day => {
-        const dayDate = new Date(day.date);
-        return dayDate >= startD && dayDate <= endD;
+        const dayKey = toDateOnlyString(day.date);
+        return !!dayKey && dayKey >= startKey && dayKey <= endKey;
       });
       return hasWorkDayInRange;
     });
@@ -136,12 +142,24 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     // Garantir que a exportação respeite SEMPRE o período selecionado:
     // como a lista base inclui solicitações que têm "algum" dia no período,
     // aqui recortamos os workDays para manter apenas os dias dentro de [start, end].
-    list = list
-      .map(r => ({
-        ...r,
-        workDays: (r.workDays || []).filter(d => d.date >= start && d.date <= end),
-      }))
-      .filter(r => (r.workDays?.length || 0) > 0);
+    const startKey = toDateOnlyString(start);
+    const endKey = toDateOnlyString(end);
+    if (!startKey || !endKey) {
+      list = [];
+    } else {
+      list = list
+        .map(r => ({
+          ...r,
+          workDays: (r.workDays || [])
+            .filter(d => {
+              const dayKey = toDateOnlyString(d.date);
+              return !!dayKey && dayKey >= startKey && dayKey <= endKey;
+            })
+            .map(d => ({ ...d, date: toDateOnlyString(d.date) || d.date }),
+            ),
+        }))
+        .filter(r => (r.workDays?.length || 0) > 0);
+    }
     // Recibo agrupado: não incluir motivo EVENTO apenas quando o usuário NÃO filtrou por EVENTO
     // (se filtrou "Exportar somente motivo EVENTO", manter os eventos e permitir agrupar)
     if (listOptions?.groupByExtra) {
