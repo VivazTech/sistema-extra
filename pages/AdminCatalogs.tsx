@@ -882,7 +882,7 @@ const AdminCatalogs: React.FC = () => {
               <div className="md:col-span-2">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Turno *</label>
                 {shifts.length === 0 ? (
-                  <p className="text-sm text-gray-500">Nenhum turno cadastrado em `Cadastros > Turnos`.</p>
+                  <p className="text-sm text-gray-500">Nenhum turno cadastrado em `Cadastros &gt; Turnos`.</p>
                 ) : (
                   <>
                     <select
