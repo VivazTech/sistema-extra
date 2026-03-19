@@ -301,6 +301,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               ? e.escala_time
               : undefined,
             fixedDayOff: typeof e.fixed_day_off === 'number' ? e.fixed_day_off : undefined,
+            feriasDates: Array.isArray(e.ferias_dates) ? e.ferias_dates : undefined,
           }));
           setEmployees(mappedEmp);
         }
@@ -2462,6 +2463,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ...(employee.turnos ? { turnos: employee.turnos.join(',') } : {}),
           ...(employee.escalaTime != null ? { escala_time: employee.escalaTime } : {}),
           ...(employee.fixedDayOff != null ? { fixed_day_off: employee.fixedDayOff } : {}),
+          ...(employee.feriasDates ? { ferias_dates: employee.feriasDates } : {}),
         })
         .select('*, sectors(name)')
         .single();
@@ -2502,6 +2504,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if ('fixedDayOff' in employee) {
         updateData.fixed_day_off = employee.fixedDayOff ?? null;
       }
+      if ('feriasDates' in employee) {
+        updateData.ferias_dates = employee.feriasDates ?? null;
+      }
 
       const { data, error } = await supabase
         .from('employees')
@@ -2525,6 +2530,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ? data.escala_time
             : undefined,
           fixedDayOff: typeof data.fixed_day_off === 'number' ? data.fixed_day_off : undefined,
+          feriasDates: Array.isArray(data.ferias_dates) ? data.ferias_dates : undefined,
         };
         setEmployees(prev => prev.map(e => e.id === id ? mapped : e).sort((a,b) => a.name.localeCompare(b.name)));
       }

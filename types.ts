@@ -154,6 +154,8 @@ export interface Employee {
   escalaTime?: string;
   /** Dia fixo de folga: 0=Domingo ... 6=Sábado. -1 = não configurado. */
   fixedDayOff?: number;
+  /** Lista de datas (YYYY-MM-DD) em que o funcionário está em férias/afastado. */
+  feriasDates?: string[];
 }
 
 export interface ExtraSaldoInput {
@@ -208,6 +210,7 @@ export interface EscalaUser {
   escalaTime: string; // Ex: 08:00 12:00 / 13:00 17:00
   extraDaysOff: string[]; // ['2026-03-05', '2026-03-12']
   holidays: string[]; // Feriados específicos ['2026-03-25']
+  vacations?: string[]; // Dias em que o funcionário está de férias (YYYY-MM-DD)
   customDays?: Record<string, string>; // Dias específicos de folga ou horários únicos
 }
 

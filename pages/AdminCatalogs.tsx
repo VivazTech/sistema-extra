@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { RequesterItem, ReasonItem, ShiftItem, Sector, Employee } from '../types';
 
@@ -49,6 +49,11 @@ const AdminCatalogs: React.FC = () => {
   const [modalEmployeeEscalaTime, setModalEmployeeEscalaTime] = useState('');
   const [modalEmployeeFixedDayOff, setModalEmployeeFixedDayOff] = useState<number>(-1);
   const [modalEmployeeFixedDayOffDate, setModalEmployeeFixedDayOffDate] = useState<string>('');
+
+  const [isModalFeriasOpen, setIsModalFeriasOpen] = useState(false);
+  const [feriasEmployeeId, setFeriasEmployeeId] = useState<string | null>(null);
+  const [feriasSaida, setFeriasSaida] = useState<string>('');
+  const [feriasVolta, setFeriasVolta] = useState<string>('');
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [editEmployeeName, setEditEmployeeName] = useState('');
   const [editEmployeeSectorId, setEditEmployeeSectorId] = useState('');
@@ -318,6 +323,78 @@ const AdminCatalogs: React.FC = () => {
     setEditingEmployeeId(null);
     setEditEmployeeName('');
     setEditEmployeeSectorId('');
+  };
+
+  function toDateKey(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function enumerateDatesInclusive(startStr: string, endStr: string): string[] {
+    const start = new Date(`${startStr}T12:00:00`);
+    const end = new Date(`${endStr}T12:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+    if (start > end) return [];
+    const out: string[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      out.push(toDateKey(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }
+
+  const handleOpenFeriasModal = (emp: Employee) => {
+    setFeriasEmployeeId(emp.id);
+    setFeriasSaida('');
+    setFeriasVolta('');
+    setIsModalFeriasOpen(true);
+  };
+
+  const handleCloseFeriasModal = () => {
+    setIsModalFeriasOpen(false);
+    setFeriasEmployeeId(null);
+    setFeriasSaida('');
+    setFeriasVolta('');
+  };
+
+  const handleSaveFerias = async () => {
+    if (!feriasEmployeeId) return;
+    if (!feriasSaida || !feriasVolta) {
+      alert('Informe as datas de saída e volta.');
+      return;
+    }
+    const saida = new Date(`${feriasSaida}T12:00:00`);
+    const volta = new Date(`${feriasVolta}T12:00:00`);
+    if (Number.isNaN(saida.getTime()) || Number.isNaN(volta.getTime())) {
+      alert('Datas inválidas.');
+      return;
+    }
+    if (saida > volta) {
+      alert('A data de saída não pode ser maior que a data de volta.');
+      return;
+    }
+
+    const rangeDates = enumerateDatesInclusive(feriasSaida, feriasVolta);
+    if (rangeDates.length === 0) {
+      alert('Não foi possível gerar o intervalo de datas.');
+      return;
+    }
+
+    const emp = employees.find(e => e.id === feriasEmployeeId);
+    const existing = emp?.feriasDates ?? [];
+    const merged = Array.from(new Set([...existing, ...rangeDates])).sort();
+
+    try {
+      await updateEmployee(feriasEmployeeId, { feriasDates: merged });
+      handleCloseFeriasModal();
+      alert('Férias cadastradas com sucesso.');
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao cadastrar férias. Tente novamente.');
+    }
   };
 
   const handleOpenNewEmployeeModal = () => {
@@ -815,6 +892,13 @@ const AdminCatalogs: React.FC = () => {
                     <Edit2 size={16} />
                   </button>
                   <button
+                    onClick={() => handleOpenFeriasModal(item)}
+                    className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                    title="Cadastrar férias"
+                  >
+                    <CalendarDays size={16} />
+                  </button>
+                  <button
                     onClick={async () => {
                       if (!confirm('Excluir este funcionário?')) return;
                       try {
@@ -956,6 +1040,66 @@ const AdminCatalogs: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCloseNewEmployeeModal}
+                className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cadastrar Férias */}
+      {isModalFeriasOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Cadastrar Férias</h3>
+              <button
+                onClick={handleCloseFeriasModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data de saída *</label>
+              <input
+                type="date"
+                value={feriasSaida}
+                onChange={(e) => setFeriasSaida(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data de volta *</label>
+              <input
+                type="date"
+                value={feriasVolta}
+                onChange={(e) => setFeriasVolta(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="text-xs text-gray-500">
+              O sistema marcará todas as datas entre a saída e a volta como férias.
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveFerias}
+                disabled={!feriasSaida || !feriasVolta}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700"
+              >
+                <Save size={16} /> Salvar
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseFeriasModal}
                 className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
               >
                 Cancelar

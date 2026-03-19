@@ -15,3 +15,6 @@ ALTER TABLE public.employees
 ALTER TABLE public.employees
   ADD COLUMN IF NOT EXISTS fixed_day_off integer DEFAULT -1;
 
+ALTER TABLE public.employees
+  ADD COLUMN IF NOT EXISTS ferias_dates text[] DEFAULT '{}'::text[];
+

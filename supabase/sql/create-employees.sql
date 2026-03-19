@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public.employees (
   turnos text, -- Ex.: "Manhã,Tarde,Noite" (lista separada por vírgula)
   escala_time text, -- Ex.: "07:00-15:20 / 08:00-16:20"
   fixed_day_off integer DEFAULT -1, -- 0=Domingo ... 6=Sábado, -1 = não configurado
+  ferias_dates text[] DEFAULT '{}'::text[], -- lista de datas em YYYY-MM-DD
   active boolean DEFAULT true,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()

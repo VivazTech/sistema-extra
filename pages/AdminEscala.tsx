@@ -83,6 +83,12 @@ const AdminEscala: React.FC = () => {
           return {
             ...existing,
             userName: u.name, // always update name
+            // Férias vêm dos funcionários cadastrados (não do JSON da escala mensal).
+            // Se já existe um registro de "escalas" salvo, pode não conter "vacations";
+            // então fazemos merge com u.vacations.
+            vacations: Array.isArray(existing.vacations) || Array.isArray(u.vacations)
+              ? Array.from(new Set([...(existing.vacations || []), ...(u.vacations || [])]))
+              : undefined,
           };
         }
         return {
@@ -92,6 +98,7 @@ const AdminEscala: React.FC = () => {
           escalaTime: u.escalaTime?.trim() ? u.escalaTime : 'Sem Escala',
           extraDaysOff: [],
           holidays: [],
+          vacations: Array.isArray(u.feriasDates) ? u.feriasDates : [],
           customDays: {},
         };
       });
@@ -236,8 +243,10 @@ const AdminEscala: React.FC = () => {
         
         let cellVal = 'P';
         
-        // Verifica customizations prioridade
-        if (eu.holidays?.includes(dateStr)) cellVal = 'Fe';
+        // Verifica customizations com prioridade:
+        // Férias > Feriados > Outras folgas > Folga fixa
+        if (eu.vacations?.includes(dateStr)) cellVal = 'Fr';
+        else if (eu.holidays?.includes(dateStr)) cellVal = 'Fe';
         else if (eu.extraDaysOff?.includes(dateStr)) cellVal = 'F';
         else if (eu.fixedDayOff === dw) cellVal = 'F';
         // Sem Escala = vazio
@@ -470,7 +479,9 @@ const AdminEscala: React.FC = () => {
                         let cellVal = 'P';
                         let bgClass = '';
                         
-                        if (eu.holidays?.includes(dateStr)) {
+                        if (eu.vacations?.includes(dateStr)) {
+                          cellVal = 'Fr'; bgClass = 'bg-rose-100 text-rose-700 font-bold';
+                        } else if (eu.holidays?.includes(dateStr)) {
                           cellVal = 'Fe'; bgClass = 'bg-yellow-100';
                         } else if (eu.extraDaysOff?.includes(dateStr)) {
                           cellVal = 'F'; bgClass = 'bg-gray-200 text-gray-600 font-bold';
