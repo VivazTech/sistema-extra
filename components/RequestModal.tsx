@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Save, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
@@ -29,7 +29,7 @@ const getValidSectorNames = (extra: { sector?: string; sectors?: string[] }, val
 };
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialRequest = null }) => {
-  const { sectors, requesters, reasons, shifts, extras, addRequest, updateRequest, getSaldoForWeek } = useExtras();
+  const { sectors, requesters, reasons, shifts, extras, requests, addRequest, updateRequest, getSaldoForWeek } = useExtras();
   const validSectorNames = useMemo(() => sectorNamesSet(sectors), [sectors]);
   const { logAction } = useActionLog();
   const isEditMode = !!initialRequest?.id;
@@ -110,6 +110,19 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
     }
     return getSaldoForWeek(effectiveSector, formData.workDays[0].date);
   }, [effectiveSector, formData.workDays, getSaldoForWeek]);
+
+  // Alerta de risco: extra com 3+ dias já trabalhados (solicitações aprovadas até hoje).
+  const selectedExtraWorkedDays = useMemo(() => {
+    const name = (formData.extraName || '').trim().toLowerCase();
+    if (!name) return 0;
+    let total = 0;
+    for (const req of requests) {
+      if ((req.extraName || '').trim().toLowerCase() !== name) continue;
+      if (req.status !== 'APROVADO') continue;
+      total += (req.workDays || []).filter(d => d.date <= todayStr).length;
+    }
+    return total;
+  }, [formData.extraName, requests, todayStr]);
 
   const addDays = (dateStr: string, days: number) => {
     const date = new Date(`${dateStr}T00:00:00`);
@@ -502,6 +515,14 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 <p className="text-xs text-amber-600 mt-1">
                   ⚠️ Nenhum extra cadastrado. Cadastre extras no "Banco de Extras" primeiro.
                 </p>
+              )}
+              {formData.extraName && selectedExtraWorkedDays >= 3 && (
+                <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-2">
+                  <AlertTriangle size={16} className="text-amber-600 mt-0.5" />
+                  <p className="text-sm font-semibold text-amber-800">
+                    Você está gerando risco! Este extra já trabalhou {selectedExtraWorkedDays} {selectedExtraWorkedDays === 1 ? 'dia' : 'dias'}.
+                  </p>
+                </div>
               )}
             </div>
             {isAdmin && (

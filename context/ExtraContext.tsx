@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -22,6 +22,7 @@ interface ExtraContextType {
   requesters: RequesterItem[];
   reasons: ReasonItem[];
   shifts: ShiftItem[];
+  employeeSchedules: EmployeeScheduleItem[];
   extras: ExtraPerson[];
   extraSaldoRecords: ExtraSaldoRecord[];
   extraSaldoSettings: ExtraSaldoSettings;
@@ -44,6 +45,9 @@ interface ExtraContextType {
   addShift: (shift: ShiftItem) => Promise<ShiftItem | null>;
   updateShift: (id: string, shift: ShiftItem) => Promise<void>;
   deleteShift: (id: string) => Promise<void>;
+  addEmployeeSchedule: (schedule: Omit<EmployeeScheduleItem, 'id'>) => Promise<EmployeeScheduleItem | null>;
+  updateEmployeeSchedule: (id: string, schedule: Omit<EmployeeScheduleItem, 'id'>) => Promise<void>;
+  deleteEmployeeSchedule: (id: string) => Promise<void>;
   addExtra: (extra: ExtraPerson) => Promise<void>;
   checkCpfExists: (cpf: string, excludeId?: string) => Promise<boolean>;
   updateExtra: (extra: ExtraPerson) => Promise<void>;
@@ -76,6 +80,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [requesters, setRequesters] = useState<RequesterItem[]>([]); // Carregado apenas do banco
   const [reasons, setReasons] = useState<ReasonItem[]>([]); // Carregado apenas do banco
   const [shifts, setShifts] = useState<ShiftItem[]>([]); // Carregado apenas do banco
+  const [employeeSchedules, setEmployeeSchedules] = useState<EmployeeScheduleItem[]>([]);
   const [extras, setExtras] = useState<ExtraPerson[]>([]);
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
@@ -171,6 +176,23 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (!shiftsError && shiftsData) {
           setShifts(shiftsData.map(mapShift));
+        }
+
+        // Carregar Escalas de trabalho (hora entrada/saida)
+        const { data: schedulesData, error: schedulesError } = await supabase
+          .from('employee_schedules')
+          .select('*')
+          .eq('active', true)
+          .order('entry_time', { ascending: true })
+          .order('exit_time', { ascending: true });
+
+        if (!schedulesError && schedulesData) {
+          const mappedSchedules: EmployeeScheduleItem[] = schedulesData.map((s: any) => ({
+            id: s.id,
+            entryTime: typeof s.entry_time === 'string' ? s.entry_time.slice(0, 5) : '',
+            exitTime: typeof s.exit_time === 'string' ? s.exit_time.slice(0, 5) : '',
+          }));
+          setEmployeeSchedules(mappedSchedules);
         }
 
         // Carregar Extras primeiro (para enriquecer CPF das solicitações)
@@ -654,114 +676,15 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  /** Aprova apenas um dia específico: cria nova solicitação com esse dia, aprova, e remove o dia da original. */
+  /** Aprovação por dia sem quebrar a solicitação em outra linha. */
   const approveWorkDay = async (requestId: string, workDate: string, approvedBy: string) => {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(approvedBy)) {
-      throw new Error('ID do aprovador inválido. Por favor, faça login novamente.');
-    }
-
     const request = requests.find(r => r.id === requestId);
     if (!request) throw new Error('Solicitação não encontrada.');
-
     const workDay = request.workDays.find(d => d.date === workDate);
     if (!workDay) throw new Error('Dia de trabalho não encontrado.');
 
-    const { data: sectorRow } = await supabase.from('sectors').select('id').eq('name', request.sector).single();
-    if (!sectorRow) throw new Error('Setor não encontrado.');
-
-    const { data: userData } = await supabase.from('users').select('id, name').eq('id', approvedBy).single();
-    if (!userData) throw new Error('Usuário não encontrado.');
-
-    const { data: newRequest, error: reqErr } = await supabase
-      .from('extra_requests')
-      .insert({
-        sector_id: sectorRow.id,
-        role_name: request.role,
-        leader_id: request.leaderId,
-        leader_name: request.leaderName,
-        requester_name: request.requester,
-        reason_name: request.reason,
-        extra_name: request.extraName,
-        value: request.value,
-        value_type: request.valueType ?? 'por_hora',
-        status: 'APROVADO',
-        needs_manager_approval: false,
-        approved_by: userData.id,
-        approved_at: new Date().toISOString(),
-        created_by: request.leaderId,
-        urgency: request.urgency || false,
-        observations: request.observations,
-        contact: request.contact,
-        event_name: request.eventName || null,
-      })
-      .select('id')
-      .single();
-
-    if (reqErr || !newRequest) {
-      console.error('Erro ao criar solicitação para dia aprovado:', reqErr);
-      throw reqErr || new Error('Erro ao criar solicitação.');
-    }
-
-    const shiftValue = (workDay as any).shift || 'Manhã';
-    const { data: newWorkDay, error: wdErr } = await supabase
-      .from('work_days')
-      .insert({
-        request_id: newRequest.id,
-        work_date: workDate,
-        shift: shiftValue,
-        value: request.value,
-      })
-      .select('id')
-      .single();
-
-    if (wdErr || !newWorkDay) {
-      await supabase.from('extra_requests').delete().eq('id', newRequest.id);
-      throw wdErr || new Error('Erro ao criar dia de trabalho.');
-    }
-
-    const tr = workDay.timeRecord;
-    if (tr && (tr.arrival || tr.departure)) {
-      const { data: userReg } = await supabase.from('users').select('id').eq('name', tr.registeredBy || 'Admin').single();
-      await supabase.from('time_records').insert({
-        work_day_id: newWorkDay.id,
-        arrival: tr.arrival || null,
-        break_start: tr.breakStart || null,
-        break_end: tr.breakEnd || null,
-        departure: tr.departure || null,
-        photo_url: tr.photoUrl || null,
-        observations: tr.observations || null,
-        registered_by: userReg?.id || null,
-      });
-    }
-
-    await deleteWorkDay(requestId, workDate);
-
-    const { data: origAfter } = await supabase
-      .from('extra_requests')
-      .select('*, work_days(id)')
-      .eq('id', requestId)
-      .single();
-    const wdList = (origAfter as any)?.work_days ?? [];
-    if (origAfter && wdList.length === 0) {
-      await supabase.from('extra_requests').delete().eq('id', requestId);
-      setRequests(prev => prev.filter(r => r.id !== requestId));
-    }
-
-    const { data: fullNewRequest } = await supabase
-      .from('extra_requests')
-      .select(`*, sectors(name), users!extra_requests_approved_by_fkey(name), extra_persons(cpf), work_days(*, time_records(*))`)
-      .eq('id', newRequest.id)
-      .single();
-
-    if (fullNewRequest) {
-      const mapped = mapExtraRequest(fullNewRequest, fullNewRequest.work_days);
-      const extraCpf = mapped.extraCpf || extras.find(e => e.fullName === mapped.extraName)?.cpf;
-      setRequests(prev =>
-        [...prev, { ...mapped, extraCpf: extraCpf ?? mapped.extraCpf }].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )
-      );
-    }
+    // Não cria nova solicitação. Mantém a solicitação original e aprova o registro atual.
+    await updateStatus(requestId, 'APROVADO', undefined, approvedBy);
   };
 
   /** Reprova apenas um dia específico: cria nova solicitação REPROVADA com esse dia e remove o dia da original. */
@@ -1501,6 +1424,75 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setShifts(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       console.error('Erro ao deletar turno:', error);
+    }
+  };
+
+  const addEmployeeSchedule = async (schedule: Omit<EmployeeScheduleItem, 'id'>): Promise<EmployeeScheduleItem | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('employee_schedules')
+        .insert({
+          entry_time: schedule.entryTime,
+          exit_time: schedule.exitTime,
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (error || !data) {
+        console.error('Erro ao criar escala:', error);
+        return null;
+      }
+
+      const mapped: EmployeeScheduleItem = {
+        id: data.id,
+        entryTime: String(data.entry_time || '').slice(0, 5),
+        exitTime: String(data.exit_time || '').slice(0, 5),
+      };
+      setEmployeeSchedules(prev => [...prev, mapped].sort((a, b) => a.entryTime.localeCompare(b.entryTime)));
+      return mapped;
+    } catch (error) {
+      console.error('Erro ao adicionar escala:', error);
+      return null;
+    }
+  };
+
+  const updateEmployeeSchedule = async (id: string, schedule: Omit<EmployeeScheduleItem, 'id'>) => {
+    try {
+      const { error } = await supabase
+        .from('employee_schedules')
+        .update({
+          entry_time: schedule.entryTime,
+          exit_time: schedule.exitTime,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao atualizar escala:', error);
+        return;
+      }
+
+      setEmployeeSchedules(prev =>
+        prev
+          .map(s => (s.id === id ? { id, entryTime: schedule.entryTime, exitTime: schedule.exitTime } : s))
+          .sort((a, b) => a.entryTime.localeCompare(b.entryTime))
+      );
+    } catch (error) {
+      console.error('Erro ao atualizar escala:', error);
+    }
+  };
+
+  const deleteEmployeeSchedule = async (id: string) => {
+    try {
+      const { error } = await supabase.from('employee_schedules').update({ active: false }).eq('id', id);
+      if (error) {
+        console.error('Erro ao excluir escala:', error);
+        return;
+      }
+      setEmployeeSchedules(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Erro ao excluir escala:', error);
     }
   };
 
@@ -2559,6 +2551,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       requesters,
       reasons,
       shifts,
+      employeeSchedules,
       extras: visibleExtras,
       extraSaldoRecords: visibleExtraSaldoRecords,
       extraSaldoSettings,
@@ -2569,6 +2562,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,
       addShift, updateShift, deleteShift,
+      addEmployeeSchedule, updateEmployeeSchedule, deleteEmployeeSchedule,
       addExtra, checkCpfExists, updateExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,
       updateExtraSaldoSettings,

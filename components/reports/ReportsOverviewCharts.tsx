@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { filterBySector } from '../ExportFormatModal';
 import { totalWorkedValue } from '../../services/excelService';
@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   BarChart3,
   PieChart as PieChartIcon,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 interface ReportsOverviewChartsProps {
@@ -35,6 +37,7 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   sector: sectorFilter,
 }) => {
   const { requests, sectors, getSaldoForWeek } = useExtras();
+  const [copiedResumo, setCopiedResumo] = useState(false);
 
   const filteredRequests = useMemo(() => {
     let list = requests;
@@ -123,8 +126,33 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
           ultrapassouDias: Math.abs(remaining),
         };
       })
-      .filter((s): s is NonNullable<typeof s> => s !== null);
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .sort((a, b) => b.ultrapassouDias - a.ultrapassouDias || a.setor.localeCompare(b.setor, 'pt-BR'));
   }, [sectors, getSaldoForWeek, sectorFilter]);
+
+  const resumoSetoresAcimaSaldo = useMemo(() => {
+    if (setoresUltrapassaramSaldo.length === 0) return '';
+    const linhas = [
+      'Resumo semanal de setores',
+      ...setoresUltrapassaramSaldo.map(
+        (item) =>
+          `${item.setor}: Excedeu ${item.ultrapassouDias} ${item.ultrapassouDias === 1 ? 'solicitação' : 'solicitações'}`
+      ),
+    ];
+    return linhas.join('\n');
+  }, [setoresUltrapassaramSaldo]);
+
+  const handleCopyResumo = async () => {
+    if (!resumoSetoresAcimaSaldo) return;
+    try {
+      await navigator.clipboard.writeText(resumoSetoresAcimaSaldo);
+      setCopiedResumo(true);
+      setTimeout(() => setCopiedResumo(false), 1800);
+    } catch (err) {
+      console.error('Erro ao copiar resumo:', err);
+      alert('Não foi possível copiar o resumo. Copie manualmente.');
+    }
+  };
 
   const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -189,6 +217,25 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
                 </span>
               </div>
             ))}
+          </div>
+          <div className="mt-4 bg-white border border-amber-100 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <h4 className="font-semibold text-amber-900">Resumo do gráfico</h4>
+              <button
+                type="button"
+                onClick={handleCopyResumo}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  copiedResumo
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                }`}
+                title="Copiar resumo"
+              >
+                {copiedResumo ? <Check size={14} /> : <Copy size={14} />}
+                {copiedResumo ? 'Copiado!' : 'Copiar resumo'}
+              </button>
+            </div>
+            <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{resumoSetoresAcimaSaldo}</pre>
           </div>
         </div>
       )}

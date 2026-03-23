@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
-import { RequesterItem, ReasonItem, ShiftItem, Sector, Employee } from '../types';
+import { RequesterItem, ReasonItem, ShiftItem, Sector, Employee, EmployeeScheduleItem } from '../types';
 
 const AdminCatalogs: React.FC = () => {
   const {
@@ -9,6 +9,7 @@ const AdminCatalogs: React.FC = () => {
     requesters,
     reasons,
     shifts,
+    employeeSchedules,
     addSector,
     updateSector,
     deleteSector,
@@ -21,6 +22,9 @@ const AdminCatalogs: React.FC = () => {
     addShift,
     updateShift,
     deleteShift,
+    addEmployeeSchedule,
+    updateEmployeeSchedule,
+    deleteEmployeeSchedule,
     employees,
     addEmployee,
     updateEmployee,
@@ -202,6 +206,11 @@ const AdminCatalogs: React.FC = () => {
   const [newShiftName, setNewShiftName] = useState('');
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [editShiftValue, setEditShiftValue] = useState('');
+  const [newScheduleEntryTime, setNewScheduleEntryTime] = useState('');
+  const [newScheduleExitTime, setNewScheduleExitTime] = useState('');
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [editScheduleEntryTime, setEditScheduleEntryTime] = useState('');
+  const [editScheduleExitTime, setEditScheduleExitTime] = useState('');
 
   const handleStartEditRequester = (item: RequesterItem) => {
     setEditingRequesterId(item.id);
@@ -293,6 +302,51 @@ const AdminCatalogs: React.FC = () => {
     } catch {
       alert('Erro ao cadastrar turno. Tente novamente.');
     }
+  };
+
+  const formatScheduleLabel = (item: { entryTime: string; exitTime: string }) => `${item.entryTime} - ${item.exitTime}`;
+
+  const handleStartEditSchedule = (item: EmployeeScheduleItem) => {
+    setEditingScheduleId(item.id);
+    setEditScheduleEntryTime(item.entryTime);
+    setEditScheduleExitTime(item.exitTime);
+  };
+
+  const handleCancelEditSchedule = () => {
+    setEditingScheduleId(null);
+    setEditScheduleEntryTime('');
+    setEditScheduleExitTime('');
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!editingScheduleId) return;
+    if (!editScheduleEntryTime || !editScheduleExitTime) {
+      alert('Informe hora de entrada e hora de saída.');
+      return;
+    }
+    await updateEmployeeSchedule(editingScheduleId, {
+      entryTime: editScheduleEntryTime,
+      exitTime: editScheduleExitTime,
+    });
+    handleCancelEditSchedule();
+  };
+
+  const handleAddSchedule = async () => {
+    if (!newScheduleEntryTime || !newScheduleExitTime) {
+      alert('Informe hora de entrada e hora de saída.');
+      return;
+    }
+    const created = await addEmployeeSchedule({
+      entryTime: newScheduleEntryTime,
+      exitTime: newScheduleExitTime,
+    });
+    if (created) {
+      setNewScheduleEntryTime('');
+      setNewScheduleExitTime('');
+      alert('Escala cadastrada com sucesso.');
+      return;
+    }
+    alert('Erro ao cadastrar escala. Tente novamente.');
   };
 
   const handleStartEditEmployee = (emp: Employee) => {
@@ -677,6 +731,72 @@ const AdminCatalogs: React.FC = () => {
             ))}
           </div>
         </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Escalas (Hora de Entrada e Saída)</h2>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="time"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                value={newScheduleEntryTime}
+                onChange={(e) => setNewScheduleEntryTime(e.target.value)}
+              />
+              <input
+                type="time"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                value={newScheduleExitTime}
+                onChange={(e) => setNewScheduleExitTime(e.target.value)}
+              />
+              <button
+                onClick={handleAddSchedule}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+              >
+                <Plus size={16} /> Nova Escala
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {employeeSchedules.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhuma escala cadastrada.</p>
+            )}
+            {employeeSchedules.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                {editingScheduleId === item.id ? (
+                  <>
+                    <input
+                      type="time"
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                      value={editScheduleEntryTime}
+                      onChange={(e) => setEditScheduleEntryTime(e.target.value)}
+                    />
+                    <input
+                      type="time"
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                      value={editScheduleExitTime}
+                      onChange={(e) => setEditScheduleExitTime(e.target.value)}
+                    />
+                    <button onClick={handleSaveSchedule} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Save size={16} />
+                    </button>
+                    <button onClick={handleCancelEditSchedule} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{formatScheduleLabel(item)}</span>
+                    <button onClick={() => handleStartEditSchedule(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => deleteEmployeeSchedule(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -823,101 +943,11 @@ const AdminCatalogs: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Funcionários Registrados</h2>
-          <div className="flex gap-2 items-center flex-wrap">
-            <input
-              type="text"
-              placeholder="Nome do funcionário"
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48"
-              value={newEmployeeName}
-              onChange={(e) => setNewEmployeeName(e.target.value)}
-            />
-            <select
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
-              value={newEmployeeSectorId}
-              onChange={(e) => setNewEmployeeSectorId(e.target.value)}
-            >
-              <option value="">Selecione o setor...</option>
-              {sectors.map((sector) => (
-                <option key={sector.id} value={sector.id}>{sector.name}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleOpenNewEmployeeModal}
-              className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
-            >
-              <Plus size={16} /> Novo Funcionário
-            </button>
-          </div>
-        </div>
-        <div className="space-y-2 max-h-[500px] overflow-y-auto">
-          {(!employees || employees.length === 0) && (
-            <p className="text-xs text-gray-400 italic">Nenhum funcionário registrado cadastrado.</p>
-          )}
-          {employees?.map((item) => (
-            <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
-              {editingEmployeeId === item.id ? (
-                <>
-                  <input
-                    type="text"
-                    className="flex-1 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
-                    value={editEmployeeName}
-                    onChange={(e) => setEditEmployeeName(e.target.value)}
-                    placeholder="Nome"
-                  />
-                  <select
-                    className="border-b border-emerald-500 outline-none px-2 py-1 text-sm"
-                    value={editEmployeeSectorId}
-                    onChange={(e) => setEditEmployeeSectorId(e.target.value)}
-                  >
-                    <option value="">Selecione o setor...</option>
-                    {sectors.map((sector) => (
-                      <option key={sector.id} value={sector.id}>{sector.name}</option>
-                    ))}
-                  </select>
-                  <button onClick={handleSaveEmployee} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
-                    <Save size={16} />
-                  </button>
-                  <button onClick={handleCancelEditEmployee} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
-                    <X size={16} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
-                  <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-md">{item.sector}</span>
-                  <button onClick={() => handleStartEditEmployee(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleOpenFeriasModal(item)}
-                    className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                    title="Cadastrar férias"
-                  >
-                    <CalendarDays size={16} />
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!confirm('Excluir este funcionário?')) return;
-                      try {
-                        await deleteEmployee(item.id);
-                        alert('Funcionário excluído com sucesso.');
-                      } catch (err) {
-                        const msg = err instanceof Error ? err.message : 'Erro ao excluir funcionário. Tente novamente.';
-                        alert(msg);
-                      }
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="bg-blue-50 rounded-2xl shadow-sm border border-blue-200 p-6">
+        <h2 className="text-lg font-bold text-blue-900 mb-2">Funcionários Registrados</h2>
+        <p className="text-sm text-blue-800">
+          A gestão de funcionários foi movida para a seção <strong>Escalas</strong>.
+        </p>
       </div>
 
       {/* Modal Novo Funcionário */}

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useExtras } from '../context/ExtraContext';
 import { supabase } from '../services/supabase';
-import { Save, FileText, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { EscalaRecord, EscalaUser, User } from '../types';
+import { Save, FileText, ChevronLeft, ChevronRight, Loader2, Plus, Edit2, Trash2, X, CalendarDays } from 'lucide-react';
+import { EscalaRecord, EscalaUser, Employee } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -29,7 +29,7 @@ function getDayOfWeek(day: number, month: number, year: number) {
 
 const AdminEscala: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const { sectors, employees } = useExtras();
+  const { sectors, shifts, employeeSchedules, employees, addEmployee, updateEmployee, deleteEmployee } = useExtras();
   
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -42,6 +42,18 @@ const AdminEscala: React.FC = () => {
   
   const [escalaRecord, setEscalaRecord] = useState<EscalaRecord | null>(null);
   const [escalaUsers, setEscalaUsers] = useState<EscalaUser[]>([]);
+  const [isModalNewEmployeeOpen, setIsModalNewEmployeeOpen] = useState(false);
+  const [modalEmployeeName, setModalEmployeeName] = useState('');
+  const [modalEmployeeSectorId, setModalEmployeeSectorId] = useState('');
+  const [modalEmployeeTurnos, setModalEmployeeTurnos] = useState<string[]>([]);
+  const [modalEmployeeEscalaTime, setModalEmployeeEscalaTime] = useState('');
+  const [modalEmployeeFixedDayOff, setModalEmployeeFixedDayOff] = useState<number>(-1);
+  const [modalEmployeeFixedDayOffDate, setModalEmployeeFixedDayOffDate] = useState('');
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [isModalFeriasOpen, setIsModalFeriasOpen] = useState(false);
+  const [feriasEmployeeId, setFeriasEmployeeId] = useState<string | null>(null);
+  const [feriasSaida, setFeriasSaida] = useState('');
+  const [feriasVolta, setFeriasVolta] = useState('');
 
   // Filter users by sector
   const sectorUsers = useMemo(() => {
@@ -86,8 +98,8 @@ const AdminEscala: React.FC = () => {
             // Férias vêm dos funcionários cadastrados (não do JSON da escala mensal).
             // Se já existe um registro de "escalas" salvo, pode não conter "vacations";
             // então fazemos merge com u.vacations.
-            vacations: Array.isArray(existing.vacations) || Array.isArray(u.vacations)
-              ? Array.from(new Set([...(existing.vacations || []), ...(u.vacations || [])]))
+            vacations: Array.isArray(existing.vacations) || Array.isArray(u.feriasDates)
+              ? Array.from(new Set([...(existing.vacations || []), ...(u.feriasDates || [])]))
               : undefined,
           };
         }
@@ -197,6 +209,175 @@ const AdminEscala: React.FC = () => {
         : [...arr, dateStr].sort();
       return { ...u, extraDaysOff: newArr };
     }));
+  };
+
+  const allEmployeesSorted = useMemo(
+    () => [...employees].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+    [employees]
+  );
+
+  const handleStartEditEmployee = (emp: Employee) => {
+    setEditingEmployeeId(emp.id);
+    setModalEmployeeName(emp.name || '');
+    setModalEmployeeSectorId(emp.sectorId || '');
+    setModalEmployeeTurnos(emp.turnos && emp.turnos.length > 0 ? [emp.turnos[0]] : []);
+    setModalEmployeeEscalaTime(emp.escalaTime || '');
+    setModalEmployeeFixedDayOff(typeof emp.fixedDayOff === 'number' ? emp.fixedDayOff : -1);
+    setIsModalNewEmployeeOpen(true);
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!editingEmployeeId) return;
+    const name = modalEmployeeName.trim();
+    if (!name || !modalEmployeeSectorId) {
+      alert('Informe o nome e selecione o setor do funcionário.');
+      return;
+    }
+    if (modalEmployeeTurnos.length === 0) {
+      alert('Selecione pelo menos 1 turno para o funcionário.');
+      return;
+    }
+    if (!modalEmployeeEscalaTime.trim()) {
+      alert('Informe a escala (horário de trabalho) do funcionário.');
+      return;
+    }
+    if (modalEmployeeFixedDayOff < 0) {
+      alert('Selecione o dia fixo de folga do funcionário.');
+      return;
+    }
+    try {
+      await updateEmployee(editingEmployeeId, {
+        name,
+        sectorId: modalEmployeeSectorId,
+        turnos: modalEmployeeTurnos,
+        escalaTime: modalEmployeeEscalaTime.trim(),
+        fixedDayOff: modalEmployeeFixedDayOff,
+      });
+      setEditingEmployeeId(null);
+      handleCloseNewEmployeeModal();
+      alert('Funcionário atualizado com sucesso.');
+    } catch {
+      alert('Erro ao atualizar funcionário. Tente novamente.');
+    }
+  };
+
+  const handleCancelEditEmployee = () => {
+    setEditingEmployeeId(null);
+    handleCloseNewEmployeeModal();
+  };
+
+  const handleOpenNewEmployeeModal = () => {
+    setModalEmployeeName('');
+    setModalEmployeeSectorId('');
+    setModalEmployeeTurnos([]);
+    setModalEmployeeEscalaTime('');
+    setModalEmployeeFixedDayOff(-1);
+    setModalEmployeeFixedDayOffDate('');
+    setIsModalNewEmployeeOpen(true);
+  };
+
+  const handleCloseNewEmployeeModal = () => {
+    setIsModalNewEmployeeOpen(false);
+    setEditingEmployeeId(null);
+    setModalEmployeeName('');
+    setModalEmployeeSectorId('');
+    setModalEmployeeTurnos([]);
+    setModalEmployeeEscalaTime('');
+    setModalEmployeeFixedDayOff(-1);
+    setModalEmployeeFixedDayOffDate('');
+  };
+
+  const handleAddEmployee = async () => {
+    const name = modalEmployeeName.trim();
+    if (!name || !modalEmployeeSectorId) {
+      alert('Informe o nome e selecione o setor do funcionário.');
+      return;
+    }
+    if (modalEmployeeTurnos.length === 0) {
+      alert('Selecione pelo menos 1 turno para o funcionário.');
+      return;
+    }
+    if (!modalEmployeeEscalaTime.trim()) {
+      alert('Informe a escala (horário de trabalho) do funcionário.');
+      return;
+    }
+    if (modalEmployeeFixedDayOff < 0) {
+      alert('Selecione o dia fixo de folga do funcionário.');
+      return;
+    }
+    try {
+      const created = await addEmployee({
+        name,
+        sector: '',
+        sectorId: modalEmployeeSectorId,
+        turnos: modalEmployeeTurnos,
+        escalaTime: modalEmployeeEscalaTime.trim(),
+        fixedDayOff: modalEmployeeFixedDayOff,
+      });
+      if (created) {
+        handleCloseNewEmployeeModal();
+        alert('Funcionário cadastrado com sucesso.');
+      }
+    } catch {
+      alert('Erro ao cadastrar funcionário. Tente novamente.');
+    }
+  };
+
+  function toDateKey(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function enumerateDatesInclusive(startStr: string, endStr: string): string[] {
+    const start = new Date(`${startStr}T12:00:00`);
+    const end = new Date(`${endStr}T12:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
+    const out: string[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      out.push(toDateKey(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }
+
+  const handleOpenFeriasModal = (emp: Employee) => {
+    setFeriasEmployeeId(emp.id);
+    setFeriasSaida('');
+    setFeriasVolta('');
+    setIsModalFeriasOpen(true);
+  };
+
+  const handleCloseFeriasModal = () => {
+    setIsModalFeriasOpen(false);
+    setFeriasEmployeeId(null);
+    setFeriasSaida('');
+    setFeriasVolta('');
+  };
+
+  const handleSaveFerias = async () => {
+    if (!feriasEmployeeId) return;
+    if (!feriasSaida || !feriasVolta) {
+      alert('Informe as datas de saída e volta.');
+      return;
+    }
+    if (new Date(`${feriasSaida}T12:00:00`) > new Date(`${feriasVolta}T12:00:00`)) {
+      alert('A data de saída não pode ser maior que a data de volta.');
+      return;
+    }
+    const rangeDates = enumerateDatesInclusive(feriasSaida, feriasVolta);
+    if (rangeDates.length === 0) return;
+    const emp = employees.find(e => e.id === feriasEmployeeId);
+    const merged = Array.from(new Set([...(emp?.feriasDates || []), ...rangeDates])).sort();
+    try {
+      await updateEmployee(feriasEmployeeId, { feriasDates: merged });
+      handleCloseFeriasModal();
+      alert('Férias cadastradas com sucesso.');
+    } catch {
+      alert('Erro ao cadastrar férias. Tente novamente.');
+    }
   };
 
   const handleGeneratePDF = () => {
@@ -311,6 +492,54 @@ const AdminEscala: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Funcionários Registrados</h2>
+          <button
+            onClick={handleOpenNewEmployeeModal}
+            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+          >
+            <Plus size={16} /> Novo Funcionário
+          </button>
+        </div>
+        <div className="space-y-2 max-h-[320px] overflow-y-auto">
+          {allEmployeesSorted.length === 0 && (
+            <p className="text-xs text-gray-400 italic">Nenhum funcionário cadastrado.</p>
+          )}
+          {allEmployeesSorted.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+              <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
+              <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-md">{item.sector}</span>
+              <button
+                onClick={() => handleStartEditEmployee(item)}
+                className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                title="Editar funcionário"
+              >
+                <Edit2 size={16} />
+              </button>
+              <button onClick={() => handleOpenFeriasModal(item)} className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Cadastrar férias">
+                <CalendarDays size={16} />
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm('Excluir este funcionário?')) return;
+                  try {
+                    await deleteEmployee(item.id);
+                    alert('Funcionário excluído com sucesso.');
+                  } catch {
+                    alert('Erro ao excluir funcionário. Tente novamente.');
+                  }
+                }}
+                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                title="Excluir funcionário"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Escala de Serviço</h1>
@@ -379,7 +608,6 @@ const AdminEscala: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 border-b">Colaborador</th>
                   <th className="px-4 py-3 border-b">Horário (Escala)</th>
-                  <th className="px-4 py-3 border-b">Dia Fixo de Folga</th>
                   <th className="px-4 py-3 border-b">Outras Folgas no Mês</th>
                   <th className="px-4 py-3 border-b text-right">Ação</th>
                 </tr>
@@ -396,18 +624,6 @@ const AdminEscala: React.FC = () => {
                         placeholder="Ex: 08:00 12:00 13:00 17:00"
                         className="border border-gray-200 rounded px-2 py-1 w-full max-w-[200px] outline-none focus:ring-2 focus:ring-emerald-500"
                       />
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={eu.fixedDayOff}
-                        onChange={e => updateUserField(eu.userId, 'fixedDayOff', Number(e.target.value))}
-                        className="border border-gray-200 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                      >
-                        <option value="-1">Nenhum</option>
-                        {DIAS_SEMANA.map((d, i) => (
-                          <option key={i} value={i}>{d}</option>
-                        ))}
-                      </select>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1 items-center">
@@ -518,6 +734,130 @@ const AdminEscala: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isModalNewEmployeeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">{editingEmployeeId ? 'Editar Funcionário' : 'Novo Funcionário'}</h3>
+              <button onClick={handleCloseNewEmployeeModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Nome do funcionário *</label>
+                <input type="text" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={modalEmployeeName} onChange={(e) => setModalEmployeeName(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Setor *</label>
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={modalEmployeeSectorId} onChange={(e) => setModalEmployeeSectorId(e.target.value)}>
+                  <option value="">Selecione o setor...</option>
+                  {sectors.map((sector) => (
+                    <option key={sector.id} value={sector.id}>{sector.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Turno *</label>
+                <select
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={modalEmployeeTurnos[0] || ''}
+                  onChange={(e) => setModalEmployeeTurnos(e.target.value ? [e.target.value] : [])}
+                >
+                  <option value="">Selecione o turno...</option>
+                  {shifts.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Escala (horário de trabalho) *</label>
+                <select
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={modalEmployeeEscalaTime}
+                  onChange={(e) => setModalEmployeeEscalaTime(e.target.value)}
+                >
+                  <option value="">Selecione a escala...</option>
+                  {modalEmployeeEscalaTime &&
+                    !employeeSchedules.some((s) => `${s.entryTime} - ${s.exitTime}` === modalEmployeeEscalaTime) && (
+                      <option value={modalEmployeeEscalaTime}>{modalEmployeeEscalaTime}</option>
+                    )}
+                  {employeeSchedules.map((s) => {
+                    const label = `${s.entryTime} - ${s.exitTime}`;
+                    return (
+                      <option key={s.id} value={label}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                {employeeSchedules.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-2">Nenhuma escala cadastrada em `Cadastros`.</p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Dia de folga fixa *</label>
+                <select
+                  value={modalEmployeeFixedDayOff}
+                  onChange={(e) => setModalEmployeeFixedDayOff(Number(e.target.value))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value={-1}>Selecione...</option>
+                  <option value={0}>Domingo</option>
+                  <option value={1}>Segunda-feira</option>
+                  <option value={2}>Terça-feira</option>
+                  <option value={3}>Quarta-feira</option>
+                  <option value={4}>Quinta-feira</option>
+                  <option value={5}>Sexta-feira</option>
+                  <option value={6}>Sábado</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={editingEmployeeId ? handleSaveEmployee : handleAddEmployee}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700"
+              >
+                {editingEmployeeId ? 'Salvar alterações' : 'Salvar'}
+              </button>
+              <button
+                type="button"
+                onClick={editingEmployeeId ? handleCancelEditEmployee : handleCloseNewEmployeeModal}
+                className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isModalFeriasOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Cadastrar Férias</h3>
+              <button onClick={handleCloseFeriasModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data de saída *</label>
+              <input type="date" value={feriasSaida} onChange={(e) => setFeriasSaida(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data de volta *</label>
+              <input type="date" value={feriasVolta} onChange={(e) => setFeriasVolta(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={handleSaveFerias} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700">Salvar</button>
+              <button type="button" onClick={handleCloseFeriasModal} className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200">Cancelar</button>
             </div>
           </div>
         </div>

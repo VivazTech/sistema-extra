@@ -119,7 +119,7 @@ const Requests: React.FC = () => {
   };
 
   const handleApproveDay = async (requestId: string, workDate: string) => {
-    if (!confirm(`Aprovar APENAS este dia (${formatDateBR(workDate)})? Será criada uma nova solicitação só com este dia e os outros dias permanecerão em outra solicitação. Para aprovar tudo junto, use "Aprovar todos" no topo do card.`)) return;
+    if (!confirm(`Aprovar o dia ${formatDateBR(workDate)}? A solicitação permanecerá na mesma linha (não será criada nova solicitação).`)) return;
     try {
       if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
         alert('Erro: Usuário não autenticado. Por favor, faça login novamente.');
@@ -728,10 +728,10 @@ const Requests: React.FC = () => {
                                   <button
                                     onClick={() => handleApproveDay(req.id, workDay.date)}
                                     className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
-                                    title="Aprovar só este dia (cria nova linha por dia). Para aprovar tudo junto, use 'Aprovar todos' acima."
+                                    title="Aprovar mantendo a solicitação na mesma linha."
                                   >
                                     <Check size={16} />
-                                    Aprovar só este dia
+                                    Aprovar este dia
                                   </button>
                                   <button
                                     onClick={() => handleOpenReject(req.id, workDay.date)}

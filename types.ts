@@ -67,6 +67,12 @@ export interface ShiftItem {
   name: string;
 }
 
+export interface EmployeeScheduleItem {
+  id: string;
+  entryTime: string;
+  exitTime: string;
+}
+
 export type RequestStatus = 'SOLICITADO' | 'APROVADO' | 'REPROVADO' | 'CANCELADO';
 
 export interface TimeRecord {
