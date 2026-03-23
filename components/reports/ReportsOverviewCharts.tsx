@@ -38,6 +38,15 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
 }) => {
   const { requests, sectors, getSaldoForWeek } = useExtras();
   const [copiedResumo, setCopiedResumo] = useState(false);
+  const formatDateLabel = (date?: string) => {
+    if (!date) return '';
+    const parsed = new Date(`${date}T12:00:00`);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString('pt-BR');
+  };
+  const periodoLabel = `${startDate ? formatDateLabel(startDate) : 'início'} até ${
+    endDate ? formatDateLabel(endDate) : 'hoje'
+  }`;
 
   const filteredRequests = useMemo(() => {
     let list = requests;
@@ -134,13 +143,14 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
     if (setoresUltrapassaramSaldo.length === 0) return '';
     const linhas = [
       'Resumo semanal de setores',
+      `Período: ${periodoLabel}`,
       ...setoresUltrapassaramSaldo.map(
         (item) =>
           `${item.setor}: Excedeu ${item.ultrapassouDias} ${item.ultrapassouDias === 1 ? 'solicitação' : 'solicitações'}`
       ),
     ];
     return linhas.join('\n');
-  }, [setoresUltrapassaramSaldo]);
+  }, [setoresUltrapassaramSaldo, periodoLabel]);
 
   const handleCopyResumo = async () => {
     if (!resumoSetoresAcimaSaldo) return;
@@ -162,7 +172,7 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
       <div>
         <h2 className="text-lg font-bold text-gray-900 mb-1">Resumo com filtros (período e setor)</h2>
         <p className="text-sm text-gray-500">
-          Período: {startDate || 'início'} até {endDate || 'hoje'} · Setor: {sectorFilter || 'todos'}
+          Período: {periodoLabel} · Setor: {sectorFilter || 'todos'}
         </p>
       </div>
 
@@ -205,6 +215,9 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
             <AlertTriangle className="text-amber-600" size={20} />
             <h3 className="font-bold text-amber-900">Setores que ultrapassaram o saldo</h3>
           </div>
+          <p className="text-sm text-amber-900 mb-3">
+            Período dos dados: <span className="font-semibold">{periodoLabel}</span>
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {setoresUltrapassaramSaldo.map((item, idx) => (
               <div
