@@ -111,17 +111,37 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
     return getSaldoForWeek(effectiveSector, formData.workDays[0].date);
   }, [effectiveSector, formData.workDays, getSaldoForWeek]);
 
-  // Alerta de risco: extra com 3+ dias já trabalhados (solicitações aprovadas até hoje).
-  const selectedExtraWorkedDays = useMemo(() => {
+  // Alerta de risco: extra com 3+ dias consecutivos já trabalhados (solicitações aprovadas até hoje).
+  const selectedExtraConsecutiveDays = useMemo(() => {
     const name = (formData.extraName || '').trim().toLowerCase();
     if (!name) return 0;
-    let total = 0;
+    const approvedDates = new Set<string>();
     for (const req of requests) {
       if ((req.extraName || '').trim().toLowerCase() !== name) continue;
       if (req.status !== 'APROVADO') continue;
-      total += (req.workDays || []).filter(d => d.date <= todayStr).length;
+      for (const day of req.workDays || []) {
+        if (day.date <= todayStr) approvedDates.add(day.date);
+      }
     }
-    return total;
+    if (approvedDates.size === 0) return 0;
+
+    const sortedDates = Array.from(approvedDates).sort();
+    let maxStreak = 1;
+    let currentStreak = 1;
+
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prev = new Date(`${sortedDates[i - 1]}T12:00:00`);
+      const curr = new Date(`${sortedDates[i]}T12:00:00`);
+      const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+      if (diffDays === 1) {
+        currentStreak += 1;
+        if (currentStreak > maxStreak) maxStreak = currentStreak;
+      } else {
+        currentStreak = 1;
+      }
+    }
+
+    return maxStreak;
   }, [formData.extraName, requests, todayStr]);
 
   const addDays = (dateStr: string, days: number) => {
@@ -516,11 +536,11 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                   ⚠️ Nenhum extra cadastrado. Cadastre extras no "Banco de Extras" primeiro.
                 </p>
               )}
-              {formData.extraName && selectedExtraWorkedDays >= 3 && (
+              {formData.extraName && selectedExtraConsecutiveDays >= 3 && (
                 <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-2">
                   <AlertTriangle size={16} className="text-amber-600 mt-0.5" />
                   <p className="text-sm font-semibold text-amber-800">
-                    Você está gerando risco! Este extra já trabalhou {selectedExtraWorkedDays} {selectedExtraWorkedDays === 1 ? 'dia' : 'dias'}.
+                    Você está gerando risco! Este extra já trabalhou {selectedExtraConsecutiveDays} dias seguidos.
                   </p>
                 </div>
               )}
