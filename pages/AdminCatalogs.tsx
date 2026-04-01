@@ -783,7 +783,10 @@ const AdminCatalogs: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-w-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Escalas (Hora de Entrada e Saída)</h2>
             <div className="flex gap-2 items-center flex-wrap">
@@ -849,9 +852,8 @@ const AdminCatalogs: React.FC = () => {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-w-0">
         <div className="mb-4">
           <h2 className="text-lg font-bold text-gray-900">Funcionários PJ</h2>
           <p className="text-sm text-gray-500 mt-1">
@@ -949,6 +951,7 @@ const AdminCatalogs: React.FC = () => {
               )}
             </div>
           ))}
+        </div>
         </div>
       </div>
 
