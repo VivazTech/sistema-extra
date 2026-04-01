@@ -1,5 +1,6 @@
 import React from 'react';
 import { User as UserIcon, Mail, AtSign, Shield, Building2, Phone, MessageCircle, ClipboardList } from 'lucide-react';
+import { DatabaseLoading } from '../components/LoadingLottie';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../constants';
 import type { UserRole } from '../types';
@@ -8,11 +9,7 @@ const Profile: React.FC = () => {
   const { user } = useAuth();
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-gray-500">Carregando perfil...</p>
-      </div>
-    );
+    return <DatabaseLoading message="Carregando perfil…" minHeight="min-h-[40vh]" />;
   }
 
   const roleLabel = ROLE_LABELS[user.role as UserRole] || user.role;

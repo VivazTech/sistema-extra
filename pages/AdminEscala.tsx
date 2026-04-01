@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useExtras } from '../context/ExtraContext';
 import { supabase } from '../services/supabase';
 import { Save, FileText, ChevronLeft, ChevronRight, Loader2, Plus, Edit2, Trash2, X, CalendarDays } from 'lucide-react';
+import { DatabaseLoading } from '../components/LoadingLottie';
 import { EscalaRecord, EscalaUser, Employee } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -594,7 +595,7 @@ const AdminEscala: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-12"><Loader2 size={32} className="animate-spin text-emerald-600" /></div>
+        <DatabaseLoading message="Carregando escala…" minHeight="min-h-[50vh]" />
       ) : !selectedSector ? (
         <div className="p-12 text-center text-gray-400">Selecione um setor acima para carregar a escala.</div>
       ) : escalaUsers.length === 0 ? (

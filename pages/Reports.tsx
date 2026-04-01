@@ -38,6 +38,7 @@ import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
 import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
 import ReportsOverviewCharts from '../components/reports/ReportsOverviewCharts';
 import { SECTOR_FILTER_OPTIONS } from '../components/ExportFormatModal';
+import { DatabaseLoading } from '../components/LoadingLottie';
 
 interface ReportTab {
   id: string;
@@ -333,7 +334,7 @@ const Reports: React.FC = () => {
 
         {/* Report Content */}
         <div className="p-6">
-          <React.Suspense fallback={<div className="text-center p-8 text-gray-500">Carregando...</div>}>
+          <React.Suspense fallback={<DatabaseLoading message="Carregando relatório..." minHeight="min-h-[40vh]" />}>
             <ActiveComponent startDate={startDate} endDate={endDate} sector={selectedSector || undefined} />
           </React.Suspense>
         </div>

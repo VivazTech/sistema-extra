@@ -74,6 +74,8 @@ interface ExtraContextType {
   updatePjEmployee: (id: string, input: Partial<Pick<PjEmployee, 'name' | 'sectorId'>>) => Promise<void>;
   deletePjEmployee: (id: string) => Promise<void>;
   updatePjTimeRecord: (pjEmployeeId: string, workDate: string, tr: TimeRecord, registeredByName: string) => Promise<void>;
+  /** `true` enquanto `loadData` / `refreshData` busca dados no Supabase (primeira carga ou atualizar). */
+  dataLoading: boolean;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -92,6 +94,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [users, setUsers] = useState<User[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pjEmployees, setPjEmployees] = useState<PjEmployee[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
 
   const managerSectorSet = useMemo(() => {
     if (user?.role !== 'MANAGER' && user?.role !== 'LEADER') return null;
@@ -135,6 +138,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const loadData = useCallback(async () => {
+    setDataLoading(true);
     try {
         // Carregar Setores
         const { data: sectorsData, error: sectorsError } = await supabase
@@ -359,6 +363,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     } catch (error) {
       console.error('Erro ao carregar dados do Supabase:', error);
+    } finally {
+      setDataLoading(false);
     }
   }, []);
 
@@ -2671,6 +2677,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updatePjEmployee,
       deletePjEmployee,
       updatePjTimeRecord,
+      dataLoading,
       addRequest, updateRequest, updateStatus, approveWorkDay, rejectWorkDay, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,

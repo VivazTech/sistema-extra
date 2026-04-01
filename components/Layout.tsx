@@ -23,7 +23,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
+import { useExtras } from '../context/ExtraContext';
 import { AccessPageKey } from '../types';
+import { DatabaseLoading } from './LoadingLottie';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,7 +35,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { user, logout } = useAuth();
-  const { hasPageAccess } = useAccess();
+  const { hasPageAccess, loading: accessLoading } = useAccess();
+  const { dataLoading } = useExtras();
+  const showMainDataLoading = dataLoading || accessLoading;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -145,7 +149,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        {children}
+        {showMainDataLoading ? (
+          <DatabaseLoading message="Carregando dados do sistema..." minHeight="min-h-[55vh]" />
+        ) : (
+          children
+        )}
       </main>
     </div>
   );

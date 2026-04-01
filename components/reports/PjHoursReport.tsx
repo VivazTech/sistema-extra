@@ -3,6 +3,7 @@ import { Download } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { formatWorkedHours } from '../../utils/pjHours';
 import { formatDateBR } from '../../utils/date';
+import { DatabaseLoading } from '../LoadingLottie';
 
 function csvEscape(value: string | number | undefined): string {
   if (value === undefined || value === null) return '';
@@ -147,7 +148,7 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
   };
 
   if (loading) {
-    return <p className="text-center text-gray-500 py-8">Carregando registros PJ…</p>;
+    return <DatabaseLoading message="Carregando registros PJ…" minHeight="min-h-[32vh]" />;
   }
 
   return (

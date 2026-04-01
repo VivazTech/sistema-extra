@@ -15,9 +15,10 @@ import { useAuth } from '../context/AuthContext';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { formatDateBR } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
+import { LoadingLottie } from '../components/LoadingLottie';
 
 const TVDashboard: React.FC = () => {
-  const { requests, extraSaldoRecords } = useExtras();
+  const { requests, extraSaldoRecords, dataLoading } = useExtras();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -132,6 +133,15 @@ const TVDashboard: React.FC = () => {
   const workingNow = filteredRequests.filter(r =>
     r.status === 'APROVADO' && getShiftForDate(r.workDays, todayStr) === currentShift
   );
+
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-8">
+        <LoadingLottie size={96} />
+        <p className="mt-4 text-sm font-medium text-gray-300">Carregando dados do painel...</p>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-[#050505]' : 'bg-gray-50'} ${isDarkMode ? 'text-white' : 'text-gray-900'} p-8 flex flex-col font-sans overflow-hidden transition-colors duration-300`}>

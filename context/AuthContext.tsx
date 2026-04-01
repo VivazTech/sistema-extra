@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { AuthState, User } from '../types';
 import { supabase } from '../services/supabase';
 import { logAction as logActionService } from '../services/actionLogService';
+import { DatabaseLoading } from '../components/LoadingLottie';
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -410,10 +411,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     })();
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+        <DatabaseLoading message="Carregando..." minHeight="min-h-0" className="py-0" />
+        <div className="text-center w-full max-w-lg">
           {debugEnabled ? (
             <div className="mt-3 text-xs text-gray-500 font-mono space-y-1 text-left inline-block">
               <div>debugStep: {debugStep}</div>

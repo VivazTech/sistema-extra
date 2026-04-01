@@ -6,6 +6,7 @@ import { useExtras } from '../context/ExtraContext';
 import { fetchActionLogs, ActionLogFilters } from '../services/actionLogService';
 import { ActionLog } from '../types';
 import { formatDateTimeWithSeconds } from '../utils/date';
+import { DatabaseLoading } from '../components/LoadingLottie';
 
 const Logs: React.FC = () => {
   const { user } = useAuth();
@@ -111,7 +112,7 @@ const Logs: React.FC = () => {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Carregando...</div>
+          <DatabaseLoading message="Carregando logs…" minHeight="min-h-[36vh]" />
         ) : logs.length === 0 ? (
           <div className="p-8 text-center text-gray-500">Nenhum registro de ação encontrado.</div>
         ) : (

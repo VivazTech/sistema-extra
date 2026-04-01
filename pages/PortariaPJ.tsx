@@ -17,6 +17,7 @@ import { TimeRecord } from '../types';
 import { supabase } from '../services/supabase';
 import { formatDateBR } from '../utils/date';
 import { formatWorkedHours } from '../utils/pjHours';
+import { DatabaseLoading, LoadingLottie } from '../components/LoadingLottie';
 
 function csvEscape(value: string | number | undefined): string {
   if (value === undefined || value === null) return '';
@@ -315,7 +316,10 @@ const PortariaPJ: React.FC = () => {
               </select>
             </label>
             {loadingRecords && (
-              <span className="text-xs text-violet-600 font-medium">Carregando horários…</span>
+              <span className="inline-flex items-center gap-2 text-xs text-violet-700 font-medium">
+                <LoadingLottie size={32} />
+                Carregando horários…
+              </span>
             )}
           </div>
         </div>
@@ -328,11 +332,24 @@ const PortariaPJ: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="relative">
+            {loadingRecords && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-white/85 backdrop-blur-[2px]">
+                <DatabaseLoading message="Carregando horários do dia…" minHeight="min-h-[45vh]" size={72} />
+              </div>
+            )}
+            <div className={`space-y-4 ${loadingRecords ? 'pointer-events-none select-none opacity-40' : ''}`}>
             {filtered.map((emp) => {
               const tr = recordsByEmp[emp.id] || {};
               const complete =
                 !!(tr.arrival && tr.breakStart && tr.breakEnd && tr.departure);
+              const mergedPreview = buildMergedRecord(emp.id);
+              const totalWorkedLabel = formatWorkedHours(
+                mergedPreview.arrival,
+                mergedPreview.breakStart,
+                mergedPreview.breakEnd,
+                mergedPreview.departure
+              );
               return (
                 <div
                   key={emp.id}
@@ -344,9 +361,18 @@ const PortariaPJ: React.FC = () => {
                     <div>
                       <h3 className="font-bold text-gray-900">{emp.name}</h3>
                       <p className="text-xs text-gray-500 uppercase font-bold">{emp.sector || '—'}</p>
+                      {adminCanEditTimes && (
+                        <p
+                          className="text-sm font-semibold text-violet-900 mt-2"
+                          title="Calculado a partir dos horários exibidos nos campos (inclui rascunho não salvo)"
+                        >
+                          Total de horas trabalhadas:{' '}
+                          <span className="font-mono text-violet-700">{totalWorkedLabel}</span>
+                        </p>
+                      )}
                     </div>
                     {complete && (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full flex items-center gap-1">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full flex items-center gap-1 shrink-0">
                         <Check size={14} /> Dia completo
                       </span>
                     )}
@@ -387,6 +413,7 @@ const PortariaPJ: React.FC = () => {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </div>
