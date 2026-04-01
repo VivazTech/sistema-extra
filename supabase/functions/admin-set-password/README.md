@@ -18,6 +18,7 @@ Na raiz do projeto (onde está o `supabase/`), com o [Supabase CLI](https://supa
 supabase functions deploy admin-set-password
 ```
 
+- Em `supabase/config.toml`, esta função usa `verify_jwt = false` para o pedido chegar ao `index.ts` (o gateway validava JWT antes e podia devolver `401 {"code":401,"message":"Invalid JWT"}` sem executar o código). A autorização continua sendo feita dentro da função.
 - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` são preenchidos automaticamente pelo Supabase.
 - A validação do JWT chama `GET /auth/v1/user` com `Authorization: Bearer <access_token>` e `apikey: SUPABASE_ANON_KEY` (secret injetada no Edge pelo Supabase, sempre do mesmo projeto). Não depende do `apikey` enviado pelo front.
 

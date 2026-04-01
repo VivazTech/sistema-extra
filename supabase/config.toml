@@ -350,6 +350,11 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Edge Function: validação manual do JWT em index.ts (auth/v1/user).
+# Com verify_jwt=true o gateway às vezes responde 401 "Invalid JWT" antes do código rodar.
+[functions.admin-set-password]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
