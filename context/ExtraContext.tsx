@@ -2179,7 +2179,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (existingByEmail) {
             throw new Error('Já existe um usuário cadastrado com este e-mail. Use "Editar" para alterar os dados ou "Redefinir senha" na tela de login para enviar um novo link.');
           }
-          throw new Error('Este e-mail já está no sistema de autenticação. Para vincular ao cadastro, execute no servidor: node scripts/create-admin-user.js');
+          throw new Error('Este e-mail já existe no Auth, mas não está vinculado ao cadastro local. Para usuários comuns, execute no servidor: node scripts/repair-user-from-auth.js <email> --role <ROLE> (ou node scripts/sync-user-auth.js <email>). Use create-admin-user.js apenas para o admin padrão.');
         }
         console.error('Erro ao criar usuário no Auth:', authError);
         throw new Error(`Erro ao criar usuário: ${authError.message}`);

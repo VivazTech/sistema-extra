@@ -26,16 +26,7 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    // Preferir apikey do request (mesmo do front VITE_SUPABASE_ANON_KEY) para validar o JWT no mesmo projeto
-    const supabaseAnonKey = req.headers.get('apikey')?.trim() || Deno.env.get('SUPABASE_ANON_KEY') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-    if (!supabaseAnonKey) {
-      return new Response(
-        JSON.stringify({ error: 'Envie o header "apikey" (VITE_SUPABASE_ANON_KEY) ou defina SUPABASE_ANON_KEY nos secrets da função.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!token) {
@@ -45,37 +36,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validar JWT chamando a API de Auth do Supabase (mais confiável em Edge)
-    const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        'Authorization': authHeader,
-        'apikey': supabaseAnonKey,
-      },
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
-    if (!authRes.ok) {
-      const errBody = await authRes.text();
-      let errMsg = 'Sessão inválida ou expirada. Faça login novamente.';
-      try {
-        const parsed = JSON.parse(errBody);
-        if (parsed?.msg) errMsg = parsed.msg;
-      } catch (_) {}
+
+    // Validar JWT usando o próprio Auth do projeto via service role.
+    // Evita dependência de header apikey enviado pelo front.
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !userData?.user?.id) {
       return new Response(
-        JSON.stringify({ error: errMsg }),
+        JSON.stringify({ error: userError?.message || 'Sessão inválida ou expirada. Faça login novamente.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    const authData = await authRes.json();
-    const caller = authData?.id ? { id: authData.id } : null;
+    const caller = { id: userData.user.id };
     if (!caller) {
       return new Response(
         JSON.stringify({ error: 'Resposta do Auth inválida.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
 
     const { data: callerRow } = await supabaseAdmin
       .from('users')
