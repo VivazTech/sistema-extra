@@ -7,6 +7,7 @@ import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR, toDateOnlyString } from '../../utils/date';
 import type { ExtraRequest, WorkDay } from '../../types';
 import { roundMoney } from '../../utils/round';
+import SheetsExportPreviewReport from './SheetsExportPreviewReport';
 
 /** Ordenação alfabética por nome do extra (e desempate por setor e código). */
 function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
@@ -91,7 +92,7 @@ interface RecibosExtrasReportProps {
   sector?: string;
 }
 
-const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd }) => {
+const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd, sector }) => {
   const { requests } = useExtras();
   const [period, setPeriod] = useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = useState('');
@@ -120,6 +121,9 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
       return hasWorkDayInRange;
     });
   }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd]);
+
+  const sheetsStart = toDateOnlyString(start) || start;
+  const sheetsEnd = toDateOnlyString(end) || end;
 
   const handleGenerate = () => {
     if (period === 'custom' && (!customStart || !customEnd)) return;
@@ -257,6 +261,17 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
           Baixar Recibos de Pagamento
         </button>
       </div>
+
+      {canGenerate && sheetsStart && sheetsEnd && (
+        <div className="w-full border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+          <SheetsExportPreviewReport
+            embedded
+            startDate={sheetsStart}
+            endDate={sheetsEnd}
+            sector={sector}
+          />
+        </div>
+      )}
 
       {showExportModal && (
         <ExportFormatModal

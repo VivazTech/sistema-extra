@@ -15,6 +15,8 @@ interface Props {
   startDate?: string;
   endDate?: string;
   sector?: string;
+  /** Quando true, layout compacto para uso dentro de «Recibos de Extras». */
+  embedded?: boolean;
 }
 
 function hasCompletePortariaTimes(tr?: { arrival?: string; breakStart?: string; breakEnd?: string; departure?: string }): boolean {
@@ -105,7 +107,7 @@ export function buildPreviewRows(requests: ExtraRequest[], startDate?: string, e
   return rows;
 }
 
-const SheetsExportPreviewReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
+const SheetsExportPreviewReport: React.FC<Props> = ({ startDate, endDate, sector, embedded }) => {
   const { requests } = useExtras();
   const [sendFlash, setSendFlash] = useState<string | null>(null);
 
@@ -126,17 +128,31 @@ const SheetsExportPreviewReport: React.FC<Props> = ({ startDate, endDate, sector
   };
 
   return (
-    <div className="w-full max-w-none space-y-4">
+    <div className={`w-full max-w-none space-y-4 ${embedded ? 'pt-2' : ''}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Table2 className="text-emerald-600" size={22} />
-            Prévia para planilha (Google Sheets)
-          </h2>
-          <p className="text-sm text-gray-500 mt-1 max-w-3xl">
-            Somente solicitações <strong>aprovadas</strong> com os quatro horários preenchidos na portaria (entrada, saída/volta do intervalo e saída final).
-            Valores e total de horas seguem a mesma lógica do recibo Excel (<code className="text-xs bg-gray-100 px-1 rounded">excelService</code>).
-          </p>
+        <div className="min-w-0 flex-1">
+          {embedded ? (
+            <>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Table2 className="text-emerald-600 shrink-0" size={20} />
+                Prévia para planilha (conferência)
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Mesmos critérios do recibo: aprovadas, quatro horários na portaria. Filtro de setor igual ao cabeçalho de Relatórios.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Table2 className="text-emerald-600" size={22} />
+                Prévia para planilha (Google Sheets)
+              </h2>
+              <p className="text-sm text-gray-500 mt-1 max-w-3xl">
+                Somente solicitações <strong>aprovadas</strong> com os quatro horários preenchidos na portaria (entrada, saída/volta do intervalo e saída final).
+                Valores e total de horas seguem a mesma lógica do recibo Excel (<code className="text-xs bg-gray-100 px-1 rounded">excelService</code>).
+              </p>
+            </>
+          )}
         </div>
         <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0 w-full sm:w-auto">
           <button

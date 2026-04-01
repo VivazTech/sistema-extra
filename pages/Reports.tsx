@@ -16,7 +16,6 @@ import {
   Calendar,
   Filter,
   Timer,
-  Table2,
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -34,7 +33,6 @@ import ObservationsReport from '../components/reports/ObservationsReport';
 import RequesterReport from '../components/reports/RequesterReport';
 import IncompleteRecordsReport from '../components/reports/IncompleteRecordsReport';
 import PjHoursReport from '../components/reports/PjHoursReport';
-import SheetsExportPreviewReport from '../components/reports/SheetsExportPreviewReport';
 import AuditReport from '../components/reports/AuditReport';
 import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
 import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
@@ -173,13 +171,6 @@ const Reports: React.FC = () => {
       component: PjHoursReport,
       roles: ['ADMIN', 'MANAGER', 'LEADER'],
     },
-    {
-      id: 'sheets-preview',
-      label: 'Prévia planilha',
-      icon: Table2,
-      component: SheetsExportPreviewReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER'],
-    },
     { 
       id: 'audit', 
       label: 'Auditoria', 
@@ -297,7 +288,7 @@ const Reports: React.FC = () => {
               />
             </>
           )}
-          {activeTab !== 'pj-hours' && activeTab !== 'sheets-preview' && (
+          {activeTab !== 'pj-hours' && (
             <button
               type="button"
               onClick={handleExportCSV}
