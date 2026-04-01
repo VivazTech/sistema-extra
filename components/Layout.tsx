@@ -19,6 +19,7 @@ import {
   RefreshCw,
   BarChart3,
   CalendarDays,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
@@ -40,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/', page: 'dashboard' as AccessPageKey },
     { icon: ClipboardList, label: 'Solicitações', path: '/solicitacoes', page: 'requests' as AccessPageKey },
     { icon: Clock, label: 'Portaria', path: '/portaria', page: 'portaria' as AccessPageKey },
+    { icon: Briefcase, label: 'Portaria PJ', path: '/portaria-pj', page: 'portaria_pj' as AccessPageKey },
     { icon: Monitor, label: 'Painel 24h', path: '/tv', page: 'tv' as AccessPageKey },
     { icon: FileText, label: 'Relatórios', path: '/relatorios', page: 'reports' as AccessPageKey },
     { icon: BarChart3, label: 'Gráficos', path: '/graficos', page: 'graficos' as AccessPageKey },

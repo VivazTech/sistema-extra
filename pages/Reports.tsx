@@ -14,7 +14,8 @@ import {
   LayoutDashboard,
   Download,
   Calendar,
-  Filter
+  Filter,
+  Timer,
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,7 @@ import PerformanceReport from '../components/reports/PerformanceReport';
 import ObservationsReport from '../components/reports/ObservationsReport';
 import RequesterReport from '../components/reports/RequesterReport';
 import IncompleteRecordsReport from '../components/reports/IncompleteRecordsReport';
+import PjHoursReport from '../components/reports/PjHoursReport';
 import AuditReport from '../components/reports/AuditReport';
 import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
 import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
@@ -160,6 +162,13 @@ const Reports: React.FC = () => {
       icon: FileWarning, 
       component: IncompleteRecordsReport,
       roles: ['ADMIN', 'MANAGER', 'LEADER']
+    },
+    {
+      id: 'pj-hours',
+      label: 'Ponto PJ',
+      icon: Timer,
+      component: PjHoursReport,
+      roles: ['ADMIN', 'MANAGER', 'LEADER'],
     },
     { 
       id: 'audit', 

@@ -25,6 +25,7 @@ export const ACCESS_PAGES = [
   { key: 'dashboard', label: 'Dashboard', path: '/' },
   { key: 'requests', label: 'Solicitações', path: '/solicitacoes' },
   { key: 'portaria', label: 'Portaria', path: '/portaria' },
+  { key: 'portaria_pj', label: 'Portaria PJ', path: '/portaria-pj' },
   { key: 'reports', label: 'Relatórios', path: '/relatorios' },
   { key: 'graficos', label: 'Gráficos', path: '/graficos' },
   { key: 'catalogs', label: 'Cadastros', path: '/admin/cadastros' },
@@ -53,23 +54,23 @@ export const ACCESS_ACTIONS = [
 
 export const DEFAULT_ROLE_ACCESS: RoleAccess = {
   ADMIN: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs', 'escala'],
+    pages: ['dashboard', 'requests', 'portaria', 'portaria_pj', 'reports', 'graficos', 'catalogs', 'users', 'saldo', 'extras', 'tv', 'test', 'logs', 'escala'],
     actions: ['manage_users', 'manage_catalogs', 'manage_extras', 'manage_saldo', 'approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard', 'manage_escala'],
   },
   MANAGER: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'graficos', 'saldo', 'tv'],
+    pages: ['dashboard', 'requests', 'portaria', 'portaria_pj', 'reports', 'graficos', 'saldo', 'tv'],
     actions: ['approve_requests', 'create_requests', 'register_time', 'view_reports', 'view_dashboard'],
   },
   LEADER: {
-    pages: ['dashboard', 'requests', 'portaria', 'reports', 'tv'],
+    pages: ['dashboard', 'requests', 'portaria', 'portaria_pj', 'reports', 'tv'],
     actions: ['create_requests', 'register_time', 'view_reports', 'view_dashboard'],
   },
   VIEWER: {
-    pages: ['portaria', 'tv'],
+    pages: ['portaria', 'portaria_pj', 'tv'],
     actions: ['view_only'],
   },
   PORTARIA: {
-    pages: ['portaria'],
+    pages: ['portaria', 'portaria_pj'],
     actions: ['register_time'],
   },
 };

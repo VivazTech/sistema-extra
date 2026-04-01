@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
-import { RequesterItem, ReasonItem, ShiftItem, Sector, Employee, EmployeeScheduleItem } from '../types';
+import { RequesterItem, ReasonItem, ShiftItem, Sector, Employee, EmployeeScheduleItem, PjEmployee } from '../types';
 
 const AdminCatalogs: React.FC = () => {
   const {
@@ -29,6 +29,10 @@ const AdminCatalogs: React.FC = () => {
     addEmployee,
     updateEmployee,
     deleteEmployee,
+    pjEmployees,
+    addPjEmployee,
+    updatePjEmployee,
+    deletePjEmployee,
   } = useExtras();
 
   const [isEditingSector, setIsEditingSector] = useState<string | null>(null);
@@ -61,6 +65,12 @@ const AdminCatalogs: React.FC = () => {
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [editEmployeeName, setEditEmployeeName] = useState('');
   const [editEmployeeSectorId, setEditEmployeeSectorId] = useState('');
+
+  const [newPjName, setNewPjName] = useState('');
+  const [newPjSectorId, setNewPjSectorId] = useState('');
+  const [editingPjId, setEditingPjId] = useState<string | null>(null);
+  const [editPjName, setEditPjName] = useState('');
+  const [editPjSectorId, setEditPjSectorId] = useState('');
 
   const handleStartEditSector = (sector: Sector) => {
     setIsEditingSector(sector.id);
@@ -521,6 +531,48 @@ const AdminCatalogs: React.FC = () => {
     );
   }, [sectors, searchSector]);
 
+  const handleAddPj = async () => {
+    const name = newPjName.trim();
+    if (!name || !newPjSectorId) {
+      alert('Informe nome e setor.');
+      return;
+    }
+    try {
+      const created = await addPjEmployee({ name, sectorId: newPjSectorId });
+      if (created) {
+        setNewPjName('');
+        setNewPjSectorId('');
+      }
+    } catch {
+      alert('Erro ao cadastrar funcionário PJ.');
+    }
+  };
+
+  const handleStartEditPj = (e: PjEmployee) => {
+    setEditingPjId(e.id);
+    setEditPjName(e.name);
+    setEditPjSectorId(e.sectorId || '');
+  };
+
+  const handleSavePj = async () => {
+    if (!editingPjId) return;
+    const name = editPjName.trim();
+    if (!name || !editPjSectorId) {
+      alert('Informe nome e setor.');
+      return;
+    }
+    try {
+      await updatePjEmployee(editingPjId, { name, sectorId: editPjSectorId });
+      setEditingPjId(null);
+    } catch {
+      alert('Erro ao salvar.');
+    }
+  };
+
+  const handleCancelEditPj = () => {
+    setEditingPjId(null);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -796,6 +848,107 @@ const AdminCatalogs: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Funcionários PJ</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Cadastro para a Portaria PJ — nome e setor (sem vínculo com valores de extras).
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 items-end mb-4">
+          <div className="flex-1 min-w-[180px]">
+            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nome</label>
+            <input
+              type="text"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Nome completo"
+              value={newPjName}
+              onChange={(e) => setNewPjName(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-52">
+            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Setor</label>
+            <select
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              value={newPjSectorId}
+              onChange={(e) => setNewPjSectorId(e.target.value)}
+            >
+              <option value="">Selecione…</option>
+              {sectors.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddPj}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm"
+          >
+            <Plus size={16} /> Adicionar PJ
+          </button>
+        </div>
+        <div className="space-y-2 max-h-[320px] overflow-y-auto">
+          {pjEmployees.length === 0 && (
+            <p className="text-xs text-gray-400 italic">Nenhum funcionário PJ cadastrado.</p>
+          )}
+          {pjEmployees.map((item) => (
+            <div key={item.id} className="flex flex-wrap items-center gap-2 border border-gray-100 rounded-lg p-2">
+              {editingPjId === item.id ? (
+                <>
+                  <input
+                    type="text"
+                    className="flex-1 min-w-[120px] border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                    value={editPjName}
+                    onChange={(e) => setEditPjName(e.target.value)}
+                  />
+                  <select
+                    className="border border-gray-200 rounded-lg px-2 py-1 text-sm min-w-[140px]"
+                    value={editPjSectorId}
+                    onChange={(e) => setEditPjSectorId(e.target.value)}
+                  >
+                    {sectors.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={handleSavePj} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                    <Save size={16} />
+                  </button>
+                  <button type="button" onClick={handleCancelEditPj} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                    <X size={16} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
+                  <span className="text-sm text-gray-500 min-w-[100px]">{item.sector || '—'}</span>
+                  <button type="button" onClick={() => handleStartEditPj(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm('Excluir este funcionário PJ?')) return;
+                      try {
+                        await deletePjEmployee(item.id);
+                      } catch {
+                        alert('Erro ao excluir.');
+                      }
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import Requests from './pages/Requests';
 import TVDashboard from './pages/TVDashboard';
 import Portaria from './pages/Portaria';
+import PortariaPJ from './pages/PortariaPJ';
 import AdminCatalogs from './pages/AdminCatalogs';
 import AdminEscala from './pages/AdminEscala';
 import AdminUsers from './pages/AdminUsers';
@@ -47,6 +48,7 @@ const AppRoutes = () => {
       <Route path="/" element={<PrivateRoute page="dashboard"><Dashboard /></PrivateRoute>} />
       <Route path="/solicitacoes" element={<PrivateRoute page="requests"><Requests /></PrivateRoute>} />
       <Route path="/portaria" element={<PrivateRoute page="portaria"><Portaria /></PrivateRoute>} />
+      <Route path="/portaria-pj" element={<PrivateRoute page="portaria_pj"><PortariaPJ /></PrivateRoute>} />
       <Route path="/test-supabase" element={<PrivateRoute page="test"><TestSupabase /></PrivateRoute>} />
       <Route path="/test-extra-requests-old" element={<PrivateRoute><TestExtraRequestsOld /></PrivateRoute>} />
       <Route path="/preview-pdf" element={<PrivateRoute><PDFPreview /></PrivateRoute>} />

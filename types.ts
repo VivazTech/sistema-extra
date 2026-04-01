@@ -5,6 +5,7 @@ export type AccessPageKey =
   | 'dashboard'
   | 'requests'
   | 'portaria'
+  | 'portaria_pj'
   | 'reports'
   | 'graficos'
   | 'catalogs'
@@ -146,6 +147,15 @@ export interface ExtraPerson {
   /** Setores aos quais o extra pode ser alocado. Permite múltipla seleção no Banco de Extras. */
   sectors?: string[];
   createdAt: string;
+}
+
+/** Funcionário PJ (Portaria PJ) — apenas nome e setor; sem vínculo com valores de extras. */
+export interface PjEmployee {
+  id: string;
+  name: string;
+  sector: string;
+  sectorId?: string;
+  active?: boolean;
 }
 
 export interface Employee {

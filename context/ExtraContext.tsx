@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -69,6 +69,11 @@ interface ExtraContextType {
   addEmployee: (employee: Omit<Employee, 'id'>) => Promise<Employee | null>;
   updateEmployee: (id: string, employee: Partial<Employee>) => Promise<void>;
   deleteEmployee: (id: string) => Promise<void>;
+  pjEmployees: PjEmployee[];
+  addPjEmployee: (input: { name: string; sectorId: string }) => Promise<PjEmployee | null>;
+  updatePjEmployee: (id: string, input: Partial<Pick<PjEmployee, 'name' | 'sectorId'>>) => Promise<void>;
+  deletePjEmployee: (id: string) => Promise<void>;
+  updatePjTimeRecord: (pjEmployeeId: string, workDate: string, tr: TimeRecord, registeredByName: string) => Promise<void>;
 }
 
 const ExtraContext = createContext<ExtraContextType | undefined>(undefined);
@@ -86,6 +91,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [extraSaldoSettings, setExtraSaldoSettings] = useState<ExtraSaldoSettings>({ valorDiaria: 130 });
   const [users, setUsers] = useState<User[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [pjEmployees, setPjEmployees] = useState<PjEmployee[]>([]);
 
   const managerSectorSet = useMemo(() => {
     if (user?.role !== 'MANAGER' && user?.role !== 'LEADER') return null;
@@ -326,6 +332,29 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             feriasDates: Array.isArray(e.ferias_dates) ? e.ferias_dates : undefined,
           }));
           setEmployees(mappedEmp);
+        }
+
+        try {
+          const { data: pjData, error: pjErr } = await supabase
+            .from('pj_employees')
+            .select('*, sectors(name)')
+            .eq('active', true)
+            .order('name');
+          if (!pjErr && pjData) {
+            setPjEmployees(
+              pjData.map((e: any) => ({
+                id: e.id,
+                name: e.name,
+                sectorId: e.sector_id,
+                sector: e.sectors?.name || '',
+                active: e.active !== false,
+              }))
+            );
+          } else if (pjErr && (pjErr as any).code !== '42P01') {
+            console.warn('pj_employees:', pjErr.message);
+          }
+        } catch {
+          // Tabela pode não existir até rodar a migration
         }
 
     } catch (error) {
@@ -2544,6 +2573,86 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const addPjEmployee = async (input: { name: string; sectorId: string }): Promise<PjEmployee | null> => {
+    const name = input.name.trim();
+    if (!name || !input.sectorId) return null;
+    try {
+      const { data, error } = await supabase
+        .from('pj_employees')
+        .insert({ name, sector_id: input.sectorId })
+        .select('*, sectors(name)')
+        .single();
+      if (error) throw error;
+      if (!data) return null;
+      const mapped: PjEmployee = {
+        id: data.id,
+        name: data.name,
+        sectorId: data.sector_id,
+        sector: (data as any).sectors?.name || '',
+        active: true,
+      };
+      setPjEmployees((prev) => [...prev, mapped].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+      return mapped;
+    } catch (e) {
+      console.error('Erro ao cadastrar PJ:', e);
+      throw e;
+    }
+  };
+
+  const updatePjEmployee = async (id: string, input: Partial<Pick<PjEmployee, 'name' | 'sectorId'>>) => {
+    const updateData: Record<string, unknown> = {};
+    if (input.name != null) updateData.name = input.name.trim();
+    if (input.sectorId != null) updateData.sector_id = input.sectorId;
+    updateData.updated_at = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('pj_employees')
+      .update(updateData)
+      .eq('id', id)
+      .select('*, sectors(name)')
+      .single();
+    if (error) throw error;
+    if (data) {
+      const mapped: PjEmployee = {
+        id: data.id,
+        name: data.name,
+        sectorId: data.sector_id,
+        sector: (data as any).sectors?.name || '',
+        active: data.active !== false,
+      };
+      setPjEmployees((prev) => prev.map((e) => (e.id === id ? mapped : e)).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+    }
+  };
+
+  const deletePjEmployee = async (id: string) => {
+    const { error } = await supabase.from('pj_employees').update({ active: false }).eq('id', id);
+    if (error) throw error;
+    setPjEmployees((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const updatePjTimeRecord = async (
+    pjEmployeeId: string,
+    workDate: string,
+    tr: TimeRecord,
+    registeredByName: string
+  ) => {
+    const { data: userRow } = await supabase.from('users').select('id').eq('name', registeredByName).maybeSingle();
+    const payload = {
+      pj_employee_id: pjEmployeeId,
+      work_date: workDate,
+      arrival: tr.arrival || null,
+      break_start: tr.breakStart || null,
+      break_end: tr.breakEnd || null,
+      departure: tr.departure || null,
+      observations: tr.observations || null,
+      registered_by: userRow?.id ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('pj_time_records').upsert(payload, {
+      onConflict: 'pj_employee_id,work_date',
+    });
+    if (error) throw error;
+  };
+
   return (
     <ExtraContext.Provider value={{ 
       requests: visibleRequests,
@@ -2557,6 +2666,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       extraSaldoSettings,
       users,
       employees,
+      pjEmployees,
+      addPjEmployee,
+      updatePjEmployee,
+      deletePjEmployee,
+      updatePjTimeRecord,
       addRequest, updateRequest, updateStatus, approveWorkDay, rejectWorkDay, deleteRequest,
       addSector, updateSector, deleteSector,
       addRequester, updateRequester, deleteRequester,
