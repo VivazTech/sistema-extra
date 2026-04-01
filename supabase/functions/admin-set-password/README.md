@@ -19,7 +19,7 @@ supabase functions deploy admin-set-password
 ```
 
 - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` são preenchidos automaticamente pelo Supabase.
-- A validação do JWT é feita via `auth.getUser(token)` usando `SUPABASE_SERVICE_ROLE_KEY` do próprio projeto da função. Assim não depende do header `apikey` enviado pelo front.
+- A validação do JWT chama `GET /auth/v1/user` com `Authorization: Bearer <access_token>` e `apikey: SUPABASE_ANON_KEY` (secret injetada no Edge pelo Supabase, sempre do mesmo projeto). Não depende do `apikey` enviado pelo front.
 
 ## Uso no sistema
 

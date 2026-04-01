@@ -27,6 +27,8 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Anon key do próprio projeto (injetada no Edge pelo Supabase). Usada só para validar o JWT em /auth/v1/user.
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!token) {
@@ -36,26 +38,46 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (!supabaseAnonKey) {
+      return new Response(
+        JSON.stringify({ error: 'SUPABASE_ANON_KEY ausente no runtime da função. Contate o suporte ou defina o secret no Dashboard.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Validar JWT usando o próprio Auth do projeto via service role.
-    // Evita dependência de header apikey enviado pelo front.
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-    if (userError || !userData?.user?.id) {
+    // Validar JWT via API Auth (mesmo fluxo do GoTrue): Bearer + apikey = anon do projeto.
+    const authRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: authHeader,
+        apikey: supabaseAnonKey,
+      },
+    });
+    if (!authRes.ok) {
+      const errText = await authRes.text();
+      let errMsg = 'Sessão inválida ou expirada. Faça login novamente.';
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed?.msg) errMsg = parsed.msg;
+        else if (parsed?.error_description) errMsg = parsed.error_description;
+      } catch (_) {}
       return new Response(
-        JSON.stringify({ error: userError?.message || 'Sessão inválida ou expirada. Faça login novamente.' }),
+        JSON.stringify({ error: errMsg }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    const caller = { id: userData.user.id };
-    if (!caller) {
+    const authJson = await authRes.json();
+    const callerId = authJson?.id as string | undefined;
+    if (!callerId) {
       return new Response(
         JSON.stringify({ error: 'Resposta do Auth inválida.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const caller = { id: callerId };
 
     const { data: callerRow } = await supabaseAdmin
       .from('users')
