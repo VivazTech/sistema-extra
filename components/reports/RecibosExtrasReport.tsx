@@ -262,17 +262,6 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
         </button>
       </div>
 
-      {canGenerate && sheetsStart && sheetsEnd && (
-        <div className="w-full border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
-          <SheetsExportPreviewReport
-            embedded
-            startDate={sheetsStart}
-            endDate={sheetsEnd}
-            sector={sector}
-          />
-        </div>
-      )}
-
       {showExportModal && (
         <ExportFormatModal
           isOpen={showExportModal}
@@ -305,6 +294,19 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
             ))}
           </ul>
         </div>
+      )}
+
+      {canGenerate && sheetsStart && sheetsEnd && (
+        <section className="w-full mt-10 pt-10 border-t border-gray-200">
+          <div className="w-full border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+            <SheetsExportPreviewReport
+              embedded
+              startDate={sheetsStart}
+              endDate={sheetsEnd}
+              sector={sector}
+            />
+          </div>
+        </section>
       )}
     </div>
   );
