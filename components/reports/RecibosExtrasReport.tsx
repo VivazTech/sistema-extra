@@ -2,13 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { generateBulkRecibosPDF } from '../../services/pdfService';
 import { exportBulkRecibosExcel, valorForDay } from '../../services/excelService';
-import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../ExportFormatModal';
+import ExportFormatModal, { filterByEvento, filterBySector, type EventoFilterValue } from '../ExportFormatModal';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR, toDateOnlyString } from '../../utils/date';
 import type { ExtraRequest, WorkDay } from '../../types';
 import { roundMoney } from '../../utils/round';
 
-/** Ordenação alfabética por nome do extra (e desempate por setor e código). Usada para VIVAZ e AQUAMANIA. */
+/** Ordenação alfabética por nome do extra (e desempate por setor e código). */
 function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
   return [...list].sort((a, b) => {
     const na = (a.extraName || '').trim();
@@ -105,7 +105,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     return getDateRange(period, customStart || undefined, customEnd || undefined);
   }, [period, customStart, customEnd, propsStart, propsEnd]);
 
-  // Lista apenas por período; o filtro de setor (VIVAZ/AQUAMANIA) é aplicado só no modal "Baixar Recibos"
+  // Lista apenas por período; o filtro de setor do modal segue SECTOR_FILTER_OPTIONS (VIVAZ / Aquamania / Núcleo).
   const filteredRequests = useMemo(() => {
     if (period === 'custom' && (!customStart || !customEnd) && !propsStart && !propsEnd) return [];
     const startKey = toDateOnlyString(start);
@@ -132,12 +132,7 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
     listOptions?: { groupByExtra?: boolean },
     eventoFilter?: EventoFilterValue
   ) => {
-    let list = filteredRequests;
-    if (sectorFilter === 'VIVAZ') {
-      list = filteredRequests.filter(r => r.sector.toLowerCase() !== 'aquamania');
-    } else if (sectorFilter === 'AQUAMANIA') {
-      list = filteredRequests.filter(r => r.sector.toLowerCase() === 'aquamania');
-    }
+    let list = filterBySector(filteredRequests, sectorFilter);
     list = filterByEvento(list, eventoFilter);
     // Garantir que a exportação respeite SEMPRE o período selecionado:
     // como a lista base inclui solicitações que têm "algum" dia no período,

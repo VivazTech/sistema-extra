@@ -4,6 +4,7 @@ import { supabase } from '../../services/supabase';
 import { formatWorkedHours } from '../../utils/pjHours';
 import { formatDateBR } from '../../utils/date';
 import { DatabaseLoading } from '../LoadingLottie';
+import { catalogSectorMatchesFilter } from '../ExportFormatModal';
 
 function csvEscape(value: string | number | undefined): string {
   if (value === undefined || value === null) return '';
@@ -79,10 +80,8 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
         if (endDate) {
           filtered = filtered.filter((x) => x.work_date <= endDate);
         }
-        if (sector === 'VIVAZ') {
-          filtered = filtered.filter((x) => x.sector_name.toLowerCase() !== 'aquamania');
-        } else if (sector === 'AQUAMANIA') {
-          filtered = filtered.filter((x) => x.sector_name.toLowerCase() === 'aquamania');
+        if (sector) {
+          filtered = filtered.filter((x) => catalogSectorMatchesFilter(x.sector_name, sector));
         }
 
         setRows(filtered);

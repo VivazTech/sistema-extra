@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
-import { filterBySector } from '../ExportFormatModal';
+import { filterBySector, catalogSectorMatchesFilter } from '../ExportFormatModal';
 import { totalWorkedValue } from '../../services/excelService';
 import {
   BarChart,
@@ -109,14 +109,9 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   }, [approvedRequests]);
 
   const setoresUltrapassaramSaldo = useMemo(() => {
-    const sectorsToShow =
-      sectorFilter === 'VIVAZ'
-        ? sectors.filter((s) => s.name.toLowerCase() !== 'aquamania')
-        : sectorFilter === 'AQUAMANIA'
-          ? sectors.filter((s) => s.name.toLowerCase() === 'aquamania')
-          : sectorFilter
-            ? sectors.filter((s) => s.name === sectorFilter)
-            : sectors;
+    const sectorsToShow = sectorFilter
+      ? sectors.filter((s) => catalogSectorMatchesFilter(s.name, sectorFilter))
+      : sectors;
 
     const today = new Date().toISOString().split('T')[0];
     return sectorsToShow

@@ -25,7 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
 import { generateSingleReciboPDF, generateListPDF, generateIndividualPDF } from '../services/pdfService';
 import { exportSingleReciboExcel, exportListExcel } from '../services/excelService';
-import ExportFormatModal, { filterByEvento, type EventoFilterValue } from '../components/ExportFormatModal';
+import ExportFormatModal, { filterByEvento, filterBySector, type EventoFilterValue } from '../components/ExportFormatModal';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR, toDateOnlyString } from '../utils/date';
 import type { ExtraRequest } from '../types';
@@ -220,18 +220,21 @@ const Requests: React.FC = () => {
             .filter(req => req.workDays.length > 0);
         }
       }
-      if (sectorFilter === 'VIVAZ') {
-        list = list.filter(r => r.sector.toLowerCase() !== 'aquamania');
-      } else if (sectorFilter === 'AQUAMANIA') {
-        list = list.filter(r => r.sector.toLowerCase() === 'aquamania');
-      }
+      list = filterBySector(list, sectorFilter);
       list = filterByEvento(list, eventoFilter);
       // Listagem: se "Exportar somente motivo EVENTO" = Não, excluir solicitações de evento
       if (exportModal.type === 'list' && !eventoFilter) {
         list = list.filter(r => (r.reason || '').toUpperCase().trim() !== 'EVENTO');
       }
       const sectorSuffix = sectorFilter ? ` - ${sectorFilter}` : '';
-      const eventoSuffix = eventoFilter === 'VIVAZ_EVENTOS' ? ' - VIVAZ EVENTOS' : eventoFilter === 'AQUAMANIA_EVENTOS' ? ' - AQUAMANIA EVENTOS' : '';
+      const eventoSuffix =
+        eventoFilter === 'VIVAZ_EVENTOS'
+          ? ' - VIVAZ EVENTOS'
+          : eventoFilter === 'AQUAMANIA_EVENTOS'
+            ? ' - AQUAMANIA EVENTOS'
+            : eventoFilter === 'NUCLEO_EVENTOS'
+              ? ' - NUCLEO ENTRETENIMENTO EVENTOS'
+              : '';
       const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
       const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${eventoSuffix}${periodSuffix}`;
       if (format === 'pdf') generateListPDF(list, title);

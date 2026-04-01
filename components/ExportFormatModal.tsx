@@ -3,34 +3,77 @@ import { FileText, FileSpreadsheet, X, Calendar } from 'lucide-react';
 
 export type ExportFormat = 'pdf' | 'excel';
 
-/** Filtro VIVAZ/AQUAMANIA para exportação de listagem e recibos em massa. */
+/** Valor do select de filtro para o setor cadastrado como "NUCLEO ENTRETENIMENTO" (comparação normalizada). */
+export const SECTOR_EXPORT_NUCLEO_ENTRETENIMENTO = 'NUCLEO_ENTRETENIMENTO' as const;
+
+const NUCLEO_ENTRETENIMENTO_KEY = 'nucleo entretenimento';
+
+/** Setores fora do agregado VIVAZ nas exportações / relatórios (unidades separadas). */
+const EXCLUDED_FROM_VIVAZ_NORMALIZED: readonly string[] = ['aquamania', NUCLEO_ENTRETENIMENTO_KEY];
+
+/** Normaliza nome de setor para comparação (minúsculas, espaços colapsados). */
+export function normalizeSectorKeyForExport(name: string): string {
+  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/** Indica se o setor entra no filtro "VIVAZ" (tudo que não é Aquamania nem Núcleo Entretenimento). */
+export function isSectorInVivazExportBundle(sectorName: string): boolean {
+  const k = normalizeSectorKeyForExport(sectorName);
+  return !EXCLUDED_FROM_VIVAZ_NORMALIZED.includes(k);
+}
+
+/**
+ * Para listas de setores cadastrados: quais nomes entram no filtro do topo (VIVAZ / AQUAMANIA / NÚCLEO / outro).
+ */
+export function catalogSectorMatchesFilter(sectorName: string, filter: string): boolean {
+  if (filter === 'VIVAZ') return isSectorInVivazExportBundle(sectorName);
+  if (filter === 'AQUAMANIA') return normalizeSectorKeyForExport(sectorName) === 'aquamania';
+  if (filter === SECTOR_EXPORT_NUCLEO_ENTRETENIMENTO) {
+    return normalizeSectorKeyForExport(sectorName) === NUCLEO_ENTRETENIMENTO_KEY;
+  }
+  return sectorName === filter;
+}
+
+/** Filtro VIVAZ / AQUAMANIA / NÚCLEO ENTRETENIMENTO para exportação de listagem e recibos em massa. */
 export const SECTOR_FILTER_OPTIONS = [
-  { value: 'VIVAZ', label: 'VIVAZ (todos exceto Aquamania)' },
+  { value: 'VIVAZ', label: 'VIVAZ (todos exceto Aquamania e Núcleo Entretenimento)' },
   { value: 'AQUAMANIA', label: 'AQUAMANIA (apenas Aquamania)' },
+  { value: SECTOR_EXPORT_NUCLEO_ENTRETENIMENTO, label: 'NÚCLEO ENTRETENIMENTO (apenas esse setor)' },
 ] as const;
 
 /** Filtro por motivo EVENTO: exportar somente solicitações cujo motivo seja EVENTO (por setor). */
-export type EventoFilterValue = '' | 'VIVAZ_EVENTOS' | 'AQUAMANIA_EVENTOS';
+export type EventoFilterValue = '' | 'VIVAZ_EVENTOS' | 'AQUAMANIA_EVENTOS' | 'NUCLEO_EVENTOS';
 export const EVENTO_FILTER_OPTIONS: { value: EventoFilterValue; label: string }[] = [
   { value: '', label: 'Não (todos os motivos)' },
-  { value: 'VIVAZ_EVENTOS', label: 'VIVAZ EVENTOS (motivo EVENTO, exceto Aquamania)' },
-  { value: 'AQUAMANIA_EVENTOS', label: 'AQUAMANIA EVENTOS (motivo EVENTO, apenas Aquamania)' },
+  { value: 'VIVAZ_EVENTOS', label: 'VIVAZ EVENTOS (EVENTO, exceto Aquamania e Núcleo Entretenimento)' },
+  { value: 'AQUAMANIA_EVENTOS', label: 'AQUAMANIA EVENTOS (EVENTO, apenas Aquamania)' },
+  { value: 'NUCLEO_EVENTOS', label: 'NÚCLEO ENTRETENIMENTO EVENTOS (EVENTO, apenas Núcleo Entretenimento)' },
 ];
 
-/** Filtra lista por setor (VIVAZ = todos exceto Aquamania, AQUAMANIA = só Aquamania). */
+/** Filtra lista por setor (VIVAZ, AQUAMANIA, NÚCLEO ENTRETENIMENTO ou nome exato). */
 export function filterBySector<T extends { sector: string }>(list: T[], sector?: string): T[] {
   if (!sector) return list;
-  if (sector === 'VIVAZ') return list.filter(r => r.sector.toLowerCase() !== 'aquamania');
-  if (sector === 'AQUAMANIA') return list.filter(r => r.sector.toLowerCase() === 'aquamania');
+  if (sector === 'VIVAZ') return list.filter(r => isSectorInVivazExportBundle(r.sector));
+  if (sector === 'AQUAMANIA') return list.filter(r => normalizeSectorKeyForExport(r.sector) === 'aquamania');
+  if (sector === SECTOR_EXPORT_NUCLEO_ENTRETENIMENTO) {
+    return list.filter(r => normalizeSectorKeyForExport(r.sector) === NUCLEO_ENTRETENIMENTO_KEY);
+  }
   return list.filter(r => r.sector === sector);
 }
 
-/** Filtra lista por motivo EVENTO + setor (VIVAZ_EVENTOS = motivo EVENTO e setor não Aquamania; AQUAMANIA_EVENTOS = motivo EVENTO e Aquamania). */
+/** Filtra lista por motivo EVENTO + setor. */
 export function filterByEvento<T extends { sector: string; reason?: string }>(list: T[], eventoFilter?: EventoFilterValue): T[] {
   if (!eventoFilter || eventoFilter === '') return list;
   const isEvento = (r: T) => (r.reason || '').toUpperCase().trim() === 'EVENTO';
-  if (eventoFilter === 'VIVAZ_EVENTOS') return list.filter(r => isEvento(r) && r.sector.toLowerCase() !== 'aquamania');
-  if (eventoFilter === 'AQUAMANIA_EVENTOS') return list.filter(r => isEvento(r) && r.sector.toLowerCase() === 'aquamania');
+  if (eventoFilter === 'VIVAZ_EVENTOS') {
+    return list.filter(r => isEvento(r) && isSectorInVivazExportBundle(r.sector));
+  }
+  if (eventoFilter === 'AQUAMANIA_EVENTOS') {
+    return list.filter(r => isEvento(r) && normalizeSectorKeyForExport(r.sector) === 'aquamania');
+  }
+  if (eventoFilter === 'NUCLEO_EVENTOS') {
+    return list.filter(r => isEvento(r) && normalizeSectorKeyForExport(r.sector) === NUCLEO_ENTRETENIMENTO_KEY);
+  }
   return list;
 }
 
@@ -61,7 +104,7 @@ interface ExportFormatModalProps {
   /** Para type 'list' recebe (format, sector?, { startDate, endDate }, eventoFilter?). Para 'bulk' (format, sector?, { groupByExtra? }, eventoFilter?). Para 'recibo' (format, sector?). */
   onExport: (format: ExportFormat, sector?: string, listOptions?: { startDate: string; endDate: string; groupByExtra?: boolean }, eventoFilter?: EventoFilterValue) => void;
   type: 'recibo' | 'list' | 'bulk';
-  /** Ignorado para type 'list' e 'bulk' (usa filtro VIVAZ/AQUAMANIA). */
+  /** Ignorado para type 'list' e 'bulk' (usa filtro VIVAZ / AQUAMANIA / NÚCLEO ENTRETENIMENTO). */
   sectors?: string[];
 }
 
@@ -171,7 +214,7 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              {type === 'bulk' ? 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.' : 'VIVAZ: todos exceto Aquamania. AQUAMANIA: apenas setor Aquamania.'}
+              VIVAZ: resort principal (exceto Aquamania e Núcleo Entretenimento). AQUAMANIA e NÚCLEO ENTRETENIMENTO: apenas o respectivo setor.
             </p>
           </div>
         )}
@@ -189,7 +232,7 @@ const ExportFormatModal: React.FC<ExportFormatModalProps> = ({ isOpen, onClose, 
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Filtra por motivo da solicitação (EVENTO). VIVAZ EVENTOS / AQUAMANIA EVENTOS aplicam setor além do motivo.
+              Filtra por motivo EVENTO combinado com o mesmo critério de setor (VIVAZ / Aquamania / Núcleo Entretenimento).
             </p>
           </div>
         )}
