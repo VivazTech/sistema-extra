@@ -1,7 +1,17 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { Download } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { formatWorkedHours } from '../../utils/pjHours';
 import { formatDateBR } from '../../utils/date';
+
+function csvEscape(value: string | number | undefined): string {
+  if (value === undefined || value === null) return '';
+  const s = String(value).trim();
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
 
 type Row = {
   work_date: string;
@@ -96,17 +106,70 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
     });
   }, [rows]);
 
+  const handleExportCSV = () => {
+    const headers = [
+      'Data',
+      'Nome',
+      'Setor',
+      'Entrada',
+      'Saída intervalo',
+      'Volta intervalo',
+      'Saída final',
+      'Total trabalhado',
+    ];
+    const lines = sorted.map((r) => {
+      const total = formatWorkedHours(
+        r.arrival || undefined,
+        r.break_start || undefined,
+        r.break_end || undefined,
+        r.departure || undefined
+      );
+      const dateDisp = formatDateBR(new Date(`${r.work_date}T12:00:00`));
+      return [
+        csvEscape(dateDisp),
+        csvEscape(r.employee_name),
+        csvEscape(r.sector_name),
+        csvEscape(r.arrival || ''),
+        csvEscape(r.break_start || ''),
+        csvEscape(r.break_end || ''),
+        csvEscape(r.departure || ''),
+        csvEscape(total),
+      ].join(',');
+    });
+    const csv = [headers.join(','), ...lines].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ponto-pj-${startDate || 'inicio'}-${endDate || 'fim'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return <p className="text-center text-gray-500 py-8">Carregando registros PJ…</p>;
   }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">Ponto — Funcionários PJ</h2>
-        <p className="text-sm text-gray-500">
-          Lista por dia: entrada, intervalo, volta do intervalo, saída final e total de horas (sem valores financeiros).
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Ponto — Funcionários PJ</h2>
+          <p className="text-sm text-gray-500">
+            Lista por dia: entrada, intervalo, volta do intervalo, saída final e total de horas (sem valores financeiros).
+          </p>
+        </div>
+        {sorted.length > 0 && (
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="inline-flex items-center justify-center gap-2 shrink-0 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors"
+            title="Baixar esta tabela em CSV (UTF-8)"
+          >
+            <Download size={18} />
+            Exportar CSV
+          </button>
+        )}
       </div>
 
       {sorted.length === 0 ? (

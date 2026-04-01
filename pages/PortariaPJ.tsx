@@ -26,6 +26,7 @@ function toLocalDateStr(d: Date): string {
 const PortariaPJ: React.FC = () => {
   const { pjEmployees, sectors, updatePjTimeRecord } = useExtras();
   const { user } = useAuth();
+  const adminCanEditTimes = user?.role === 'ADMIN';
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
@@ -147,7 +148,9 @@ const PortariaPJ: React.FC = () => {
     }
   };
 
+  /** Horário já preenchido não pode ser alterado por portaria/líder; ADMIN pode reeditar. */
   const isLocked = (empId: string, field: keyof TimeRecord) => {
+    if (adminCanEditTimes) return false;
     const v = getDisplayTime(empId, field);
     return v !== '';
   };
@@ -164,6 +167,11 @@ const PortariaPJ: React.FC = () => {
             <p className="text-gray-500 mt-1">
               Funcionários PJ (sem vínculo com valores de extras). Apenas controle de horário.
             </p>
+            {adminCanEditTimes && (
+              <p className="text-xs text-violet-700 font-medium mt-2">
+                Perfil administrador: você pode alterar qualquer horário já registrado — ajuste o campo e clique em Registrar.
+              </p>
+            )}
           </div>
           <div className="text-right">
             <div className="text-3xl font-black text-violet-600">
@@ -306,7 +314,7 @@ const PortariaPJ: React.FC = () => {
                             onClick={() => handleRegister(emp.id, key)}
                             className="px-3 py-2 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Registrar
+                            {adminCanEditTimes && getDisplayTime(emp.id, key) ? 'Salvar' : 'Registrar'}
                           </button>
                         </div>
                       </div>

@@ -291,15 +291,17 @@ const Reports: React.FC = () => {
               />
             </>
           )}
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
-            title="Exportar solicitações (período e setor selecionados) em CSV"
-          >
-            <Download size={18} />
-            Exportar CSV
-          </button>
+          {activeTab !== 'pj-hours' && (
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
+              title="Exportar solicitações de extras (período e setor selecionados) em CSV — não inclui ponto PJ"
+            >
+              <Download size={18} />
+              Exportar solicitações (CSV)
+            </button>
+          )}
         </div>
       </header>
 
