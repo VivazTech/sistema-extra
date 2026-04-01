@@ -9,12 +9,23 @@ import {
   ArrowUpAZ,
   ArrowDownAZ,
   ArrowUpDown,
+  Download,
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { TimeRecord } from '../types';
 import { supabase } from '../services/supabase';
 import { formatDateBR } from '../utils/date';
+import { formatWorkedHours } from '../utils/pjHours';
+
+function csvEscape(value: string | number | undefined): string {
+  if (value === undefined || value === null) return '';
+  const s = String(value).trim();
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
 
 function toLocalDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -155,13 +166,54 @@ const PortariaPJ: React.FC = () => {
     return v !== '';
   };
 
+  /** CSV do dia em **Data do ponto** e da lista **filtrada** (setor + busca), refletindo o que aparece na tela (inclui rascunho não salvo). */
+  const handleExportDayCSV = () => {
+    const headers = [
+      'Data',
+      'Nome',
+      'Setor',
+      'Entrada',
+      'Saída intervalo',
+      'Volta intervalo',
+      'Saída final',
+      'Total trabalhado',
+    ];
+    const dateDisp = formatDateBR(new Date(`${workDate}T12:00:00`));
+    const lines = filtered.map((emp) => {
+      const m = buildMergedRecord(emp.id);
+      const arr = m.arrival?.trim() || '';
+      const bs = m.breakStart?.trim() || '';
+      const be = m.breakEnd?.trim() || '';
+      const dep = m.departure?.trim() || '';
+      const total = formatWorkedHours(arr || undefined, bs || undefined, be || undefined, dep || undefined);
+      return [
+        csvEscape(dateDisp),
+        csvEscape(emp.name),
+        csvEscape(emp.sector || ''),
+        csvEscape(arr),
+        csvEscape(bs),
+        csvEscape(be),
+        csvEscape(dep),
+        csvEscape(total),
+      ].join(',');
+    });
+    const csv = [headers.join(','), ...lines].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portaria-pj-${workDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="text-gray-900 space-y-6 p-6">
-        <header className="flex justify-between items-center flex-wrap gap-4">
-          <div>
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Clock className="text-violet-600" size={28} />
+              <Clock className="text-violet-600 shrink-0" size={28} />
               Portaria PJ — Registro de Ponto
             </h1>
             <p className="text-gray-500 mt-1">
@@ -173,12 +225,24 @@ const PortariaPJ: React.FC = () => {
               </p>
             )}
           </div>
-          <div className="text-right">
-            <div className="text-3xl font-black text-violet-600">
-              {formatDateBR(new Date()).slice(0, 5)}
-            </div>
-            <div className="text-xs text-gray-500 uppercase font-bold">
-              {new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date())}
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end shrink-0">
+            <button
+              type="button"
+              onClick={handleExportDayCSV}
+              disabled={pjEmployees.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-bold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              title="Exporta em CSV os horários do dia selecionado em «Data do ponto», conforme filtros de setor e busca atuais"
+            >
+              <Download size={18} />
+              Exportar relatório (CSV)
+            </button>
+            <div className="text-right">
+              <div className="text-3xl font-black text-violet-600">
+                {formatDateBR(new Date()).slice(0, 5)}
+              </div>
+              <div className="text-xs text-gray-500 uppercase font-bold">
+                {new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date())}
+              </div>
             </div>
           </div>
         </header>
