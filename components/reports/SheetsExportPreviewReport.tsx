@@ -127,71 +127,69 @@ const SheetsExportPreviewReport: React.FC<Props> = ({ startDate, endDate, sector
     window.setTimeout(() => setSendFlash(null), 5000);
   };
 
+  const scrollMaxClass = embedded ? 'max-h-60' : 'max-h-[70vh]';
+
   return (
-    <div className={`w-full max-w-none space-y-4 ${embedded ? 'pt-2' : ''}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
+    <div className="w-full border border-gray-200 rounded-xl overflow-hidden bg-white">
+      <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <Table2 size={18} className="text-emerald-600 shrink-0" />
+            {embedded ? 'Prévia para planilha (conferência)' : 'Prévia para planilha (Google Sheets)'}
+          </h3>
           {embedded ? (
-            <>
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                <Table2 className="text-emerald-600 shrink-0" size={20} />
-                Prévia para planilha (conferência)
-              </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                Mesmos critérios do recibo: aprovadas, quatro horários na portaria. Filtro de setor igual ao cabeçalho de Relatórios.
-              </p>
-            </>
+            <p className="text-xs text-gray-500 mt-1">
+              Aprovadas, quatro horários na portaria; valores como no recibo (excelService).
+            </p>
           ) : (
-            <>
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Table2 className="text-emerald-600" size={22} />
-                Prévia para planilha (Google Sheets)
-              </h2>
-              <p className="text-sm text-gray-500 mt-1 max-w-3xl">
-                Somente solicitações <strong>aprovadas</strong> com os quatro horários preenchidos na portaria (entrada, saída/volta do intervalo e saída final).
-                Valores e total de horas seguem a mesma lógica do recibo Excel (<code className="text-xs bg-gray-100 px-1 rounded">excelService</code>).
-              </p>
-            </>
+            <p className="text-xs text-gray-500 mt-1 max-w-3xl">
+              Somente aprovadas com os quatro horários na portaria. Mesma lógica do recibo Excel.
+            </p>
           )}
         </div>
-        <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0 w-full sm:w-auto">
+        <div className="flex flex-col items-stretch sm:items-end gap-1.5 shrink-0 w-full sm:w-auto">
           <button
             type="button"
             onClick={handleSendClick}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm w-full sm:w-auto"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors w-full sm:w-auto"
           >
             <Send size={18} />
             Enviar para «{GOOGLE_SHEETS_TARGET_DISPLAY_NAME}»
           </button>
           <span className="text-xs text-gray-500 text-center sm:text-right">{rows.length} linha(s)</span>
-          {sendFlash && <p className="text-xs text-emerald-700 font-medium text-center sm:text-right">{sendFlash}</p>}
+          {sendFlash && (
+            <p className="text-xs text-emerald-700 font-medium text-center sm:text-right">{sendFlash}</p>
+          )}
         </div>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-gray-500 py-8 border border-dashed border-gray-200 rounded-xl text-center bg-gray-50/50">
+        <p className="text-sm text-gray-500 px-4 py-8 text-center bg-gray-50/30">
           Nenhum registro com horários completos no período e setor selecionados.
         </p>
       ) : (
-        <div className="w-full overflow-x-auto border border-gray-200 rounded-xl shadow-sm bg-white">
+        <div className={`${scrollMaxClass} overflow-auto`}>
           <table className="w-full min-w-[1200px] text-sm text-left">
-            <thead className="bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wide">
+            <thead className="sticky top-0 z-10 bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wide shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
               <tr>
-                <th className="px-3 py-2.5 whitespace-nowrap">Nome do extra</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Setor</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Função</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Motivo</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Data do trabalho</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Entrada</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Saída intervalo</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Volta intervalo</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Saída final</th>
-                <th className="px-3 py-2.5 whitespace-nowrap" title="Valor na solicitação: combinado = por dia; por hora = base da hora">
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Nome do extra</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Setor</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Função</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Motivo</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Data do trabalho</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Entrada</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Saída intervalo</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Volta intervalo</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Saída final</th>
+                <th
+                  className="px-3 py-2.5 whitespace-nowrap bg-gray-50"
+                  title="Valor na solicitação: combinado = por dia; por hora = base da hora"
+                >
                   Valor combinado / hora
                 </th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Total horas (dia)</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Valor hora (R$)</th>
-                <th className="px-3 py-2.5 whitespace-nowrap">Valor a pagar</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Total horas (dia)</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Valor hora (R$)</th>
+                <th className="px-3 py-2.5 whitespace-nowrap bg-gray-50">Valor a pagar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
