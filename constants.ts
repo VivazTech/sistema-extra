@@ -75,6 +75,9 @@ export const DEFAULT_ROLE_ACCESS: RoleAccess = {
   },
 };
 
+/** Nome da planilha exibido no botão "Enviar para …" (prévia Google Sheets). Altere para o título real da planilha. */
+export const GOOGLE_SHEETS_TARGET_DISPLAY_NAME = 'Controle de Extras';
+
 export const INITIAL_REQUESTERS: RequesterItem[] = [
   { id: 'r1', name: 'RH' },
   { id: 'r2', name: 'Gestão' },

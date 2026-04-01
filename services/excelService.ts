@@ -3,7 +3,8 @@ import { ExtraRequest, TimeRecord, WorkDay } from '../types';
 import { formatDateBR } from '../utils/date';
 import { roundMoney } from '../utils/round';
 
-const HORAS_JORNADA_PADRAO = 7 + 20 / 60;
+/** Jornada padrão (7h20) para derivar R$/h no tipo "por hora" — igual ao recibo Excel. */
+export const HORAS_JORNADA_PADRAO = 7 + 20 / 60;
 
 function timeToMinutes(t?: string): number | null {
   if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return null;
@@ -42,6 +43,27 @@ function minutesToHHMM(totalMin: number): string {
 function hoursWorkedInDay(tr?: TimeRecord): string {
   const totalMin = minutesWorkedInDay(tr);
   return minutesToHHMM(totalMin);
+}
+
+/** Coluna "Total Horas" de um dia no recibo (mesmo cálculo de `minutesWorkedInDay`). */
+export function hoursWorkedDisplayForTimeRecord(tr?: TimeRecord): string {
+  return hoursWorkedInDay(tr);
+}
+
+/** R$/h usado no cálculo por hora; combinado → 0 (como no `buildReciboData`). */
+export function effectiveValorHoraRecibo(request: ExtraRequest): number {
+  if (request.valueType === 'combinado') return 0;
+  return request.value / HORAS_JORNADA_PADRAO;
+}
+
+/**
+ * Valor a pagar do dia, alinhado ao recibo: respeita `consolidatedDayValues` quando presente.
+ */
+export function valorDiaReciboLike(request: ExtraRequest, day: WorkDay, dayIndex: number): number {
+  const useDayValues =
+    request.consolidatedDayValues != null && request.consolidatedDayValues.length === request.workDays.length;
+  if (useDayValues) return roundMoney(request.consolidatedDayValues![dayIndex]);
+  return valorForDay(request, day);
 }
 
 function totalHoursWorked(workDays: WorkDay[]): string {
