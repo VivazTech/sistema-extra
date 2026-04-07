@@ -1,15 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
-import { filterBySector } from '../ExportFormatModal';
-import {
-  hoursWorkedDisplayForTimeRecord,
-  effectiveValorHoraRecibo,
-  valorDiaReciboLike,
-} from '../../services/excelService';
-import { formatDateBR, toDateOnlyString } from '../../utils/date';
-import type { ExtraRequest, WorkDay } from '../../types';
-import { Table2, Send } from 'lucide-react';
+import { formatDateBR } from '../../utils/date';
+import { Table2, Send, Loader2 } from 'lucide-react';
 import { GOOGLE_SHEETS_TARGET_DISPLAY_NAME } from '../../constants';
+import { buildPreviewRows } from '../../services/sheetsPreviewRows';
+import { pushPreviewRowsToSheets } from '../../services/sheetsPushService';
+
+export type { SheetsPreviewRow } from '../../services/sheetsPreviewRows';
+export { buildPreviewRows } from '../../services/sheetsPreviewRows';
 
 interface Props {
   startDate?: string;
@@ -19,112 +17,38 @@ interface Props {
   embedded?: boolean;
 }
 
-function hasCompletePortariaTimes(tr?: { arrival?: string; breakStart?: string; breakEnd?: string; departure?: string }): boolean {
-  return !!(tr?.arrival && tr?.breakStart && tr?.breakEnd && tr?.departure);
-}
-
 const money = (n: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 
 const moneyOrDash = (n: number) => (n > 0 ? money(n) : '—');
 
-export type SheetsPreviewRow = {
-  requestId: string;
-  code: string;
-  extraName: string;
-  sector: string;
-  role: string;
-  reason: string;
-  workDate: string;
-  arrival: string;
-  breakStart: string;
-  breakEnd: string;
-  departure: string;
-  /** Valor cadastrado na solicitação (combinado = por dia; por hora = referência da hora). */
-  valorCadastrado: number;
-  totalHorasDia: string;
-  valorHora: number;
-  valorPagar: number;
-  valueTypeLabel: string;
-};
-
-export function buildPreviewRows(requests: ExtraRequest[], startDate?: string, endDate?: string, sector?: string): SheetsPreviewRow[] {
-  let list = requests;
-  if (startDate || endDate) {
-    list = list.filter((req) => {
-      const hasWorkDayInRange = req.workDays.some((day) => {
-        const d = toDateOnlyString(day.date);
-        if (!d) return false;
-        if (startDate && d < startDate) return false;
-        if (endDate && d > endDate) return false;
-        return true;
-      });
-      return hasWorkDayInRange;
-    });
-  }
-  if (sector) list = filterBySector(list, sector);
-
-  const rows: SheetsPreviewRow[] = [];
-
-  list
-    .filter((r) => r.status === 'APROVADO')
-    .forEach((req) => {
-      req.workDays.forEach((day: WorkDay, dayIndex: number) => {
-        const dStr = toDateOnlyString(day.date) || day.date;
-        if (startDate && dStr < startDate) return;
-        if (endDate && dStr > endDate) return;
-        const tr = day.timeRecord;
-        if (!hasCompletePortariaTimes(tr)) return;
-
-        const valorHora = effectiveValorHoraRecibo(req);
-        rows.push({
-          requestId: req.id,
-          code: req.code,
-          extraName: req.extraName,
-          sector: req.sector,
-          role: req.role,
-          reason: req.reason,
-          workDate: dStr,
-          arrival: tr!.arrival!,
-          breakStart: tr!.breakStart!,
-          breakEnd: tr!.breakEnd!,
-          departure: tr!.departure!,
-          valorCadastrado: req.value,
-          totalHorasDia: hoursWorkedDisplayForTimeRecord(tr),
-          valorHora,
-          valorPagar: valorDiaReciboLike(req, day, dayIndex),
-          valueTypeLabel: req.valueType === 'combinado' ? 'Combinado' : 'Por hora',
-        });
-      });
-    });
-
-  rows.sort((a, b) => {
-    const dc = b.workDate.localeCompare(a.workDate);
-    if (dc !== 0) return dc;
-    return a.extraName.localeCompare(b.extraName, 'pt-BR');
-  });
-
-  return rows;
-}
-
 const SheetsExportPreviewReport: React.FC<Props> = ({ startDate, endDate, sector, embedded }) => {
   const { requests } = useExtras();
   const [sendFlash, setSendFlash] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendLoading, setSendLoading] = useState(false);
 
   const rows = useMemo(
     () => buildPreviewRows(requests, startDate, endDate, sector),
     [requests, startDate, endDate, sector]
   );
 
-  const handleSendClick = () => {
+  const handleSendClick = async () => {
     if (rows.length === 0) {
       window.alert('Não há linhas para enviar. Ajuste filtros ou aguarde registros completos na portaria.');
       return;
     }
-    // Integração Google Sheets (webhook) virá depois; payload já espelha o que será enviado.
-    console.info('[Sheets preview] payload para envio futuro', rows);
-    setSendFlash(`${rows.length} linha(s) preparada(s). Envio à planilha será habilitado na integração.`);
-    window.setTimeout(() => setSendFlash(null), 5000);
+    setSendError(null);
+    setSendFlash(null);
+    setSendLoading(true);
+    const result = await pushPreviewRowsToSheets(rows);
+    setSendLoading(false);
+    if (!result.ok) {
+      setSendError(result.error);
+      return;
+    }
+    setSendFlash(`${result.appended} linha(s) enviada(s) para «${GOOGLE_SHEETS_TARGET_DISPLAY_NAME}».`);
+    window.setTimeout(() => setSendFlash(null), 8000);
   };
 
   const scrollMaxClass = embedded ? 'max-h-60' : 'max-h-[70vh]';
@@ -150,14 +74,18 @@ const SheetsExportPreviewReport: React.FC<Props> = ({ startDate, endDate, sector
         <div className="flex flex-col items-stretch sm:items-end gap-1.5 shrink-0 w-full sm:w-auto">
           <button
             type="button"
-            onClick={handleSendClick}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors w-full sm:w-auto"
+            onClick={() => void handleSendClick()}
+            disabled={sendLoading || rows.length === 0}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send size={18} />
-            Enviar para «{GOOGLE_SHEETS_TARGET_DISPLAY_NAME}»
+            {sendLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            {sendLoading ? 'Enviando…' : `Enviar para «${GOOGLE_SHEETS_TARGET_DISPLAY_NAME}»`}
           </button>
           <span className="text-xs text-gray-500 text-center sm:text-right">{rows.length} linha(s)</span>
-          {sendFlash && (
+          {sendError && (
+            <p className="text-xs text-red-600 font-medium text-center sm:text-right max-w-md">{sendError}</p>
+          )}
+          {sendFlash && !sendError && (
             <p className="text-xs text-emerald-700 font-medium text-center sm:text-right">{sendFlash}</p>
           )}
         </div>

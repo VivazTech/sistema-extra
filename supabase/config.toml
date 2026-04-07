@@ -355,6 +355,9 @@ allow_dynamic_registration = false
 [functions.admin-set-password]
 verify_jwt = false
 
+[functions.push-extras-sheet]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

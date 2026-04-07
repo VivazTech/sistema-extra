@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
-import { RequesterItem, ReasonItem, ShiftItem, Sector, Employee, EmployeeScheduleItem, PjEmployee } from '../types';
+import { RequesterItem, ReasonItem, ShiftItem, EventItem, Sector, Employee, EmployeeScheduleItem, PjEmployee } from '../types';
 
 const AdminCatalogs: React.FC = () => {
   const {
@@ -9,6 +9,7 @@ const AdminCatalogs: React.FC = () => {
     requesters,
     reasons,
     shifts,
+    events,
     employeeSchedules,
     addSector,
     updateSector,
@@ -22,6 +23,9 @@ const AdminCatalogs: React.FC = () => {
     addShift,
     updateShift,
     deleteShift,
+    addEvent,
+    updateEvent,
+    deleteEvent,
     addEmployeeSchedule,
     updateEmployeeSchedule,
     deleteEmployeeSchedule,
@@ -47,6 +51,9 @@ const AdminCatalogs: React.FC = () => {
   const [editReasonMaxValue, setEditReasonMaxValue] = useState<string>('');
   const [newReasonName, setNewReasonName] = useState('');
   const [newReasonMaxValue, setNewReasonMaxValue] = useState<string>('');
+  const [newEventName, setNewEventName] = useState('');
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editEventName, setEditEventName] = useState('');
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [newEmployeeSectorId, setNewEmployeeSectorId] = useState('');
@@ -207,6 +214,56 @@ const AdminCatalogs: React.FC = () => {
       }
     } catch {
       alert('Erro ao cadastrar motivo. Tente novamente.');
+    }
+  };
+
+  const handleStartEditEvent = (item: EventItem) => {
+    setEditingEventId(item.id);
+    setEditEventName(item.name);
+  };
+
+  const handleCancelEditEvent = () => {
+    setEditingEventId(null);
+    setEditEventName('');
+  };
+
+  const handleSaveEvent = async () => {
+    if (!editingEventId) return;
+    const name = editEventName.trim();
+    if (!name) {
+      alert('Informe o nome do evento.');
+      return;
+    }
+    try {
+      await updateEvent(editingEventId, { id: editingEventId, name });
+      handleCancelEditEvent();
+      alert('Evento atualizado com sucesso.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao atualizar evento.';
+      alert(msg);
+    }
+  };
+
+  const handleAddEvent = async () => {
+    const name = newEventName.trim();
+    if (!name) {
+      alert('Informe o nome do evento.');
+      return;
+    }
+    try {
+      const created = await addEvent({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+      });
+      if (created) {
+        setNewEventName('');
+        alert('Evento cadastrado com sucesso.');
+      } else {
+        alert('Erro ao cadastrar evento. Tente novamente.');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar evento. Tente novamente.';
+      alert(msg);
     }
   };
 
@@ -579,7 +636,7 @@ const AdminCatalogs: React.FC = () => {
         <h1 className="text-2xl font-bold">Cadastros do Sistema</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Demandantes</h2>
@@ -775,6 +832,74 @@ const AdminCatalogs: React.FC = () => {
                       <Edit2 size={16} />
                     </button>
                     <button onClick={() => deleteShift(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Eventos</h2>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="text"
+                placeholder="Nome do evento"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40"
+                value={newEventName}
+                onChange={(e) => setNewEventName(e.target.value)}
+              />
+              <button
+                onClick={handleAddEvent}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+              >
+                <Plus size={16} /> Novo Evento
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {events.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhum evento cadastrado.</p>
+            )}
+            {events.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                {editingEventId === item.id ? (
+                  <>
+                    <input
+                      type="text"
+                      className="flex-1 border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                      value={editEventName}
+                      onChange={(e) => setEditEventName(e.target.value)}
+                      placeholder="Nome"
+                    />
+                    <button onClick={handleSaveEvent} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Save size={16} />
+                    </button>
+                    <button onClick={handleCancelEditEvent} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{item.name}</span>
+                    <button onClick={() => handleStartEditEvent(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Excluir este evento?')) return;
+                        try {
+                          await deleteEvent(item.id);
+                          alert('Evento excluído com sucesso.');
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : 'Erro ao excluir evento. Tente novamente.';
+                          alert(msg);
+                        }
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </>

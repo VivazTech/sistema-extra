@@ -29,7 +29,7 @@ const getValidSectorNames = (extra: { sector?: string; sectors?: string[] }, val
 };
 
 const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialRequest = null }) => {
-  const { sectors, requesters, reasons, shifts, extras, requests, addRequest, updateRequest, getSaldoForWeek } = useExtras();
+  const { sectors, requesters, reasons, shifts, events, extras, requests, addRequest, updateRequest, getSaldoForWeek } = useExtras();
   const validSectorNames = useMemo(() => sectorNamesSet(sectors), [sectors]);
   const { logAction } = useActionLog();
   const isEditMode = !!initialRequest?.id;
@@ -233,7 +233,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
       return;
     }
     if (isEventoReason && !(formData.eventName || '').trim()) {
-      alert('Para motivo EVENTO, informe o nome do evento.');
+      alert('Para motivo EVENTO, selecione o evento.');
       return;
     }
     const selectedReasonConfig = reasons.find((r) => r.name === formData.reason);
@@ -621,7 +621,12 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 if (reason?.maxValue != null && newValue > reason.maxValue) {
                   newValue = reason.maxValue;
                 }
-                setFormData({ ...formData, reason: reasonName, value: newValue });
+                setFormData({
+                  ...formData,
+                  reason: reasonName,
+                  value: newValue,
+                  eventName: reasonName.toUpperCase() === 'EVENTO' ? formData.eventName : '',
+                });
               }}
             >
               <option value="">Selecione o motivo</option>
@@ -638,14 +643,19 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
 
           {isEventoReason && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Nome do evento *</label>
-              <input
-                type="text"
+              <label className="text-xs font-bold text-gray-500 uppercase">Evento *</label>
+              <select
+                required={isEventoReason}
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                placeholder="Ex.: Festa de Confraternização"
                 value={formData.eventName}
                 onChange={(e) => setFormData({ ...formData, eventName: e.target.value })}
-              />
+              >
+                <option value="">Selecione o evento</option>
+                {events.length === 0 && <option value="" disabled>Cadastre eventos em Cadastros</option>}
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.name}>{ev.name}</option>
+                ))}
+              </select>
             </div>
           )}
 

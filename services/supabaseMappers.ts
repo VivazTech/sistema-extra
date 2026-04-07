@@ -9,6 +9,7 @@ import {
   RequesterItem, 
   ReasonItem, 
   ShiftItem,
+  EventItem,
   ExtraPerson,
   ExtraSaldoRecord,
   ExtraSaldoSettings,
@@ -46,6 +47,12 @@ export const mapReason = (dbReason: any): ReasonItem => ({
 export const mapShift = (dbShift: any): ShiftItem => ({
   id: dbShift.id,
   name: dbShift.name,
+});
+
+// Converter EventItem do Supabase
+export const mapEvent = (dbEvent: any): EventItem => ({
+  id: dbEvent.id,
+  name: dbEvent.name,
 });
 
 // Converter ExtraPerson do Supabase (sectors = relação 1 setor; sector_names = array de nomes)

@@ -68,6 +68,11 @@ export interface ShiftItem {
   name: string;
 }
 
+export interface EventItem {
+  id: string;
+  name: string;
+}
+
 export interface EmployeeScheduleItem {
   id: string;
   entryTime: string;

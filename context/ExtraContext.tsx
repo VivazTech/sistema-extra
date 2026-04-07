@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EventItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -10,6 +10,7 @@ import {
   mapRequester, 
   mapReason, 
   mapShift,
+  mapEvent,
   mapExtraPerson, 
   mapExtraRequest, 
   mapExtraSaldoRecord, 
@@ -22,6 +23,7 @@ interface ExtraContextType {
   requesters: RequesterItem[];
   reasons: ReasonItem[];
   shifts: ShiftItem[];
+  events: EventItem[];
   employeeSchedules: EmployeeScheduleItem[];
   extras: ExtraPerson[];
   extraSaldoRecords: ExtraSaldoRecord[];
@@ -45,6 +47,9 @@ interface ExtraContextType {
   addShift: (shift: ShiftItem) => Promise<ShiftItem | null>;
   updateShift: (id: string, shift: ShiftItem) => Promise<void>;
   deleteShift: (id: string) => Promise<void>;
+  addEvent: (event: EventItem) => Promise<EventItem | null>;
+  updateEvent: (id: string, event: EventItem) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
   addEmployeeSchedule: (schedule: Omit<EmployeeScheduleItem, 'id'>) => Promise<EmployeeScheduleItem | null>;
   updateEmployeeSchedule: (id: string, schedule: Omit<EmployeeScheduleItem, 'id'>) => Promise<void>;
   deleteEmployeeSchedule: (id: string) => Promise<void>;
@@ -87,6 +92,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [requesters, setRequesters] = useState<RequesterItem[]>([]); // Carregado apenas do banco
   const [reasons, setReasons] = useState<ReasonItem[]>([]); // Carregado apenas do banco
   const [shifts, setShifts] = useState<ShiftItem[]>([]); // Carregado apenas do banco
+  const [events, setEvents] = useState<EventItem[]>([]); // Carregado apenas do banco
   const [employeeSchedules, setEmployeeSchedules] = useState<EmployeeScheduleItem[]>([]);
   const [extras, setExtras] = useState<ExtraPerson[]>([]);
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
@@ -186,6 +192,19 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (!shiftsError && shiftsData) {
           setShifts(shiftsData.map(mapShift));
+        }
+
+        // Carregar Eventos
+        const { data: eventsData, error: eventsError } = await supabase
+          .from('request_events')
+          .select('*')
+          .eq('active', true)
+          .order('name');
+
+        if (!eventsError && eventsData) {
+          setEvents(eventsData.map(mapEvent));
+        } else if (eventsError) {
+          console.error('Erro ao carregar eventos:', eventsError);
         }
 
         // Carregar Escalas de trabalho (hora entrada/saida)
@@ -1462,6 +1481,80 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const addEvent = async (event: EventItem): Promise<EventItem | null> => {
+    const name = (event.name || '').trim();
+    if (!name) {
+      return null;
+    }
+    try {
+      const { data: newEvent, error } = await supabase
+        .from('request_events')
+        .insert({
+          name,
+          active: true,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          const { data: existing } = await supabase
+            .from('request_events')
+            .select('*')
+            .eq('name', name)
+            .single();
+          if (existing) {
+            if (existing.active) throw new Error('Já existe um evento com esse nome.');
+            const { data: reactivated, error: reactivateError } = await supabase
+              .from('request_events')
+              .update({ active: true, updated_at: new Date().toISOString() })
+              .eq('id', existing.id)
+              .select()
+              .single();
+            if (!reactivateError && reactivated) {
+              const mapped = mapEvent(reactivated);
+              setEvents(prev => (prev.some(e => e.id === mapped.id) ? prev : [...prev, mapped]));
+              return mapped;
+            }
+          }
+          throw new Error('Já existe um evento com esse nome.');
+        }
+        throw new Error(error.message || 'Erro ao cadastrar evento.');
+      }
+
+      if (!newEvent) return null;
+      const mapped = mapEvent(newEvent);
+      setEvents(prev => [...prev, mapped]);
+      return mapped;
+    } catch (error) {
+      console.error('Erro ao adicionar evento:', error);
+      throw error;
+    }
+  };
+
+  const updateEvent = async (id: string, event: EventItem) => {
+    const name = (event.name || '').trim();
+    if (!name) throw new Error('Nome do evento não pode ser vazio.');
+    const { error } = await supabase
+      .from('request_events')
+      .update({ name, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) {
+      if (error.code === '23505') throw new Error('Já existe um evento com esse nome.');
+      throw new Error(error.message || 'Erro ao atualizar evento.');
+    }
+    setEvents(prev => prev.map(e => (e.id === id ? { id, name } : e)));
+  };
+
+  const deleteEvent = async (id: string) => {
+    const { error } = await supabase
+      .from('request_events')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'Erro ao excluir evento.');
+    setEvents(prev => prev.filter(e => e.id !== id));
+  };
+
   const addEmployeeSchedule = async (schedule: Omit<EmployeeScheduleItem, 'id'>): Promise<EmployeeScheduleItem | null> => {
     try {
       const { data, error } = await supabase
@@ -2666,6 +2759,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       requesters,
       reasons,
       shifts,
+      events,
       employeeSchedules,
       extras: visibleExtras,
       extraSaldoRecords: visibleExtraSaldoRecords,
@@ -2683,6 +2777,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addRequester, updateRequester, deleteRequester,
       addReason, updateReason, deleteReason,
       addShift, updateShift, deleteShift,
+      addEvent, updateEvent, deleteEvent,
       addEmployeeSchedule, updateEmployeeSchedule, deleteEmployeeSchedule,
       addExtra, checkCpfExists, updateExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,

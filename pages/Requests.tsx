@@ -238,7 +238,7 @@ const Requests: React.FC = () => {
       const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
       const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${eventoSuffix}${periodSuffix}`;
       if (format === 'pdf') generateListPDF(list, title);
-      else exportListExcel(list, title);
+      else exportListExcel(list, title, undefined, !!eventoFilter);
     }
     setExportModal(null);
   };

@@ -180,13 +180,21 @@ function totalWorkedValueByExtraGroup(group: ExtraRequest[]): number {
 }
 
 /** Exporta listagem para Excel: coluna Setor = todos os setores do extra (ordem alfabética); subtotais por setor no final. Total geral = soma dos valores das linhas. */
-export function exportListExcel(requests: ExtraRequest[], title: string, filename?: string): void {
+export function exportListExcel(
+  requests: ExtraRequest[],
+  title: string,
+  filename?: string,
+  includeEventNameColumn = false
+): void {
   const sectors = [...new Set(requests.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
 
+  const header = includeEventNameColumn
+    ? ['Período', 'Setor', 'Nome Extra', 'Nome do evento', 'Tipo de valor', 'Valor']
+    : ['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor'];
   const data: (string | number)[][] = [
     ['RELATÓRIO CONTROLE DE EXTRAS'],
     [],
-    ['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor'],
+    header,
   ];
 
   const byExtra = new Map<string, ExtraRequest[]>();
@@ -211,6 +219,8 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
           : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
+    const eventosUnicos = [...new Set(group.map(r => (r.eventName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const eventoStr = eventosUnicos.join(', ');
     // Para linha agrupada por funcionário, usar a mesma regra do recibo agrupado:
     // somar valores de cada dia e aplicar roundMoney apenas no total final.
     const totalRaw = totalWorkedValueByExtraGroup(group);
@@ -222,13 +232,24 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
       bySectorRaw[s] = (bySectorRaw[s] ?? 0) + r.workDays.reduce((acc, d) => acc + valorForDay(r, d), 0);
     }
     rowMeta.push({ displayedValor: valor, bySectorRaw, totalRaw });
-    data.push([
-      periodStr,
-      setorStr,
-      first.extraName || '',
-      first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
-      valor
-    ]);
+    if (includeEventNameColumn) {
+      data.push([
+        periodStr,
+        setorStr,
+        first.extraName || '',
+        eventoStr,
+        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
+        valor
+      ]);
+    } else {
+      data.push([
+        periodStr,
+        setorStr,
+        first.extraName || '',
+        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
+        valor
+      ]);
+    }
   }
 
   // Total geral = soma dos valores exibidos nas linhas (para bater com a soma da coluna Valor)
@@ -266,10 +287,15 @@ export function exportListExcel(requests: ExtraRequest[], title: string, filenam
     subtotaisPorSetor.set(s, rounded.get(s) ?? 0);
   }
 
+  const subtotalRow = (label: string, value: number): (string | number)[] => {
+    if (includeEventNameColumn) return [label, '', '', '', '', value];
+    return [label, '', '', '', value];
+  };
+
   for (const setor of sectors) {
-    data.push([`Subtotal (${setor})`, '', '', '', subtotaisPorSetor.get(setor) ?? 0]);
+    data.push(subtotalRow(`Subtotal (${setor})`, subtotaisPorSetor.get(setor) ?? 0));
   }
-  data.push(['TOTAL GERAL', '', '', '', totalGeral]);
+  data.push(subtotalRow('TOTAL GERAL', totalGeral));
 
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
