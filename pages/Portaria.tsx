@@ -31,7 +31,7 @@ import { formatDateBR } from '../utils/date';
 const Portaria: React.FC = () => {
   const { requests, sectors, shifts, updateTimeRecord, appendRequestObservation, removeWorkDay } = useExtras();
   const { user } = useAuth();
-  const canViewValues = user?.role !== 'PORTARIA' && user?.role !== 'VIEWER';
+  const canViewValues = user?.role === 'ADMIN';
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [selectedShift, setSelectedShift] = useState<string>('TODOS');
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
