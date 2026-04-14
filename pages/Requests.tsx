@@ -31,13 +31,14 @@ import { formatDateBR, toDateOnlyString } from '../utils/date';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
-  const { requests, sectors, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
+  const { requests, sectors, events, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterSector, setFilterSector] = useState('');
+  const [filterEvent, setFilterEvent] = useState('');
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExtraRequest | null>(null);
   const [isRejectModalOpen, setRejectModalOpen] = useState(false);
@@ -87,6 +88,7 @@ const Requests: React.FC = () => {
                           r.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
     const matchesSector = !isAdmin || !filterSector || r.sector === filterSector;
+    const matchesEvent = !filterEvent || (r.eventName || '').trim() === filterEvent;
     const matchesDate = !dateRange || (r.workDays || []).some(d => {
       const dStr = toDateOnlyString(d.date);
       return dStr >= dateRange.start && dStr <= dateRange.end;
@@ -97,7 +99,7 @@ const Requests: React.FC = () => {
     // Líder só vê solicitações do próprio setor
     const isLeaderAuthorized = user?.role !== 'LEADER' || (user.sectors?.length && user.sectors.includes(r.sector));
 
-    return matchesSearch && matchesStatus && matchesSector && matchesDate && isManagerAuthorized && isLeaderAuthorized;
+    return matchesSearch && matchesStatus && matchesSector && matchesEvent && matchesDate && isManagerAuthorized && isLeaderAuthorized;
   });
 
   const handleApprove = async (id: string) => {
@@ -238,7 +240,10 @@ const Requests: React.FC = () => {
       const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
       const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${eventoSuffix}${periodSuffix}`;
       if (format === 'pdf') generateListPDF(list, title);
-      else exportListExcel(list, title, undefined, !!eventoFilter);
+      else {
+        const includeEventNameColumn = !!eventoFilter || list.some(r => !!(r.eventName || '').trim());
+        exportListExcel(list, title, undefined, includeEventNameColumn);
+      }
     }
     setExportModal(null);
   };
@@ -394,6 +399,19 @@ const Requests: React.FC = () => {
             <option value="APROVADO">Aprovado</option>
             <option value="REPROVADO">Reprovado</option>
             <option value="CANCELADO">Cancelado</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            value={filterEvent}
+            onChange={(e) => setFilterEvent(e.target.value)}
+            title="Filtrar por evento cadastrado"
+          >
+            <option value="">Todos os eventos</option>
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.name}>{ev.name}</option>
+            ))}
           </select>
         </div>
         {isAdmin && (

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { filterBySector, catalogSectorMatchesFilter } from '../ExportFormatModal';
 import { totalWorkedValue } from '../../services/excelService';
+import { toDateOnlyString } from '../../utils/date';
 import {
   BarChart,
   Bar,
@@ -29,12 +30,14 @@ interface ReportsOverviewChartsProps {
   startDate?: string;
   endDate?: string;
   sector?: string;
+  event?: string;
 }
 
 const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   startDate,
   endDate,
   sector: sectorFilter,
+  event: eventFilter,
 }) => {
   const { requests, sectors, getSaldoForWeek } = useExtras();
   const [copiedResumo, setCopiedResumo] = useState(false);
@@ -50,20 +53,28 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
 
   const filteredRequests = useMemo(() => {
     let list = requests;
-    if (startDate || endDate) {
-      list = list.filter((req) => {
-        const hasWorkDayInRange = req.workDays.some((day) => {
-          const dayDate = new Date(day.date);
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-          return (!start || dayDate >= start) && (!end || dayDate <= end);
-        });
-        return hasWorkDayInRange;
-      });
+    const startKey = startDate ? toDateOnlyString(startDate) : undefined;
+    const endKey = endDate ? toDateOnlyString(endDate) : undefined;
+
+    if (startKey || endKey) {
+      list = list
+        .map((req) => ({
+          ...req,
+          // Recorta os dias pelo período para todos os gráficos usarem a mesma base.
+          workDays: (req.workDays || []).filter((day) => {
+            const dayKey = toDateOnlyString(day.date);
+            if (!dayKey) return false;
+            return (!startKey || dayKey >= startKey) && (!endKey || dayKey <= endKey);
+          }),
+        }))
+        .filter((req) => req.workDays.length > 0);
     }
     if (sectorFilter) list = filterBySector(list, sectorFilter);
+    if (eventFilter) {
+      list = list.filter((req) => (req.eventName || '').trim() === eventFilter);
+    }
     return list;
-  }, [requests, startDate, endDate, sectorFilter]);
+  }, [requests, startDate, endDate, sectorFilter, eventFilter]);
 
   const approvedRequests = filteredRequests.filter((r) => r.status === 'APROVADO');
 
@@ -135,7 +146,9 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   }, [sectors, getSaldoForWeek, sectorFilter]);
 
   const resumoSetoresAcimaSaldo = useMemo(() => {
-    if (setoresUltrapassaramSaldo.length === 0) return '';
+    if (setoresUltrapassaramSaldo.length === 0) {
+      return ['Resumo semanal de setores', `Período: ${periodoLabel}`, 'Nenhum setor ultrapassou o saldo no filtro selecionado.'].join('\n');
+    }
     const linhas = [
       'Resumo semanal de setores',
       `Período: ${periodoLabel}`,
@@ -148,7 +161,6 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   }, [setoresUltrapassaramSaldo, periodoLabel]);
 
   const handleCopyResumo = async () => {
-    if (!resumoSetoresAcimaSaldo) return;
     try {
       await navigator.clipboard.writeText(resumoSetoresAcimaSaldo);
       setCopiedResumo(true);
@@ -165,9 +177,9 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-1">Resumo com filtros (período e setor)</h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Resumo com filtros (período, setor e evento)</h2>
         <p className="text-sm text-gray-500">
-          Período: {periodoLabel} · Setor: {sectorFilter || 'todos'}
+          Período: {periodoLabel} · Setor: {sectorFilter || 'todos'} · Evento: {eventFilter || 'todos'}
         </p>
       </div>
 
@@ -204,15 +216,19 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
       </div>
 
       {/* Indicadores: setores que ultrapassaram o saldo */}
-      {setoresUltrapassaramSaldo.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="text-amber-600" size={20} />
-            <h3 className="font-bold text-amber-900">Setores que ultrapassaram o saldo</h3>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle className="text-amber-600" size={20} />
+          <h3 className="font-bold text-amber-900">Setores que ultrapassaram o saldo</h3>
+        </div>
+        <p className="text-sm text-amber-900 mb-3">
+          Período dos dados: <span className="font-semibold">{periodoLabel}</span>
+        </p>
+        {setoresUltrapassaramSaldo.length === 0 ? (
+          <div className="bg-white rounded-lg p-4 border border-amber-100 text-sm text-gray-700">
+            Nenhum setor ultrapassou o saldo no filtro selecionado.
           </div>
-          <p className="text-sm text-amber-900 mb-3">
-            Período dos dados: <span className="font-semibold">{periodoLabel}</span>
-          </p>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {setoresUltrapassaramSaldo.map((item, idx) => (
               <div
@@ -226,27 +242,27 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
               </div>
             ))}
           </div>
-          <div className="mt-4 bg-white border border-amber-100 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <h4 className="font-semibold text-amber-900">Resumo do gráfico</h4>
-              <button
-                type="button"
-                onClick={handleCopyResumo}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                  copiedResumo
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                }`}
-                title="Copiar resumo"
-              >
-                {copiedResumo ? <Check size={14} /> : <Copy size={14} />}
-                {copiedResumo ? 'Copiado!' : 'Copiar resumo'}
-              </button>
-            </div>
-            <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{resumoSetoresAcimaSaldo}</pre>
+        )}
+        <div className="mt-4 bg-white border border-amber-100 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <h4 className="font-semibold text-amber-900">Resumo do gráfico</h4>
+            <button
+              type="button"
+              onClick={handleCopyResumo}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                copiedResumo
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+              }`}
+              title="Copiar resumo"
+            >
+              {copiedResumo ? <Check size={14} /> : <Copy size={14} />}
+              {copiedResumo ? 'Copiado!' : 'Copiar resumo'}
+            </button>
           </div>
+          <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{resumoSetoresAcimaSaldo}</pre>
         </div>
-      )}
+      </div>
 
       {/* Gráfico: comparação de meses */}
       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">

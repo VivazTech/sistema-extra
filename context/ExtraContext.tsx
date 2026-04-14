@@ -587,6 +587,22 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw requestError || new Error('Erro desconhecido ao criar solicitação');
       }
 
+      // Garantir que a solicitação sempre nasça com ao menos um dia válido.
+      if (!data.workDays || data.workDays.length === 0) {
+        await supabase.from('extra_requests').delete().eq('id', newRequest.id);
+        throw new Error('A solicitação precisa ter pelo menos 1 dia de trabalho.');
+      }
+
+      // Evitar duplicidade de dia dentro da mesma solicitação (UNIQUE request_id + work_date).
+      const normalizedDates = data.workDays
+        .map((day: any) => String(day?.date || '').slice(0, 10))
+        .filter(Boolean);
+      const uniqueDates = new Set(normalizedDates);
+      if (uniqueDates.size !== normalizedDates.length) {
+        await supabase.from('extra_requests').delete().eq('id', newRequest.id);
+        throw new Error('Existem dias repetidos na solicitação. Ajuste as datas para continuar.');
+      }
+
       // Criar dias de trabalho
       if (data.workDays && data.workDays.length > 0) {
         const workDaysData = data.workDays.map((day: any) => ({
@@ -601,7 +617,10 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .insert(workDaysData);
 
         if (workDaysError) {
+          // Evita solicitação órfã sem work_days no painel.
+          await supabase.from('extra_requests').delete().eq('id', newRequest.id);
           console.error('Erro ao criar dias de trabalho:', workDaysError);
+          throw new Error(workDaysError.message || 'Erro ao salvar os dias de trabalho da solicitação.');
         }
       }
 

@@ -441,6 +441,7 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
   body: string[][];
   summaryRowIndices: Set<number>;
   spacerRowIndices: Set<number>;
+  includeEventNameColumn: boolean;
 } {
   const body: string[][] = [];
   const summaryRowIndices = new Set<number>();
@@ -458,6 +459,7 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
 
   /** Por linha: valor exibido (arredondado) e por setor o valor bruto para repartição proporcional. */
   const rowMeta: { displayedValor: number; bySectorRaw: Record<string, number>; totalRaw: number }[] = [];
+  const includeEventNameColumn = requests.some(r => !!(r.eventName || '').trim());
 
   for (const [, group] of extrasOrdenados) {
     const first = group[0];
@@ -470,6 +472,8 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
           : `${formatDateBR(allDates[0])} - ${formatDateBR(allDates[allDates.length - 1])}`;
     const setoresUnicos = [...new Set(group.map(r => r.sector).filter(Boolean))].sort((a, b) => (a ?? '').localeCompare(b ?? ''));
     const setorStr = setoresUnicos.join(', ');
+    const eventosUnicos = [...new Set(group.map(r => (r.eventName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const eventoStr = eventosUnicos.join(', ');
     // Para linha agrupada por funcionário, usar a mesma regra do recibo agrupado:
     // somar valores de cada dia e aplicar roundMoney apenas no total final.
     const totalRaw = totalWorkedValueByExtraGroup(group);
@@ -482,13 +486,24 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
     }
     rowMeta.push({ displayedValor: valor, bySectorRaw, totalRaw });
     const valorStr = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    body.push([
-      periodStr,
-      setorStr,
-      first.extraName || '',
-      first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
-      valorStr
-    ]);
+    if (includeEventNameColumn) {
+      body.push([
+        periodStr,
+        setorStr,
+        first.extraName || '',
+        eventoStr,
+        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
+        valorStr
+      ]);
+    } else {
+      body.push([
+        periodStr,
+        setorStr,
+        first.extraName || '',
+        first.valueType === 'combinado' ? 'Combinado' : 'Por Hora',
+        valorStr
+      ]);
+    }
   }
 
   // Subtotais = soma dos valores exibidos por linha atribuídos a cada setor (proporcional se a linha tem mais de um setor)
@@ -531,13 +546,21 @@ function buildListBodyBySector(requests: ExtraRequest[]): {
 
   for (const setor of sectors) {
     const totalSetor = subtotaisPorSetor.get(setor) ?? 0;
-    body.push([`Subtotal (${setor})`, '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+    body.push(
+      includeEventNameColumn
+        ? [`Subtotal (${setor})`, '', '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]
+        : [`Subtotal (${setor})`, '', '', '', totalSetor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]
+    );
     summaryRowIndices.add(body.length - 1);
   }
-  body.push(['TOTAL GERAL', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]);
+  body.push(
+    includeEventNameColumn
+      ? ['TOTAL GERAL', '', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]
+      : ['TOTAL GERAL', '', '', '', totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]
+  );
   summaryRowIndices.add(body.length - 1);
 
-  return { body, summaryRowIndices, spacerRowIndices };
+  return { body, summaryRowIndices, spacerRowIndices, includeEventNameColumn };
 }
 
 /** Adiciona paginação no canto inferior direito (fonte pequena). */
@@ -559,11 +582,13 @@ export const getListPDFBlobUrl = (requests: ExtraRequest[], title: string): stri
   const doc = new jsPDF('l', 'mm', 'a4');
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
-  const { body, summaryRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
+  const { body, summaryRowIndices, spacerRowIndices, includeEventNameColumn } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor']],
+    head: [includeEventNameColumn
+      ? ['Período', 'Setor', 'Nome Extra', 'Nome do evento', 'Tipo de valor', 'Valor']
+      : ['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
@@ -589,11 +614,13 @@ export const generateListPDF = (requests: ExtraRequest[], title: string) => {
   doc.setFontSize(16);
   doc.text('RELATORIO CONTROLE DE EXTRAS', 148, 15, { align: 'center' });
 
-  const { body, summaryRowIndices, spacerRowIndices } = buildListBodyBySector(requests);
+  const { body, summaryRowIndices, spacerRowIndices, includeEventNameColumn } = buildListBodyBySector(requests);
   autoTable(doc, {
     startY: 22,
     margin: { left: LIST_TABLE_MARGIN_MM, right: LIST_TABLE_MARGIN_MM },
-    head: [['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor']],
+    head: [includeEventNameColumn
+      ? ['Período', 'Setor', 'Nome Extra', 'Nome do evento', 'Tipo de valor', 'Valor']
+      : ['Período', 'Setor', 'Nome Extra', 'Tipo de valor', 'Valor']],
     body,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [20, 83, 45] },
