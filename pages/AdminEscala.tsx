@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DIAS_SEMANA_LONGO = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const LEGENDA: Record<string, string> = {
   P: 'Plantão',
   Ai: 'Afastamento INSS',
@@ -17,6 +18,12 @@ const LEGENDA: Record<string, string> = {
   Fr: 'Férias',
   F: 'Folga',
 };
+const LEGENDA_OUTRAS_OPCOES: Array<{ code: string; label: string }> = [
+  { code: 'Ai', label: LEGENDA.Ai },
+  { code: 'Lm', label: LEGENDA.Lm },
+  { code: 'Fe', label: LEGENDA.Fe },
+  { code: 'P', label: LEGENDA.P },
+];
 
 // Obter total de dias num mês
 function getDaysInMonth(month: number, year: number) {
@@ -55,6 +62,19 @@ const AdminEscala: React.FC = () => {
   const [feriasEmployeeId, setFeriasEmployeeId] = useState<string | null>(null);
   const [feriasSaida, setFeriasSaida] = useState('');
   const [feriasVolta, setFeriasVolta] = useState('');
+  const [isModalFolgasOpen, setIsModalFolgasOpen] = useState(false);
+  const [folgasEmployeeId, setFolgasEmployeeId] = useState<string | null>(null);
+  const [folgaTipo, setFolgaTipo] = useState<'fixed' | 'vacation' | 'fixed_custom' | 'legend'>('fixed');
+  const [folgaFixaDia, setFolgaFixaDia] = useState<number>(-1);
+  const [folgaCustomSemanas, setFolgaCustomSemanas] = useState<number[]>([-1, -1, -1, -1]);
+  const [folgaFeriasSaida, setFolgaFeriasSaida] = useState('');
+  const [folgaFeriasVolta, setFolgaFeriasVolta] = useState('');
+  const [folgaLegendaData, setFolgaLegendaData] = useState('');
+  const [folgaLegendaCodigo, setFolgaLegendaCodigo] = useState('Ai');
+  const [isModalSiglaOpen, setIsModalSiglaOpen] = useState(false);
+  const [siglaModalUserId, setSiglaModalUserId] = useState<string | null>(null);
+  const [siglaModalDate, setSiglaModalDate] = useState('');
+  const [siglaModalCode, setSiglaModalCode] = useState('P');
 
   // Filter users by sector
   const sectorUsers = useMemo(() => {
@@ -96,6 +116,9 @@ const AdminEscala: React.FC = () => {
           return {
             ...existing,
             userName: u.name, // always update name
+            fixedCustomWeekDays: Array.isArray((existing as any).fixedCustomWeekDays)
+              ? (existing as any).fixedCustomWeekDays
+              : [-1, -1, -1, -1],
             // Férias vêm dos funcionários cadastrados (não do JSON da escala mensal).
             // Se já existe um registro de "escalas" salvo, pode não conter "vacations";
             // então fazemos merge com u.vacations.
@@ -108,6 +131,7 @@ const AdminEscala: React.FC = () => {
           userId: u.id,
           userName: u.name,
           fixedDayOff: typeof u.fixedDayOff === 'number' ? u.fixedDayOff : -1, // Not configured
+          fixedCustomWeekDays: [-1, -1, -1, -1],
           escalaTime: u.escalaTime?.trim() ? u.escalaTime : 'Sem Escala',
           extraDaysOff: [],
           holidays: [],
@@ -210,6 +234,144 @@ const AdminEscala: React.FC = () => {
         : [...arr, dateStr].sort();
       return { ...u, extraDaysOff: newArr };
     }));
+  };
+
+  const getWeekOfMonth = (day: number) => Math.floor((day - 1) / 7); // 0=1ª semana, 1=2ª...
+
+  const getCodeForDay = (eu: EscalaUser, dateStr: string, day: number, dayOfWeek: number): string => {
+    if (eu.escalaTime?.toLowerCase() === 'sem escala') return '';
+    if (eu.customDays?.[dateStr]) return eu.customDays[dateStr];
+    if (eu.vacations?.includes(dateStr)) return 'Fr';
+    if (eu.holidays?.includes(dateStr)) return 'Fe';
+    if (eu.extraDaysOff?.includes(dateStr)) return 'F';
+    const weekIdx = getWeekOfMonth(day);
+    if (weekIdx >= 0 && weekIdx < 4 && Array.isArray(eu.fixedCustomWeekDays) && eu.fixedCustomWeekDays[weekIdx] === dayOfWeek) {
+      return 'F';
+    }
+    if (eu.fixedDayOff === dayOfWeek) return 'F';
+    return 'P';
+  };
+
+  const resumoFolgas = (eu: EscalaUser): string => {
+    const parts: string[] = [];
+    if (eu.fixedDayOff >= 0) parts.push(`Fixa: ${DIAS_SEMANA_LONGO[eu.fixedDayOff]}`);
+    if (Array.isArray(eu.fixedCustomWeekDays) && eu.fixedCustomWeekDays.some((d) => d >= 0)) {
+      const semanas = eu.fixedCustomWeekDays.map((d, i) => `${i + 1}ª: ${d >= 0 ? DIAS_SEMANA[d] : '-'}`).join(' | ');
+      parts.push(`Personalizada: ${semanas}`);
+    }
+    if ((eu.vacations || []).length > 0) parts.push(`Férias: ${(eu.vacations || []).length} dia(s)`);
+    if (eu.customDays && Object.keys(eu.customDays).length > 0) parts.push(`Outras: ${Object.keys(eu.customDays).length}`);
+    return parts.length > 0 ? parts.join(' • ') : 'Sem lançamentos';
+  };
+
+  const handleOpenFolgasModal = (eu: EscalaUser) => {
+    setFolgasEmployeeId(eu.userId);
+    setFolgaTipo('fixed');
+    setFolgaFixaDia(typeof eu.fixedDayOff === 'number' ? eu.fixedDayOff : -1);
+    setFolgaCustomSemanas(
+      Array.isArray(eu.fixedCustomWeekDays) && eu.fixedCustomWeekDays.length === 4
+        ? eu.fixedCustomWeekDays
+        : [-1, -1, -1, -1]
+    );
+    setFolgaFeriasSaida('');
+    setFolgaFeriasVolta('');
+    setFolgaLegendaData('');
+    setFolgaLegendaCodigo('Ai');
+    setIsModalFolgasOpen(true);
+  };
+
+  const handleCloseFolgasModal = () => {
+    setIsModalFolgasOpen(false);
+    setFolgasEmployeeId(null);
+  };
+
+  const handleApplyFolgas = () => {
+    if (!folgasEmployeeId) return;
+    const current = escalaUsers.find((u) => u.userId === folgasEmployeeId);
+    if (!current) return;
+
+    if (folgaTipo === 'fixed') {
+      if (folgaFixaDia < 0) {
+        alert('Selecione o dia da folga fixa.');
+        return;
+      }
+      updateUserField(folgasEmployeeId, 'fixedDayOff', folgaFixaDia);
+      handleCloseFolgasModal();
+      return;
+    }
+
+    if (folgaTipo === 'fixed_custom') {
+      updateUserField(folgasEmployeeId, 'fixedCustomWeekDays', folgaCustomSemanas);
+      handleCloseFolgasModal();
+      return;
+    }
+
+    if (folgaTipo === 'vacation') {
+      if (!folgaFeriasSaida || !folgaFeriasVolta) {
+        alert('Informe a data de saída e a data de volta.');
+        return;
+      }
+      const dates = enumerateDatesInclusive(folgaFeriasSaida, folgaFeriasVolta);
+      if (dates.length === 0) {
+        alert('Intervalo de férias inválido.');
+        return;
+      }
+      const merged = Array.from(new Set([...(current.vacations || []), ...dates])).sort();
+      updateUserField(folgasEmployeeId, 'vacations', merged);
+      handleCloseFolgasModal();
+      return;
+    }
+
+    if (folgaTipo === 'legend') {
+      if (!folgaLegendaData || !folgaLegendaCodigo) {
+        alert('Selecione data e tipo de lançamento.');
+        return;
+      }
+      const next = { ...(current.customDays || {}), [folgaLegendaData]: folgaLegendaCodigo };
+      updateUserField(folgasEmployeeId, 'customDays', next);
+      handleCloseFolgasModal();
+    }
+  };
+
+  const handleRemoveLegendaDia = (userId: string, date: string) => {
+    const current = escalaUsers.find((u) => u.userId === userId);
+    if (!current?.customDays?.[date]) return;
+    const next = { ...(current.customDays || {}) };
+    delete next[date];
+    updateUserField(userId, 'customDays', next);
+  };
+
+  const getSiglaDescricao = (code: string) => {
+    if (!code) return 'Sem escala';
+    return LEGENDA[code] || code;
+  };
+
+  const handleOpenSiglaModal = (userId: string, dateStr: string, currentCode: string) => {
+    setSiglaModalUserId(userId);
+    setSiglaModalDate(dateStr);
+    setSiglaModalCode(currentCode || 'P');
+    setIsModalSiglaOpen(true);
+  };
+
+  const handleCloseSiglaModal = () => {
+    setIsModalSiglaOpen(false);
+    setSiglaModalUserId(null);
+    setSiglaModalDate('');
+    setSiglaModalCode('P');
+  };
+
+  const handleSaveSiglaModal = () => {
+    if (!siglaModalUserId || !siglaModalDate) return;
+    const current = escalaUsers.find((u) => u.userId === siglaModalUserId);
+    if (!current) return;
+    const next = { ...(current.customDays || {}) };
+    if (siglaModalCode === 'AUTO') {
+      delete next[siglaModalDate];
+    } else {
+      next[siglaModalDate] = siglaModalCode;
+    }
+    updateUserField(siglaModalUserId, 'customDays', next);
+    handleCloseSiglaModal();
   };
 
   const allEmployeesSorted = useMemo(
@@ -422,18 +584,7 @@ const AdminEscala: React.FC = () => {
       for (let d = 1; d <= daysInMonth; d++) {
         const dw = getDayOfWeek(d, currentMonth.month, currentMonth.year);
         const dateStr = `${currentMonth.year}-${String(currentMonth.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        
-        let cellVal = 'P';
-        
-        // Verifica customizations com prioridade:
-        // Férias > Feriados > Outras folgas > Folga fixa
-        if (eu.vacations?.includes(dateStr)) cellVal = 'Fr';
-        else if (eu.holidays?.includes(dateStr)) cellVal = 'Fe';
-        else if (eu.extraDaysOff?.includes(dateStr)) cellVal = 'F';
-        else if (eu.fixedDayOff === dw) cellVal = 'F';
-        // Sem Escala = vazio
-        if (eu.escalaTime?.toLowerCase() === 'sem escala') cellVal = '';
-        
+        const cellVal = getCodeForDay(eu, dateStr, d, dw);
         row.push(cellVal);
       }
       return row;
@@ -627,23 +778,27 @@ const AdminEscala: React.FC = () => {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {eu.extraDaysOff?.map(d => (
-                          <span key={d} className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                            {d.split('-')[2]}
-                            <button onClick={() => toggleExtraDayOff(eu.userId, d)} className="hover:text-red-500">&times;</button>
-                          </span>
-                        ))}
-                        <input 
-                          type="date"
-                          className="border border-gray-200 rounded px-1 text-xs outline-none"
-                          onChange={e => {
-                            if (e.target.value) {
-                              toggleExtraDayOff(eu.userId, e.target.value);
-                              e.target.value = ''; // reset
-                            }
-                          }}
-                        />
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFolgasModal(eu)}
+                          className="px-3 py-1.5 border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-xs rounded-lg"
+                        >
+                          Configurar folgas
+                        </button>
+                        <p className="text-xs text-gray-500">{resumoFolgas(eu)}</p>
+                        {eu.customDays && Object.keys(eu.customDays).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {Object.entries(eu.customDays)
+                              .sort((a, b) => a[0].localeCompare(b[0]))
+                              .map(([date, code]) => (
+                                <span key={date} className="bg-gray-100 text-gray-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                                  {date.split('-')[2]}/{date.split('-')[1]} - {code}
+                                  <button onClick={() => handleRemoveLegendaDia(eu.userId, date)} className="hover:text-red-500">&times;</button>
+                                </span>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -692,27 +847,23 @@ const AdminEscala: React.FC = () => {
                         const d = i + 1;
                         const dw = getDayOfWeek(d, currentMonth.month, currentMonth.year);
                         const dateStr = `${currentMonth.year}-${String(currentMonth.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                        
-                        let cellVal = 'P';
+
+                        const cellVal = getCodeForDay(eu, dateStr, d, dw);
                         let bgClass = '';
-                        
-                        if (eu.vacations?.includes(dateStr)) {
-                          cellVal = 'Fr'; bgClass = 'bg-rose-100 text-rose-700 font-bold';
-                        } else if (eu.holidays?.includes(dateStr)) {
-                          cellVal = 'Fe'; bgClass = 'bg-yellow-100';
-                        } else if (eu.extraDaysOff?.includes(dateStr)) {
-                          cellVal = 'F'; bgClass = 'bg-gray-200 text-gray-600 font-bold';
-                        } else if (eu.fixedDayOff === dw) {
-                          cellVal = 'F'; bgClass = 'bg-gray-100 text-gray-500';
-                        }
-                        
-                        // Override para sem escala
-                        if (eu.escalaTime?.toLowerCase() === 'sem escala') {
-                          cellVal = ''; bgClass = 'bg-gray-50';
-                        }
+                        if (cellVal === '') bgClass = 'bg-gray-50';
+                        else if (cellVal === 'Fr') bgClass = 'bg-rose-100 text-rose-700 font-bold';
+                        else if (cellVal === 'Fe') bgClass = 'bg-yellow-100';
+                        else if (cellVal === 'F') bgClass = 'bg-gray-200 text-gray-600 font-bold';
+                        else if (cellVal === 'Ai' || cellVal === 'Lm') bgClass = 'bg-orange-100 text-orange-700 font-bold';
+                        else if (cellVal === 'P') bgClass = '';
 
                         return (
-                          <td key={i} className={`border p-1 ${bgClass}`}>
+                          <td
+                            key={i}
+                            className={`border p-1 cursor-pointer hover:ring-2 hover:ring-emerald-300 ${bgClass}`}
+                            title={getSiglaDescricao(cellVal)}
+                            onClick={() => handleOpenSiglaModal(eu.userId, dateStr, cellVal)}
+                          >
                             {cellVal}
                           </td>
                         );
@@ -735,6 +886,203 @@ const AdminEscala: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isModalFolgasOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Configurar Folgas do Colaborador</h3>
+              <button onClick={handleCloseFolgasModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Tipo de folga</label>
+              <select
+                value={folgaTipo}
+                onChange={(e) => setFolgaTipo(e.target.value as typeof folgaTipo)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="fixed">Folga fixa</option>
+                <option value="vacation">Férias</option>
+                <option value="fixed_custom">Folga fixa personalizada</option>
+                <option value="legend">Outras opções da legenda</option>
+              </select>
+            </div>
+
+            {folgaTipo === 'fixed' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Dia fixo da semana</label>
+                <select
+                  value={folgaFixaDia}
+                  onChange={(e) => setFolgaFixaDia(Number(e.target.value))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value={-1}>Selecione...</option>
+                  {DIAS_SEMANA_LONGO.map((dia, idx) => (
+                    <option key={dia} value={idx}>{dia}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {folgaTipo === 'fixed_custom' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((weekIdx) => (
+                  <div key={weekIdx}>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">{weekIdx + 1}ª semana</label>
+                    <select
+                      value={folgaCustomSemanas[weekIdx]}
+                      onChange={(e) => {
+                        const next = [...folgaCustomSemanas];
+                        next[weekIdx] = Number(e.target.value);
+                        setFolgaCustomSemanas(next);
+                      }}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value={-1}>Sem folga definida</option>
+                      {DIAS_SEMANA_LONGO.map((dia, idx) => (
+                        <option key={dia} value={idx}>{dia}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {folgaTipo === 'vacation' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data de saída</label>
+                  <input
+                    type="date"
+                    value={folgaFeriasSaida}
+                    onChange={(e) => setFolgaFeriasSaida(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data de volta</label>
+                  <input
+                    type="date"
+                    value={folgaFeriasVolta}
+                    onChange={(e) => setFolgaFeriasVolta(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {folgaTipo === 'legend' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Data</label>
+                  <input
+                    type="date"
+                    value={folgaLegendaData}
+                    onChange={(e) => setFolgaLegendaData(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Tipo</label>
+                  <select
+                    value={folgaLegendaCodigo}
+                    onChange={(e) => setFolgaLegendaCodigo(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {LEGENDA_OUTRAS_OPCOES.map((op) => (
+                      <option key={op.code} value={op.code}>{op.code} - {op.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Legenda disponível</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(LEGENDA).map(([key, label]) => (
+                  <span key={key} className="text-xs px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-700">
+                    {key} - {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleApplyFolgas}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700"
+              >
+                Aplicar
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseFolgasModal}
+                className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isModalSiglaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Editar Sigla do Dia</h3>
+              <button onClick={handleCloseSiglaModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600">
+              Data: <span className="font-semibold">{siglaModalDate || '—'}</span>
+            </p>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Sigla</label>
+              <select
+                value={siglaModalCode}
+                onChange={(e) => setSiglaModalCode(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="AUTO">Usar regra automática</option>
+                {Object.entries(LEGENDA).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {key} - {label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                Passe o mouse na célula para ver a descrição. Clique para editar.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveSiglaModal}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700"
+              >
+                Salvar
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseSiglaModal}
+                className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

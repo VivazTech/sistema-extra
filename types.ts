@@ -228,6 +228,8 @@ export interface EscalaUser {
   userId: string;
   userName: string;
   fixedDayOff: number; // 0=Domingo, 1=Segunda, etc.
+  /** Folga fixa personalizada por semana do mês (índices 0..6 para 1ª..4ª semana). */
+  fixedCustomWeekDays?: number[]; // [semana1, semana2, semana3, semana4]
   escalaTime: string; // Ex: 08:00 12:00 / 13:00 17:00
   extraDaysOff: string[]; // ['2026-03-05', '2026-03-12']
   holidays: string[]; // Feriados específicos ['2026-03-25']
