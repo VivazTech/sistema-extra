@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
-import { RequesterItem, ReasonItem, ShiftItem, EventItem, Sector, Employee, EmployeeScheduleItem, PjEmployee } from '../types';
+import { RequesterItem, ReasonItem, ShiftItem, EventItem, EscalaLegendItem, Sector, Employee, EmployeeScheduleItem, PjEmployee } from '../types';
 
 const AdminCatalogs: React.FC = () => {
   const {
@@ -10,6 +10,7 @@ const AdminCatalogs: React.FC = () => {
     reasons,
     shifts,
     events,
+    escalaLegends,
     employeeSchedules,
     addSector,
     updateSector,
@@ -26,6 +27,9 @@ const AdminCatalogs: React.FC = () => {
     addEvent,
     updateEvent,
     deleteEvent,
+    addEscalaLegend,
+    updateEscalaLegend,
+    deleteEscalaLegend,
     addEmployeeSchedule,
     updateEmployeeSchedule,
     deleteEmployeeSchedule,
@@ -54,6 +58,11 @@ const AdminCatalogs: React.FC = () => {
   const [newEventName, setNewEventName] = useState('');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventName, setEditEventName] = useState('');
+  const [newLegendaCode, setNewLegendaCode] = useState('');
+  const [newLegendaLabel, setNewLegendaLabel] = useState('');
+  const [editingLegendaId, setEditingLegendaId] = useState<string | null>(null);
+  const [editLegendaCode, setEditLegendaCode] = useState('');
+  const [editLegendaLabel, setEditLegendaLabel] = useState('');
 
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [newEmployeeSectorId, setNewEmployeeSectorId] = useState('');
@@ -263,6 +272,56 @@ const AdminCatalogs: React.FC = () => {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao cadastrar evento. Tente novamente.';
+      alert(msg);
+    }
+  };
+
+  const handleStartEditLegenda = (item: EscalaLegendItem) => {
+    setEditingLegendaId(item.id);
+    setEditLegendaCode(item.code);
+    setEditLegendaLabel(item.label);
+  };
+
+  const handleCancelEditLegenda = () => {
+    setEditingLegendaId(null);
+    setEditLegendaCode('');
+    setEditLegendaLabel('');
+  };
+
+  const handleSaveLegenda = async () => {
+    if (!editingLegendaId) return;
+    const code = editLegendaCode.trim();
+    const label = editLegendaLabel.trim();
+    if (!code || !label) {
+      alert('Informe sigla e descrição.');
+      return;
+    }
+    try {
+      await updateEscalaLegend(editingLegendaId, { code, label });
+      handleCancelEditLegenda();
+      alert('Sigla atualizada com sucesso.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao atualizar sigla.';
+      alert(msg);
+    }
+  };
+
+  const handleAddLegenda = async () => {
+    const code = newLegendaCode.trim();
+    const label = newLegendaLabel.trim();
+    if (!code || !label) {
+      alert('Informe sigla e descrição.');
+      return;
+    }
+    try {
+      const created = await addEscalaLegend({ code, label });
+      if (created) {
+        setNewLegendaCode('');
+        setNewLegendaLabel('');
+        alert('Sigla cadastrada com sucesso.');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao cadastrar sigla.';
       alert(msg);
     }
   };
@@ -910,7 +969,7 @@ const AdminCatalogs: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-w-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Escalas (Hora de Entrada e Saída)</h2>
@@ -969,6 +1028,97 @@ const AdminCatalogs: React.FC = () => {
                       <Edit2 size={16} />
                     </button>
                     <button onClick={() => deleteEmployeeSchedule(item.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-w-0">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Siglas e Legendas da Escala</h2>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end mb-4">
+            <div className="w-24">
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Sigla</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                value={newLegendaCode}
+                onChange={(e) => setNewLegendaCode(e.target.value)}
+                placeholder="Ex.: Ai"
+                maxLength={4}
+              />
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Descrição</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                value={newLegendaLabel}
+                onChange={(e) => setNewLegendaLabel(e.target.value)}
+                placeholder="Ex.: Afastamento INSS"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleAddLegenda}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm"
+            >
+              <Plus size={16} /> Adicionar
+            </button>
+          </div>
+          <div className="space-y-2 max-h-[320px] overflow-y-auto">
+            {escalaLegends.length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhuma sigla cadastrada.</p>
+            )}
+            {escalaLegends.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center gap-2 border border-gray-100 rounded-lg p-2">
+                {editingLegendaId === item.id ? (
+                  <>
+                    <input
+                      type="text"
+                      className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                      value={editLegendaCode}
+                      onChange={(e) => setEditLegendaCode(e.target.value)}
+                      maxLength={4}
+                    />
+                    <input
+                      type="text"
+                      className="flex-1 min-w-[120px] border-b border-emerald-500 outline-none px-2 py-1 text-sm"
+                      value={editLegendaLabel}
+                      onChange={(e) => setEditLegendaLabel(e.target.value)}
+                    />
+                    <button type="button" onClick={handleSaveLegenda} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Save size={16} />
+                    </button>
+                    <button type="button" onClick={handleCancelEditLegenda} className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex min-w-10 justify-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-bold">{item.code}</span>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{item.label}</span>
+                    <button type="button" onClick={() => handleStartEditLegenda(item)} className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm('Excluir esta sigla da escala?')) return;
+                        try {
+                          await deleteEscalaLegend(item.id);
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : 'Erro ao excluir sigla.';
+                          alert(msg);
+                        }
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </>

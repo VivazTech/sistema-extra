@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EventItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
+import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EventItem, EscalaLegendItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { supabase } from '../services/supabase';
@@ -24,6 +24,7 @@ interface ExtraContextType {
   reasons: ReasonItem[];
   shifts: ShiftItem[];
   events: EventItem[];
+  escalaLegends: EscalaLegendItem[];
   employeeSchedules: EmployeeScheduleItem[];
   extras: ExtraPerson[];
   extraSaldoRecords: ExtraSaldoRecord[];
@@ -50,6 +51,9 @@ interface ExtraContextType {
   addEvent: (event: EventItem) => Promise<EventItem | null>;
   updateEvent: (id: string, event: EventItem) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
+  addEscalaLegend: (input: { code: string; label: string }) => Promise<EscalaLegendItem | null>;
+  updateEscalaLegend: (id: string, input: Partial<Pick<EscalaLegendItem, 'code' | 'label'>>) => Promise<void>;
+  deleteEscalaLegend: (id: string) => Promise<void>;
   addEmployeeSchedule: (schedule: Omit<EmployeeScheduleItem, 'id'>) => Promise<EmployeeScheduleItem | null>;
   updateEmployeeSchedule: (id: string, schedule: Omit<EmployeeScheduleItem, 'id'>) => Promise<void>;
   deleteEmployeeSchedule: (id: string) => Promise<void>;
@@ -93,6 +97,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [reasons, setReasons] = useState<ReasonItem[]>([]); // Carregado apenas do banco
   const [shifts, setShifts] = useState<ShiftItem[]>([]); // Carregado apenas do banco
   const [events, setEvents] = useState<EventItem[]>([]); // Carregado apenas do banco
+  const [escalaLegends, setEscalaLegends] = useState<EscalaLegendItem[]>([
+    { id: 'default-P', code: 'P', label: 'Plantão' },
+    { id: 'default-Ai', code: 'Ai', label: 'Afastamento INSS' },
+    { id: 'default-Lm', code: 'Lm', label: 'Licença Maternidade' },
+    { id: 'default-Fe', code: 'Fe', label: 'Feriado' },
+    { id: 'default-Fr', code: 'Fr', label: 'Férias' },
+    { id: 'default-F', code: 'F', label: 'Folga' },
+  ]);
   const [employeeSchedules, setEmployeeSchedules] = useState<EmployeeScheduleItem[]>([]);
   const [extras, setExtras] = useState<ExtraPerson[]>([]);
   const [extraSaldoRecords, setExtraSaldoRecords] = useState<ExtraSaldoRecord[]>([]);
@@ -205,6 +217,29 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setEvents(eventsData.map(mapEvent));
         } else if (eventsError) {
           console.error('Erro ao carregar eventos:', eventsError);
+        }
+
+        // Carregar siglas/legendas da escala
+        try {
+          const { data: legendsData, error: legendsError } = await supabase
+            .from('escala_legends')
+            .select('*')
+            .eq('active', true)
+            .order('code', { ascending: true });
+          if (!legendsError && legendsData && legendsData.length > 0) {
+            setEscalaLegends(
+              legendsData.map((row: any) => ({
+                id: row.id,
+                code: String(row.code || '').trim(),
+                label: String(row.label || '').trim(),
+                active: row.active !== false,
+              }))
+            );
+          } else if (legendsError && (legendsError as any).code !== '42P01') {
+            console.warn('escala_legends:', legendsError.message);
+          }
+        } catch {
+          // tabela pode não existir até rodar migration; mantém padrão local
         }
 
         // Carregar Escalas de trabalho (hora entrada/saida)
@@ -1574,6 +1609,48 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setEvents(prev => prev.filter(e => e.id !== id));
   };
 
+  const addEscalaLegend = async (input: { code: string; label: string }): Promise<EscalaLegendItem | null> => {
+    const code = (input.code || '').trim();
+    const label = (input.label || '').trim();
+    if (!code || !label) throw new Error('Informe sigla e descrição.');
+    const { data, error } = await supabase
+      .from('escala_legends')
+      .insert({ code, label, active: true })
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'Erro ao cadastrar sigla.');
+    if (!data) return null;
+    const mapped: EscalaLegendItem = { id: data.id, code: data.code, label: data.label, active: data.active !== false };
+    setEscalaLegends(prev => [...prev, mapped].sort((a, b) => a.code.localeCompare(b.code, 'pt-BR')));
+    return mapped;
+  };
+
+  const updateEscalaLegend = async (id: string, input: Partial<Pick<EscalaLegendItem, 'code' | 'label'>>) => {
+    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (input.code != null) payload.code = String(input.code).trim();
+    if (input.label != null) payload.label = String(input.label).trim();
+    const { data, error } = await supabase
+      .from('escala_legends')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message || 'Erro ao atualizar sigla.');
+    if (data) {
+      const mapped: EscalaLegendItem = { id: data.id, code: data.code, label: data.label, active: data.active !== false };
+      setEscalaLegends(prev => prev.map(l => (l.id === id ? mapped : l)).sort((a, b) => a.code.localeCompare(b.code, 'pt-BR')));
+    }
+  };
+
+  const deleteEscalaLegend = async (id: string) => {
+    const { error } = await supabase
+      .from('escala_legends')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'Erro ao excluir sigla.');
+    setEscalaLegends(prev => prev.filter(l => l.id !== id));
+  };
+
   const addEmployeeSchedule = async (schedule: Omit<EmployeeScheduleItem, 'id'>): Promise<EmployeeScheduleItem | null> => {
     try {
       const { data, error } = await supabase
@@ -2779,6 +2856,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       reasons,
       shifts,
       events,
+      escalaLegends,
       employeeSchedules,
       extras: visibleExtras,
       extraSaldoRecords: visibleExtraSaldoRecords,
@@ -2797,6 +2875,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       addReason, updateReason, deleteReason,
       addShift, updateShift, deleteShift,
       addEvent, updateEvent, deleteEvent,
+      addEscalaLegend, updateEscalaLegend, deleteEscalaLegend,
       addEmployeeSchedule, updateEmployeeSchedule, deleteEmployeeSchedule,
       addExtra, checkCpfExists, updateExtra, deleteExtra,
       addExtraSaldoRecord, updateExtraSaldoRecord, deleteExtraSaldoRecord,

@@ -73,6 +73,13 @@ export interface EventItem {
   name: string;
 }
 
+export interface EscalaLegendItem {
+  id: string;
+  code: string;
+  label: string;
+  active?: boolean;
+}
+
 export interface EmployeeScheduleItem {
   id: string;
   entryTime: string;

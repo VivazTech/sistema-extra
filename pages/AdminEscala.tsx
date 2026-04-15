@@ -10,7 +10,7 @@ import autoTable from 'jspdf-autotable';
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const DIAS_SEMANA_LONGO = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-const LEGENDA: Record<string, string> = {
+const DEFAULT_LEGENDA: Record<string, string> = {
   P: 'Plantão',
   Ai: 'Afastamento INSS',
   Lm: 'Licença Maternidade',
@@ -18,12 +18,6 @@ const LEGENDA: Record<string, string> = {
   Fr: 'Férias',
   F: 'Folga',
 };
-const LEGENDA_OUTRAS_OPCOES: Array<{ code: string; label: string }> = [
-  { code: 'Ai', label: LEGENDA.Ai },
-  { code: 'Lm', label: LEGENDA.Lm },
-  { code: 'Fe', label: LEGENDA.Fe },
-  { code: 'P', label: LEGENDA.P },
-];
 
 // Obter total de dias num mês
 function getDaysInMonth(month: number, year: number) {
@@ -37,7 +31,7 @@ function getDayOfWeek(day: number, month: number, year: number) {
 
 const AdminEscala: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const { sectors, shifts, employeeSchedules, employees, addEmployee, updateEmployee, deleteEmployee } = useExtras();
+  const { sectors, shifts, escalaLegends, employeeSchedules, employees, addEmployee, updateEmployee, deleteEmployee } = useExtras();
   
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -75,6 +69,22 @@ const AdminEscala: React.FC = () => {
   const [siglaModalUserId, setSiglaModalUserId] = useState<string | null>(null);
   const [siglaModalDate, setSiglaModalDate] = useState('');
   const [siglaModalCode, setSiglaModalCode] = useState('P');
+
+  const legendaMap = useMemo(() => {
+    if (!escalaLegends || escalaLegends.length === 0) return DEFAULT_LEGENDA;
+    return escalaLegends.reduce<Record<string, string>>((acc, item) => {
+      const code = (item.code || '').trim();
+      const label = (item.label || '').trim();
+      if (code && label) acc[code] = label;
+      return acc;
+    }, {});
+  }, [escalaLegends]);
+
+  const legendEntries = useMemo(() => Object.entries(legendaMap), [legendaMap]);
+  const legendaOutrasOpcoes = useMemo(
+    () => legendEntries.filter(([code]) => !['F', 'Fr'].includes(code)).map(([code, label]) => ({ code, label })),
+    [legendEntries]
+  );
 
   // Filter users by sector
   const sectorUsers = useMemo(() => {
@@ -343,7 +353,7 @@ const AdminEscala: React.FC = () => {
 
   const getSiglaDescricao = (code: string) => {
     if (!code) return 'Sem escala';
-    return LEGENDA[code] || code;
+    return legendaMap[code] || code;
   };
 
   const handleOpenSiglaModal = (userId: string, dateStr: string, currentCode: string) => {
@@ -612,7 +622,7 @@ const AdminEscala: React.FC = () => {
       margin: { left: 15 },
       tableWidth: 50,
       head: [['LEGENDA', '']],
-      body: Object.entries(LEGENDA),
+      body: legendEntries,
       theme: 'grid',
       styles: { fontSize: 7, halign: 'center' },
       headStyles: { fillColor: [240,240,240], textColor: [0,0,0], halign: 'center' },
@@ -772,9 +782,10 @@ const AdminEscala: React.FC = () => {
                       <input 
                         type="text" 
                         value={eu.escalaTime} 
-                        onChange={e => updateUserField(eu.userId, 'escalaTime', e.target.value)}
+                        readOnly
                         placeholder="Ex: 08:00 12:00 13:00 17:00"
-                        className="border border-gray-200 rounded px-2 py-1 w-full max-w-[200px] outline-none focus:ring-2 focus:ring-emerald-500"
+                        title="Edição bloqueada nesta seção. Altere pelo cadastro do funcionário."
+                        className="border border-gray-200 rounded px-2 py-1 w-full max-w-[200px] bg-gray-100 text-gray-600 cursor-not-allowed"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -877,7 +888,7 @@ const AdminEscala: React.FC = () => {
             <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Legenda</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                {Object.entries(LEGENDA).map(([key, label]) => (
+                {legendEntries.map(([key, label]) => (
                   <div key={key} className="flex items-center gap-2">
                     <span className="w-6 h-6 flex items-center justify-center bg-white border border-gray-300 rounded text-xs font-bold text-gray-700 shadow-sm">
                       {key}
@@ -996,7 +1007,7 @@ const AdminEscala: React.FC = () => {
                     onChange={(e) => setFolgaLegendaCodigo(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    {LEGENDA_OUTRAS_OPCOES.map((op) => (
+                    {legendaOutrasOpcoes.map((op) => (
                       <option key={op.code} value={op.code}>{op.code} - {op.label}</option>
                     ))}
                   </select>
@@ -1007,7 +1018,7 @@ const AdminEscala: React.FC = () => {
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Legenda disponível</p>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(LEGENDA).map(([key, label]) => (
+                {legendEntries.map(([key, label]) => (
                   <span key={key} className="text-xs px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-700">
                     {key} - {label}
                   </span>
@@ -1057,7 +1068,7 @@ const AdminEscala: React.FC = () => {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="AUTO">Usar regra automática</option>
-                {Object.entries(LEGENDA).map(([key, label]) => (
+                {legendEntries.map(([key, label]) => (
                   <option key={key} value={key}>
                     {key} - {label}
                   </option>
