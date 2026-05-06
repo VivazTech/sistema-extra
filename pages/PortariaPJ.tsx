@@ -35,6 +35,18 @@ function toLocalDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function normalizePjTime(value?: string | null): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  // Aceita HH:MM, HH:MM:SS e também entradas sem zero à esquerda (ex.: 8:4)
+  const match = raw.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/);
+  if (!match) return '';
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return '';
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 const PortariaPJ: React.FC = () => {
   const { pjEmployees, sectors, updatePjTimeRecord } = useExtras();
   const { user } = useAuth();
@@ -59,10 +71,10 @@ const PortariaPJ: React.FC = () => {
       const next: Record<string, TimeRecord> = {};
       (data || []).forEach((row: any) => {
         next[row.pj_employee_id] = {
-          arrival: row.arrival || undefined,
-          breakStart: row.break_start || undefined,
-          breakEnd: row.break_end || undefined,
-          departure: row.departure || undefined,
+          arrival: normalizePjTime(row.arrival) || undefined,
+          breakStart: normalizePjTime(row.break_start) || undefined,
+          breakEnd: normalizePjTime(row.break_end) || undefined,
+          departure: normalizePjTime(row.departure) || undefined,
           observations: row.observations || undefined,
         };
       });
@@ -116,7 +128,7 @@ const PortariaPJ: React.FC = () => {
   const setDraftField = (empId: string, field: keyof TimeRecord, value: string) => {
     setTimeDraft((prev) => ({
       ...prev,
-      [empId]: { ...prev[empId], [field]: value },
+      [empId]: { ...prev[empId], [field]: normalizePjTime(value) || value },
     }));
   };
 
@@ -137,7 +149,12 @@ const PortariaPJ: React.FC = () => {
     field: 'arrival' | 'breakStart' | 'breakEnd' | 'departure'
   ) => {
     const display = getDisplayTime(empId, field).trim();
-    const value = display || getCurrentTime();
+    const normalizedDisplay = normalizePjTime(display);
+    if (display && !normalizedDisplay) {
+      alert('Horário inválido. Use o formato HH:MM (ex.: 08:04).');
+      return;
+    }
+    const value = normalizedDisplay || getCurrentTime();
     const merged = buildMergedRecord(empId);
     const updated: TimeRecord = { ...merged, [field]: value };
     setSavingKey(`${empId}-${field}`);

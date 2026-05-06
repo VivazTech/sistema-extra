@@ -2830,14 +2830,25 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     tr: TimeRecord,
     registeredByName: string
   ) => {
+    const normalizePjTime = (value?: string) => {
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+      const match = raw.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/);
+      if (!match) return null;
+      const hh = Number(match[1]);
+      const mm = Number(match[2]);
+      if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    };
+
     const { data: userRow } = await supabase.from('users').select('id').eq('name', registeredByName).maybeSingle();
     const payload = {
       pj_employee_id: pjEmployeeId,
       work_date: workDate,
-      arrival: tr.arrival || null,
-      break_start: tr.breakStart || null,
-      break_end: tr.breakEnd || null,
-      departure: tr.departure || null,
+      arrival: normalizePjTime(tr.arrival),
+      break_start: normalizePjTime(tr.breakStart),
+      break_end: normalizePjTime(tr.breakEnd),
+      departure: normalizePjTime(tr.departure),
       observations: tr.observations || null,
       registered_by: userRow?.id ?? null,
       updated_at: new Date().toISOString(),
