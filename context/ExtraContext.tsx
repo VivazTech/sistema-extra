@@ -2842,21 +2842,37 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const { data: userRow } = await supabase.from('users').select('id').eq('name', registeredByName).maybeSingle();
-    const payload = {
-      pj_employee_id: pjEmployeeId,
-      work_date: workDate,
+    const rowPayload = {
       arrival: normalizePjTime(tr.arrival),
       break_start: normalizePjTime(tr.breakStart),
       break_end: normalizePjTime(tr.breakEnd),
       departure: normalizePjTime(tr.departure),
-      observations: tr.observations || null,
+      observations: tr.observations?.trim() ? tr.observations.trim() : null,
       registered_by: userRow?.id ?? null,
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from('pj_time_records').upsert(payload, {
-      onConflict: 'pj_employee_id,work_date',
-    });
-    if (error) throw error;
+
+    const { data: existing, error: selErr } = await supabase
+      .from('pj_time_records')
+      .select('id')
+      .eq('pj_employee_id', pjEmployeeId)
+      .eq('work_date', workDate)
+      .maybeSingle();
+
+    if (selErr) throw selErr;
+
+    if (existing?.id) {
+      const { error: updErr } = await supabase.from('pj_time_records').update(rowPayload).eq('id', existing.id);
+      if (updErr) throw updErr;
+    } else {
+      const insertPayload = {
+        pj_employee_id: pjEmployeeId,
+        work_date: workDate,
+        ...rowPayload,
+      };
+      const { error: insErr } = await supabase.from('pj_time_records').insert(insertPayload);
+      if (insErr) throw insErr;
+    }
   };
 
   return (

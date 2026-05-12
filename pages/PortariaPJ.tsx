@@ -50,7 +50,7 @@ function normalizePjTime(value?: string | null): string {
 const PortariaPJ: React.FC = () => {
   const { pjEmployees, sectors, updatePjTimeRecord } = useExtras();
   const { user } = useAuth();
-  const adminCanEditTimes = user?.role === 'ADMIN';
+  const adminShowTotals = user?.role === 'ADMIN';
   const [selectedSector, setSelectedSector] = useState<string>('TODOS');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
@@ -177,13 +177,6 @@ const PortariaPJ: React.FC = () => {
     }
   };
 
-  /** Horário já preenchido não pode ser alterado por portaria/líder; ADMIN pode reeditar. */
-  const isLocked = (empId: string, field: keyof TimeRecord) => {
-    if (adminCanEditTimes) return false;
-    const v = getDisplayTime(empId, field);
-    return v !== '';
-  };
-
   /** CSV do dia em **Data do ponto** e da lista **filtrada** (setor + busca), refletindo o que aparece na tela (inclui rascunho não salvo). */
   const handleExportDayCSV = () => {
     const headers = [
@@ -237,11 +230,9 @@ const PortariaPJ: React.FC = () => {
             <p className="text-gray-500 mt-1">
               Funcionários PJ (sem vínculo com valores de extras). Apenas controle de horário.
             </p>
-            {adminCanEditTimes && (
-              <p className="text-xs text-violet-700 font-medium mt-2">
-                Perfil administrador: você pode alterar qualquer horário já registrado — ajuste o campo e clique em Registrar.
-              </p>
-            )}
+            <p className="text-xs text-gray-600 font-medium mt-2 max-w-2xl">
+              Nesta tela você pode corrigir horários já registrados: altere o campo e clique em <strong>Salvar</strong>.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 lg:justify-end shrink-0">
             <button
@@ -378,7 +369,7 @@ const PortariaPJ: React.FC = () => {
                     <div>
                       <h3 className="font-bold text-gray-900">{emp.name}</h3>
                       <p className="text-xs text-gray-500 uppercase font-bold">{emp.sector || '—'}</p>
-                      {adminCanEditTimes && (
+                      {adminShowTotals && (
                         <p
                           className="text-sm font-semibold text-violet-900 mt-2"
                           title="Calculado a partir dos horários exibidos nos campos (inclui rascunho não salvo)"
@@ -413,15 +404,14 @@ const PortariaPJ: React.FC = () => {
                             className="flex-1 border border-gray-200 rounded-xl px-2 py-2 text-sm disabled:bg-gray-100"
                             value={getDisplayTime(emp.id, key)}
                             onChange={(e) => setDraftField(emp.id, key, e.target.value)}
-                            disabled={isLocked(emp.id, key)}
                           />
                           <button
                             type="button"
-                            disabled={isLocked(emp.id, key) || savingKey === `${emp.id}-${key}`}
+                            disabled={savingKey === `${emp.id}-${key}`}
                             onClick={() => handleRegister(emp.id, key)}
                             className="px-3 py-2 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {adminCanEditTimes && getDisplayTime(emp.id, key) ? 'Salvar' : 'Registrar'}
+                            {getDisplayTime(emp.id, key) ? 'Salvar' : 'Registrar'}
                           </button>
                         </div>
                       </div>
