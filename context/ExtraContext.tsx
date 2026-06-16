@@ -574,7 +574,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (!sectorData) {
         console.error('Setor não encontrado:', data.sector);
-        return;
+        throw new Error('Setor não encontrado. Verifique o setor selecionado e tente novamente.');
       }
 
     const firstDay = data.workDays?.[0]?.date || new Date().toISOString().split('T')[0];
@@ -655,7 +655,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // Evita solicitação órfã sem work_days no painel.
           await supabase.from('extra_requests').delete().eq('id', newRequest.id);
           console.error('Erro ao criar dias de trabalho:', workDaysError);
-          throw new Error(workDaysError.message || 'Erro ao salvar os dias de trabalho da solicitação.');
+          throw workDaysError;
         }
       }
 

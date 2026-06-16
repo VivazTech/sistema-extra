@@ -4,6 +4,7 @@ import { X, Save, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
+import { formatUserErrorMessage, logErrorForSupport } from '../utils/errorMessage';
 import { SHIFTS } from '../constants';
 import type { ExtraRequest } from '../types';
 
@@ -298,10 +299,18 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
       });
       onClose();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Erro ao salvar solicitação';
-      logAction('Solicitações > Solicitar funcionário extra', `Erro: ${msg}`);
-      console.error('Erro ao salvar solicitação:', error);
-      alert('Erro ao salvar solicitação. Verifique o console para mais detalhes.');
+      const action = isEditMode ? 'salvar as alterações da solicitação' : 'salvar a solicitação';
+      const { userMessage, code } = formatUserErrorMessage(error, action);
+      logErrorForSupport('Solicitações > Salvar solicitação', error, {
+        editMode: isEditMode,
+        requestId: initialRequest?.id,
+        code,
+      });
+      logAction(
+        'Solicitações > Solicitar funcionário extra',
+        code ? `Erro código ${code}` : `Erro: ${userMessage}`
+      );
+      alert(userMessage);
     } finally {
       setIsSaving(false);
     }
