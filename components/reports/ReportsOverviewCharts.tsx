@@ -33,6 +33,50 @@ interface ReportsOverviewChartsProps {
   event?: string;
 }
 
+const buildChartResumo = (title: string, entries: { label: string; value: string }[]): string => {
+  const parts: string[] = [title];
+  entries.forEach((entry, index) => {
+    if (index > 0) parts.push('');
+    parts.push(entry.label);
+    parts.push(entry.value);
+  });
+  return parts.join('\n');
+};
+
+const formatCurrency = (value: number) =>
+  `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const CopyResumoButton: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (err) {
+      console.error('Erro ao copiar resumo:', err);
+      alert('Não foi possível copiar o resumo. Copie manualmente.');
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shrink-0 ${
+        copied
+          ? 'bg-emerald-100 text-emerald-700'
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      } ${className}`}
+      title="Copiar resumo do gráfico"
+    >
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+      {copied ? 'Copiado!' : 'Copiar resumo'}
+    </button>
+  );
+};
+
 const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   startDate,
   endDate,
@@ -40,7 +84,6 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
   event: eventFilter,
 }) => {
   const { requests, sectors, getSaldoForWeek } = useExtras();
-  const [copiedResumo, setCopiedResumo] = useState(false);
   const formatDateLabel = (date?: string) => {
     if (!date) return '';
     const parsed = new Date(`${date}T12:00:00`);
@@ -149,30 +192,50 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
     if (setoresUltrapassaramSaldo.length === 0) {
       return ['Resumo semanal de setores', `Período: ${periodoLabel}`, 'Nenhum setor ultrapassou o saldo no filtro selecionado.'].join('\n');
     }
-    const linhas = [
-      'Resumo semanal de setores',
-      `Período: ${periodoLabel}`,
-      ...setoresUltrapassaramSaldo.map(
-        (item) =>
-          `${item.setor}: Excedeu ${item.ultrapassouDias} ${item.ultrapassouDias === 1 ? 'solicitação' : 'solicitações'}`
-      ),
-    ];
-    return linhas.join('\n');
+    return buildChartResumo(
+      `Resumo semanal de setores\nPeríodo: ${periodoLabel}`,
+      setoresUltrapassaramSaldo.map((item) => ({
+        label: item.setor,
+        value: `Excedeu ${item.ultrapassouDias} ${item.ultrapassouDias === 1 ? 'solicitação' : 'solicitações'}`,
+      }))
+    );
   }, [setoresUltrapassaramSaldo, periodoLabel]);
 
-  const handleCopyResumo = async () => {
-    try {
-      await navigator.clipboard.writeText(resumoSetoresAcimaSaldo);
-      setCopiedResumo(true);
-      setTimeout(() => setCopiedResumo(false), 1800);
-    } catch (err) {
-      console.error('Erro ao copiar resumo:', err);
-      alert('Não foi possível copiar o resumo. Copie manualmente.');
-    }
-  };
+  const resumoComparacaoMeses = useMemo(
+    () =>
+      buildChartResumo(
+        'Comparação de meses (últimos 6 meses)',
+        comparacaoMeses.map((item) => ({
+          label: item.mes,
+          value: formatCurrency(item.custo),
+        }))
+      ),
+    [comparacaoMeses]
+  );
 
-  const formatCurrency = (value: number) =>
-    `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const resumoCustoPorSetor = useMemo(
+    () =>
+      buildChartResumo(
+        'Valor total gasto por setor (período selecionado)',
+        custoPorSetor.map((item) => ({
+          label: item.name,
+          value: formatCurrency(item.custo),
+        }))
+      ),
+    [custoPorSetor]
+  );
+
+  const resumoComparativoSetor = useMemo(
+    () =>
+      buildChartResumo(
+        'Comparativo de gastos por setor (período)',
+        custoPorSetor.map((item) => ({
+          label: item.name,
+          value: formatCurrency(item.custo),
+        }))
+      ),
+    [custoPorSetor]
+  );
 
   return (
     <div className="space-y-8">
@@ -246,19 +309,7 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
         <div className="mt-4 bg-white border border-amber-100 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2 gap-2">
             <h4 className="font-semibold text-amber-900">Resumo do gráfico</h4>
-            <button
-              type="button"
-              onClick={handleCopyResumo}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                copiedResumo
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-              }`}
-              title="Copiar resumo"
-            >
-              {copiedResumo ? <Check size={14} /> : <Copy size={14} />}
-              {copiedResumo ? 'Copiado!' : 'Copiar resumo'}
-            </button>
+            <CopyResumoButton text={resumoSetoresAcimaSaldo} className="bg-amber-100 text-amber-800 hover:bg-amber-200" />
           </div>
           <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{resumoSetoresAcimaSaldo}</pre>
         </div>
@@ -266,9 +317,12 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
 
       {/* Gráfico: comparação de meses */}
       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="text-emerald-600" size={20} />
-          <h3 className="text-lg font-bold text-gray-900">Comparação de meses (últimos 6 meses)</h3>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <TrendingUp className="text-emerald-600 shrink-0" size={20} />
+            <h3 className="text-lg font-bold text-gray-900">Comparação de meses (últimos 6 meses)</h3>
+          </div>
+          <CopyResumoButton text={resumoComparacaoMeses} />
         </div>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={comparacaoMeses}>
@@ -290,9 +344,12 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
 
       {/* Gráfico: valor total gasto por setor (com filtro de período) */}
       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <PieChartIcon className="text-blue-600" size={20} />
-          <h3 className="text-lg font-bold text-gray-900">Valor total gasto por setor (período selecionado)</h3>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <PieChartIcon className="text-blue-600 shrink-0" size={20} />
+            <h3 className="text-lg font-bold text-gray-900">Valor total gasto por setor (período selecionado)</h3>
+          </div>
+          {custoPorSetor.length > 0 && <CopyResumoButton text={resumoCustoPorSetor} />}
         </div>
         {custoPorSetor.length === 0 ? (
           <p className="text-gray-500 py-8 text-center">Nenhum dado no período/setor selecionado.</p>
@@ -311,7 +368,10 @@ const ReportsOverviewCharts: React.FC<ReportsOverviewChartsProps> = ({
 
       {/* Gráfico: comparação de gasto por setor (barras verticais alternativo) */}
       <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Comparativo de gastos por setor (período)</h3>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Comparativo de gastos por setor (período)</h3>
+          {custoPorSetor.length > 0 && <CopyResumoButton text={resumoComparativoSetor} />}
+        </div>
         {custoPorSetor.length === 0 ? (
           <p className="text-gray-500 py-8 text-center">Nenhum dado no período/setor selecionado.</p>
         ) : (

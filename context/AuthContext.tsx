@@ -201,31 +201,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('*')
         .eq('id', authUserId)
         .eq('active', true)
-        .single();
+        .maybeSingle();
 
       agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'context/AuthContext.tsx:loadUserData:usersQuery',message:'loadUserData usersQuery result',data:{hasUserData:!!userData,errorCode:(error as any)?.code,errorMessage:(error as any)?.message},timestamp:Date.now()});
       console.info('[AGENT_DEBUG][B] loadUserData:usersQuery', { hasUserData: !!userData, errorCode: (error as any)?.code, hasError: !!error });
       setDebugStep(`loadUserData:usersQuery hasUser=${!!userData} err=${(error as any)?.code || 'none'}`);
 
-      // Se não encontrou pelo ID, tentar buscar pelo email do Auth
-      if (error && error.code === 'PGRST116') {
-        console.warn('Usuário não encontrado pelo ID, tentando buscar pelo email...');
-        
-        // Buscar email do usuário no Auth
+      // Se não encontrou pelo ID, tentar buscar pelo email ou username do Auth
+      if (!userData) {
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        
+
         if (authUser?.email) {
           const authEmail = authUser.email.trim().toLowerCase();
-          const { data: userByEmail, error: emailError } = await supabase
+          const { data: userByEmail } = await supabase
             .from('users')
             .select('*')
             .ilike('email', authEmail)
             .eq('active', true)
-            .single();
+            .maybeSingle();
 
-          if (!emailError && userByEmail) {
-            console.warn('⚠️ Usuário encontrado por email, mas ID não corresponde. Execute o script create-admin-user.js para sincronizar.');
+          if (userByEmail) {
+            console.warn('⚠️ Usuário encontrado por email, mas ID não corresponde ao Auth. Sincronize com scripts/repair-user-from-auth.js');
             userData = userByEmail;
+            error = null;
+          }
+        }
+
+        if (!userData && authUser?.user_metadata?.username) {
+          const authUsername = String(authUser.user_metadata.username).trim().toLowerCase();
+          const { data: userByUsername } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', authUsername)
+            .eq('active', true)
+            .maybeSingle();
+
+          if (userByUsername) {
+            console.warn('⚠️ Usuário encontrado por username, mas ID não corresponde ao Auth. Sincronize com scripts/repair-user-from-auth.js');
+            userData = userByUsername;
             error = null;
           }
         }
@@ -234,7 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error || !userData) {
         console.error('Erro ao buscar dados do usuário:', error);
         console.error('⚠️ O usuário existe no Supabase Auth mas não foi encontrado na tabela users.');
-        console.error('Execute o script: node scripts/create-admin-user.js');
+        console.error('Execute: node scripts/repair-user-from-auth.js <email> --role <ROLE>');
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
         setDebugStep('loadUserData:notFound -> setLoading(false)');

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
@@ -17,6 +17,8 @@ import {
   Edit,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Trash2,
   Calendar
 } from 'lucide-react';
@@ -30,6 +32,9 @@ import RequestModal from '../components/RequestModal';
 import { formatDateBR, toDateOnlyString } from '../utils/date';
 import { requiresSaldoApprovalJustification } from '../utils/requestApproval';
 import type { ExtraRequest } from '../types';
+
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 500, 1000] as const;
+const DEFAULT_PAGE_SIZE = 10;
 
 const Requests: React.FC = () => {
   const { requests, sectors, events, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
@@ -61,6 +66,8 @@ const Requests: React.FC = () => {
   const [filterDatePreset, setFilterDatePreset] = useState<'' | '7' | '30' | '60' | '90' | '365' | 'custom'>('');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const dateRange = React.useMemo(() => {
     if (!filterDatePreset || filterDatePreset === '') return null;
@@ -86,7 +93,7 @@ const Requests: React.FC = () => {
   };
 
 
-  const filteredRequests = requests.filter(r => {
+  const filteredRequests = useMemo(() => requests.filter(r => {
     const matchesSearch = r.extraName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           r.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
@@ -97,13 +104,36 @@ const Requests: React.FC = () => {
       return dStr >= dateRange.start && dStr <= dateRange.end;
     });
 
-    // Managers only see their sectors if restricted
     const isManagerAuthorized = user?.role !== 'MANAGER' || (user.sectors?.includes(r.sector));
-    // Líder só vê solicitações do próprio setor
     const isLeaderAuthorized = user?.role !== 'LEADER' || (user.sectors?.length && user.sectors.includes(r.sector));
 
     return matchesSearch && matchesStatus && matchesSector && matchesEvent && matchesDate && isManagerAuthorized && isLeaderAuthorized;
-  });
+  }), [requests, searchTerm, filterStatus, isAdmin, filterSector, filterEvent, dateRange, user?.role, user?.sectors]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+
+  const paginatedRequests = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRequests.slice(start, start + pageSize);
+  }, [filteredRequests, currentPage, pageSize]);
+
+  const paginationFrom = filteredRequests.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const paginationTo = Math.min(currentPage * pageSize, filteredRequests.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterSector, filterEvent, filterDatePreset, filterDateStart, filterDateEnd]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handlePageSizeChange = (value: number) => {
+    setPageSize(value);
+    setCurrentPage(1);
+  };
 
   const handleApprove = async (id: string) => {
     const req = requests.find(r => r.id === id);
@@ -534,17 +564,36 @@ const Requests: React.FC = () => {
             </>
           )}
         </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-xs font-bold text-gray-500 uppercase shrink-0">Itens/página</span>
+          <select
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+            value={pageSize}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            title="Quantidade de solicitações por página"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Table */}
       <div className="space-y-6">
+        {filteredRequests.length > 0 && (
+          <p className="text-sm text-gray-500">
+            Mostrando <span className="font-semibold text-gray-700">{paginationFrom}–{paginationTo}</span> de{' '}
+            <span className="font-semibold text-gray-700">{filteredRequests.length}</span> solicitações
+          </p>
+        )}
         {filteredRequests.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center text-gray-400 flex flex-col items-center gap-2">
             <Search size={40} className="opacity-20" />
             <p>Nenhum extra encontrado com estes filtros.</p>
           </div>
         ) : (
-          filteredRequests.map((req) => (
+          paginatedRequests.map((req) => (
             <div key={req.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {/* Header do card (igual vibe Banco de Extras) */}
               <div className="p-6 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -887,6 +936,35 @@ const Requests: React.FC = () => {
               })()}
             </div>
           ))
+        )}
+
+        {filteredRequests.length > 0 && totalPages > 1 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-gray-500 order-2 sm:order-1">
+              Página <span className="font-semibold text-gray-700">{currentPage}</span> de{' '}
+              <span className="font-semibold text-gray-700">{totalPages}</span>
+            </p>
+            <div className="flex items-center gap-2 order-1 sm:order-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={18} />
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Próxima
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
