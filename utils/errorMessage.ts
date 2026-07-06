@@ -11,6 +11,7 @@ const BUSINESS_ERROR_MESSAGES = new Set([
   'Existem dias repetidos na solicitação. Ajuste as datas para continuar.',
   'Solicitação criada mas não foi possível buscar os dados completos',
   'Setor não encontrado. Verifique o setor selecionado e tente novamente.',
+  'A justificativa é obrigatória para aprovar solicitações fora do saldo.',
 ]);
 
 type SupabaseLikeError = {

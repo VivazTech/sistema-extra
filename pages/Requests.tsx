@@ -28,6 +28,7 @@ import { exportSingleReciboExcel, exportListExcel } from '../services/excelServi
 import ExportFormatModal, { filterByEvento, filterBySector, type EventoFilterValue } from '../components/ExportFormatModal';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR, toDateOnlyString } from '../utils/date';
+import { requiresSaldoApprovalJustification } from '../utils/requestApproval';
 import type { ExtraRequest } from '../types';
 
 const Requests: React.FC = () => {
@@ -42,9 +43,11 @@ const Requests: React.FC = () => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExtraRequest | null>(null);
   const [isRejectModalOpen, setRejectModalOpen] = useState(false);
+  const [isApproveModalOpen, setApproveModalOpen] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [selectedWorkDate, setSelectedWorkDate] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [approvalJustification, setApprovalJustification] = useState('');
   const [editingTimeRecord, setEditingTimeRecord] = useState<{ requestId: string; workDate: string } | null>(null);
   const [timeRecordForm, setTimeRecordForm] = useState<{
     arrival?: string;
@@ -103,6 +106,17 @@ const Requests: React.FC = () => {
   });
 
   const handleApprove = async (id: string) => {
+    const req = requests.find(r => r.id === id);
+    if (!req) return;
+
+    if (requiresSaldoApprovalJustification(req)) {
+      setSelectedRequestId(id);
+      setSelectedWorkDate(null);
+      setApprovalJustification('');
+      setApproveModalOpen(true);
+      return;
+    }
+
     if (confirm('Deseja realmente aprovar esta solicitação?')) {
       try {
         if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
@@ -121,6 +135,17 @@ const Requests: React.FC = () => {
   };
 
   const handleApproveDay = async (requestId: string, workDate: string) => {
+    const req = requests.find(r => r.id === requestId);
+    if (!req) return;
+
+    if (requiresSaldoApprovalJustification(req)) {
+      setSelectedRequestId(requestId);
+      setSelectedWorkDate(workDate);
+      setApprovalJustification('');
+      setApproveModalOpen(true);
+      return;
+    }
+
     if (!confirm(`Aprovar o dia ${formatDateBR(workDate)}? A solicitação permanecerá na mesma linha (não será criada nova solicitação).`)) return;
     try {
       if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
@@ -134,6 +159,50 @@ const Requests: React.FC = () => {
       logAction('Solicitações > Aprovar dia', `Erro: ${msg}`, { requestId, workDate });
       console.error('Erro ao aprovar dia:', error);
       alert('Erro ao aprovar dia. Verifique o console para mais detalhes.');
+    }
+  };
+
+  const submitApprove = async () => {
+    if (!selectedRequestId) return;
+    const req = requests.find(r => r.id === selectedRequestId);
+    if (!req) return;
+
+    const justification = approvalJustification.trim();
+    if (requiresSaldoApprovalJustification(req) && !justification) {
+      alert('A justificativa é obrigatória para aprovar solicitações fora do saldo.');
+      return;
+    }
+
+    try {
+      if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
+        alert('Erro: Usuário não autenticado corretamente. Por favor, faça login novamente.');
+        return;
+      }
+
+      if (selectedWorkDate) {
+        await approveWorkDay(selectedRequestId, selectedWorkDate, user.id, justification || undefined);
+        logAction('Solicitações > Aprovar dia', 'OK', {
+          requestId: selectedRequestId,
+          workDate: selectedWorkDate,
+          justificativa: justification || undefined,
+        });
+      } else {
+        await updateStatus(selectedRequestId, 'APROVADO', undefined, user.id, justification || undefined);
+        logAction('Solicitações > Aprovar', 'OK', {
+          requestId: selectedRequestId,
+          justificativa: justification || undefined,
+        });
+      }
+
+      setApproveModalOpen(false);
+      setSelectedRequestId(null);
+      setSelectedWorkDate(null);
+      setApprovalJustification('');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro ao aprovar';
+      logAction('Solicitações > Aprovar', `Erro: ${msg}`, { requestId: selectedRequestId });
+      console.error('Erro ao aprovar:', error);
+      alert(msg || 'Erro ao aprovar. Tente novamente.');
     }
   };
 
@@ -609,7 +678,16 @@ const Requests: React.FC = () => {
                       {req.status}
                     </span>
                     {req.status === 'SOLICITADO' && req.needsManagerApproval && (
-                      <span className="text-[10px] font-bold text-amber-600">Aguardando gerente</span>
+                      <span className="text-[10px] font-bold text-amber-600">
+                        {requiresSaldoApprovalJustification(req)
+                          ? 'Fora do saldo — aguardando gerente'
+                          : 'Aguardando gerente'}
+                      </span>
+                    )}
+                    {req.status === 'APROVADO' && req.approvalJustification && (
+                      <span className="text-[10px] text-gray-600" title={req.approvalJustification}>
+                        Justificativa registrada
+                      </span>
                     )}
                     {req.observations?.includes('PORTARIA - Horário não informado') && requestHasMissingTimes(req) && (
                       <span className="text-[10px] font-bold text-red-600">Horário não informado</span>
@@ -826,6 +904,48 @@ const Requests: React.FC = () => {
         onClose={() => { setModalOpen(false); setEditingRequest(null); }}
         initialRequest={editingRequest}
       />
+
+      {/* Approval Modal (fora do saldo) */}
+      {isApproveModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+            <h2 className="text-xl font-bold mb-4">
+              {selectedWorkDate ? `Aprovar dia ${formatDateBR(selectedWorkDate)}` : 'Aprovar solicitação fora do saldo'}
+            </h2>
+            <p className="text-sm text-gray-600 mb-2">
+              Esta solicitação excede o saldo disponível do setor. Informe a justificativa para aprovação (obrigatório).
+            </p>
+            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Justificativa *</label>
+            <textarea
+              autoFocus
+              required
+              className="w-full border border-gray-200 rounded-xl p-3 h-32 focus:ring-2 focus:ring-emerald-500 outline-none"
+              placeholder="Ex.: Necessidade operacional confirmada pelo gerente..."
+              value={approvalJustification}
+              onChange={(e) => setApprovalJustification(e.target.value)}
+            />
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setApproveModalOpen(false);
+                  setSelectedRequestId(null);
+                  setSelectedWorkDate(null);
+                  setApprovalJustification('');
+                }}
+                className="flex-1 py-2 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={submitApprove}
+                className="flex-1 py-2 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-md"
+              >
+                Confirmar Aprovação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rejection Modal */}
       {isRejectModalOpen && (

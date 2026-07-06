@@ -135,6 +135,8 @@ export interface ExtraRequest {
   contact?: string;
   rejectionReason?: string;
   cancellationReason?: string;
+  /** Justificativa do gerente ao aprovar solicitação fora do saldo. */
+  approvalJustification?: string;
   createdAt: string;
   updatedAt: string;
   approvedBy?: string;

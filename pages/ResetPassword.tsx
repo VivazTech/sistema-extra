@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
+import { isPasswordRecoveryHash } from '../utils/authRecoveryRedirect';
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
 
 const ResetPassword: React.FC = () => {
@@ -14,21 +15,14 @@ const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Token de recuperação na URL: Supabase envia #access_token=...&type=recovery
-    // Após PASSWORD_RECOVERY o AuthContext redireciona para #/reset-password (sessão já está ativa)
-    const hash = window.location.hash.substring(1);
-    const queryPart = hash.includes('?') ? hash.split('?')[1] : hash;
-    const hashParams = new URLSearchParams(queryPart);
-    const accessToken = hashParams.get('access_token');
-    const type = hashParams.get('type');
-
-    if (accessToken && type === 'recovery') return; // Token válido na URL, Supabase vai definir a sessão
+    if (isPasswordRecoveryHash()) return;
 
     // Sem token: verificar se é redirecionamento pós-recovery (sessão já existe) ou link expirado
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) return; // Sessão de recovery ativa, exibir formulário
+      if (session) return;
+      const hash = window.location.hash.replace(/^#/, '');
       const isResetPasswordPath = hash.startsWith('/reset-password') || hash.startsWith('reset-password');
-      if (isResetPasswordPath && !accessToken) {
+      if (isResetPasswordPath) {
         setError('Link de recuperação inválido ou expirado. Solicite um novo link na tela de login.');
       }
     });

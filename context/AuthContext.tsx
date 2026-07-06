@@ -3,6 +3,7 @@ import { AuthState, User } from '../types';
 import { supabase } from '../services/supabase';
 import { logAction as logActionService } from '../services/actionLogService';
 import { DatabaseLoading } from '../components/LoadingLottie';
+import { getPasswordResetRedirectUrl, isPasswordRecoveryHash } from '../utils/authRecoveryRedirect';
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -83,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // (se o Supabase travar ao resolver sessão/token, o app não fica preso na tela de loading)
         try {
           const raw = localStorage.getItem('vivaz_auth');
-          if (raw) {
+          if (raw && !isPasswordRecoveryHash()) {
             const parsed = JSON.parse(raw) as AuthState;
             if (parsed?.isAuthenticated && parsed?.user?.id) {
               setState(parsed);
@@ -106,6 +107,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDebugStep(`checkSession:gotSession hasUser=${!!session?.user}`);
 
         if (session?.user) {
+          if (isPasswordRecoveryHash()) {
+            setState({ user: null, isAuthenticated: false });
+            setLoading(false);
+            setDebugStep('checkSession:recovery -> skip login');
+            return;
+          }
+
           // Buscar dados do usuário na tabela users
           setDebugStep('checkSession:hasSessionUser -> loadUserData');
           // Evitar chamadas concorrentes que podem travar em alguns browsers
@@ -143,16 +151,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'PASSWORD_RECOVERY' && session?.user) {
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
-        window.location.hash = '#/reset-password';
+        const hashRoute = window.location.hash.replace(/^#/, '');
+        if (!hashRoute.startsWith('/reset-password')) {
+          window.location.hash = '#/reset-password';
+        }
         return;
       }
 
-      // Se a URL tem type=recovery, é clique no link de redefinir senha – não fazer login, só redirecionar (PASSWORD_RECOVERY pode vir em seguida)
-      const hash = typeof window !== 'undefined' ? window.location.hash : '';
-      if (event === 'SIGNED_IN' && session?.user && hash.includes('type=recovery')) {
+      // Clique no link de redefinir senha – não fazer login completo
+      if (event === 'SIGNED_IN' && session?.user && isPasswordRecoveryHash()) {
         setState({ user: null, isAuthenticated: false });
         setLoading(false);
-        window.location.hash = '#/reset-password';
+        const hashRoute = window.location.hash.replace(/^#/, '');
+        if (!hashRoute.startsWith('/reset-password')) {
+          window.location.hash = '#/reset-password';
+        }
         return;
       }
 
@@ -361,24 +374,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Verificar se o email existe na tabela users
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', email.toLowerCase())
-        .eq('active', true)
-        .single();
-
-      if (userError || !userData || !userData.email) {
-        return { success: false, error: 'Email não encontrado ou usuário inativo' };
+      const emailNormalized = email.trim().toLowerCase();
+      if (!emailNormalized || !emailNormalized.includes('@')) {
+        return { success: false, error: 'Informe um email válido' };
       }
 
-      // Enviar email de recuperação de senha
-      // VITE_APP_URL = URL pública do app em produção (ex: https://sistema-extras.vivazcataratas.com.br)
-      // Evita que o link do email aponte para localhost quando acessado de produção
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const redirectTo = `${appUrl.replace(/\/$/, '')}/#/reset-password`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      // Não consultar tabela users aqui: RLS bloqueia leitura sem autenticação.
+      // O Supabase Auth envia o email se o usuário existir em auth.users.
+      const redirectTo = getPasswordResetRedirectUrl();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailNormalized, {
         redirectTo,
       });
 

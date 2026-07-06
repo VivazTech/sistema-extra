@@ -114,6 +114,7 @@ CREATE TABLE extra_requests (
   contact VARCHAR(100),
   rejection_reason TEXT,
   cancellation_reason TEXT,
+  approval_justification TEXT,
   approved_by UUID REFERENCES users(id),
   approved_at TIMESTAMPTZ,
   created_by UUID REFERENCES users(id),

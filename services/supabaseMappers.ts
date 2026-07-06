@@ -132,6 +132,7 @@ export const mapExtraRequest = (dbRequest: any, workDays?: any[]): ExtraRequest 
     contact: dbRequest.contact,
     rejectionReason: dbRequest.rejection_reason,
     cancellationReason: dbRequest.cancellation_reason,
+    approvalJustification: dbRequest.approval_justification ?? undefined,
     createdAt: dbRequest.created_at,
     updatedAt: dbRequest.updated_at,
     approvedBy: dbRequest.approved_by_name ?? dbRequest.users?.name ?? dbRequest.approved_by,

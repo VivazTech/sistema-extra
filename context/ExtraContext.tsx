@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EventItem, EscalaLegendItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
+import { requiresSaldoApprovalJustification } from '../utils/requestApproval';
 import { supabase } from '../services/supabase';
 import { useAuth } from './AuthContext';
 import { 
@@ -32,8 +33,8 @@ interface ExtraContextType {
   users: User[];
   addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
   updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'valueType' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }) => Promise<void>;
-  updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => void;
-  approveWorkDay: (requestId: string, workDate: string, approvedBy: string) => Promise<void>;
+  updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string, approvalJustification?: string) => void;
+  approveWorkDay: (requestId: string, workDate: string, approvedBy: string, approvalJustification?: string) => Promise<void>;
   rejectWorkDay: (requestId: string, workDate: string, reason: string) => Promise<void>;
   deleteRequest: (id: string) => void;
   addSector: (sector: Sector) => void;
@@ -689,8 +690,16 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const updateStatus = async (id: string, status: RequestStatus, reason?: string, approvedBy?: string) => {
+  const updateStatus = async (id: string, status: RequestStatus, reason?: string, approvedBy?: string, approvalJustification?: string) => {
     try {
+      const request = requests.find(r => r.id === id);
+      if (status === 'APROVADO' && request && requiresSaldoApprovalJustification(request)) {
+        const justification = (approvalJustification || '').trim();
+        if (!justification) {
+          throw new Error('A justificativa é obrigatória para aprovar solicitações fora do saldo.');
+        }
+      }
+
       const updateData: any = {
         status,
         updated_at: new Date().toISOString(),
@@ -725,6 +734,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           throw e;
         }
         updateData.approved_at = new Date().toISOString();
+        if (approvalJustification?.trim()) {
+          updateData.approval_justification = approvalJustification.trim();
+        }
       } else if (status === 'REPROVADO') {
         updateData.rejection_reason = reason;
       } else if (status === 'CANCELADO') {
@@ -773,8 +785,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             rejectionReason: status === 'REPROVADO' ? reason : req.rejectionReason,
             cancellationReason: status === 'CANCELADO' ? reason : req.cancellationReason,
                 approvedBy: status === 'APROVADO' ? approvedByName : req.approvedBy,
-            approvedAt: status === 'APROVADO' ? new Date().toISOString() : req.approvedAt
-          } 
+            approvedAt: status === 'APROVADO' ? new Date().toISOString() : req.approvedAt,
+            approvalJustification: status === 'APROVADO' && approvalJustification?.trim()
+              ? approvalJustification.trim()
+              : req.approvalJustification,
+          }
         : req
     ));
       }
@@ -785,14 +800,14 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   /** Aprovação por dia sem quebrar a solicitação em outra linha. */
-  const approveWorkDay = async (requestId: string, workDate: string, approvedBy: string) => {
+  const approveWorkDay = async (requestId: string, workDate: string, approvedBy: string, approvalJustification?: string) => {
     const request = requests.find(r => r.id === requestId);
     if (!request) throw new Error('Solicitação não encontrada.');
     const workDay = request.workDays.find(d => d.date === workDate);
     if (!workDay) throw new Error('Dia de trabalho não encontrado.');
 
     // Não cria nova solicitação. Mantém a solicitação original e aprova o registro atual.
-    await updateStatus(requestId, 'APROVADO', undefined, approvedBy);
+    await updateStatus(requestId, 'APROVADO', undefined, approvedBy, approvalJustification);
   };
 
   /** Reprova apenas um dia específico: cria nova solicitação REPROVADA com esse dia e remove o dia da original. */

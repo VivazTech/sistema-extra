@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAccess } from '../context/AccessContext';
+import { isPasswordRecoveryHash } from '../utils/authRecoveryRedirect';
 import { Eye, EyeOff, Mail, X, AlertCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
@@ -19,6 +20,7 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (isPasswordRecoveryHash()) return;
     if (isAuthenticated) {
       const target = user ? getFirstAccessiblePath(user.role) : '/';
       navigate(target);
