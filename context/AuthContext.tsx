@@ -215,10 +215,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { user: authUser } } = await supabase.auth.getUser();
         
         if (authUser?.email) {
+          const authEmail = authUser.email.trim().toLowerCase();
           const { data: userByEmail, error: emailError } = await supabase
             .from('users')
             .select('*')
-            .eq('email', authUser.email)
+            .ilike('email', authEmail)
             .eq('active', true)
             .single();
 
@@ -283,45 +284,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (usernameOrEmail: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      setLoading(true);
-      
-      // Primeiro, buscar o usuário na tabela users para obter o email
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('email, username')
-        .eq('username', username.toLowerCase())
-        .eq('active', true)
-        .single();
+      const input = usernameOrEmail.trim();
+      const inputLower = input.toLowerCase();
+      let emailForAuth: string | null = null;
 
-      if (userError || !userData) {
-        setLoading(false);
-        return { success: false, error: 'Usuário não encontrado ou inativo' };
+      // Login por email (mesmo usado em "Esqueci minha senha")
+      if (input.includes('@')) {
+        emailForAuth = inputLower;
+      } else {
+        // Login por username na tabela users
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('email, username')
+          .eq('username', inputLower)
+          .eq('active', true)
+          .single();
+
+        if (userError || !userData) {
+          return { success: false, error: 'Usuário não encontrado ou inativo' };
+        }
+
+        if (!userData.email || !String(userData.email).trim()) {
+          return { success: false, error: 'Usuário não possui email cadastrado. Entre em contato com o administrador.' };
+        }
+
+        emailForAuth = String(userData.email).trim().toLowerCase();
       }
 
-      // Se o usuário não tem email, não pode fazer login via Supabase Auth
-      if (!userData.email || !String(userData.email).trim()) {
-        setLoading(false);
-        return { success: false, error: 'Usuário não possui email cadastrado. Entre em contato com o administrador.' };
-      }
-
-      // Normalizar email (trim + minúsculas) para evitar falha por diferença de maiúsculas
-      const emailNormalized = String(userData.email).trim().toLowerCase();
-
-      // Fazer login no Supabase Auth usando o email
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: emailNormalized,
+        email: emailForAuth,
         password: password,
       });
 
       if (authError) {
         console.error('Erro no login:', authError);
-        setLoading(false);
         if (authError.message.includes('Invalid login credentials')) {
           return {
             success: false,
-            error: 'Usuário ou senha incorretos. Se seu acesso foi criado pelo administrador, use "Esqueci minha senha" para definir uma senha.',
+            error: input.includes('@')
+              ? 'Email ou senha incorretos. Verifique se usou o mesmo email da recuperação de senha.'
+              : 'Usuário ou senha incorretos. Se redefiniu a senha pelo email, tente entrar com o email em vez do login.',
           };
         }
         if (authError.message.includes('Email not confirmed')) {
@@ -334,19 +338,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (!authData.user) {
-        setLoading(false);
         return { success: false, error: 'Erro ao autenticar usuário' };
       }
 
-      // Carregar dados do usuário
       const loadedUser = await loadUserData(authData.user.id);
-      if (loadedUser) {
-        logActionService(loadedUser.id, loadedUser.name, 'Login', 'OK').catch(() => {});
+      if (!loadedUser) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error: 'Senha aceita, mas o perfil não foi encontrado no sistema. Contate o administrador.',
+        };
       }
+
+      logActionService(loadedUser.id, loadedUser.name, 'Login', 'OK').catch(() => {});
       return { success: true };
     } catch (error: any) {
       console.error('Erro no login:', error);
-      setLoading(false);
       return { success: false, error: error.message || 'Erro ao fazer login' };
     }
   };

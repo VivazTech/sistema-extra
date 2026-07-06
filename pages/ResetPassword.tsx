@@ -51,19 +51,19 @@ const ResetPassword: React.FC = () => {
 
     try {
       // Atualizar senha no Supabase Auth
-      const { error: updateError } = await supabase.auth.updateUser({
+      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
         password: password,
       });
 
-      if (updateError) {
+      if (updateError || !updateData.user) {
         console.error('Erro ao atualizar senha:', updateError);
-        setError(updateError.message || 'Erro ao atualizar senha');
+        setError(updateError?.message || 'Erro ao atualizar senha');
         setLoading(false);
         return;
       }
 
-      // Fazer logout para que o usuário acesse com a nova senha na tela de login
-      await supabase.auth.signOut();
+      localStorage.removeItem('vivaz_auth');
+      await supabase.auth.signOut({ scope: 'global' });
       setSuccess(true);
       setTimeout(() => {
         navigate('/login');
@@ -89,7 +89,7 @@ const ResetPassword: React.FC = () => {
               <CheckCircle className="text-white" size={32} />
             </div>
             <h2 className="text-2xl font-black text-gray-800 mb-2">Senha Atualizada!</h2>
-            <p className="text-gray-600 mb-6">Sua senha foi atualizada com sucesso.</p>
+            <p className="text-gray-600 mb-6">Sua senha foi atualizada com sucesso. Faça login com seu email ou login de usuário.</p>
             <p className="text-sm text-gray-500">Redirecionando para o login...</p>
           </div>
         </div>

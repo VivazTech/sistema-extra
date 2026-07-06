@@ -40,16 +40,13 @@ const Login: React.FC = () => {
 
     try {
       const result = await login(username, password);
-      
+
       if (!result.success) {
         setError(result.error || 'Erro ao fazer login');
-        setLoading(false);
-      } else {
-        // Se o login foi bem-sucedido, o loading será gerenciado pelo AuthContext
-        // e o usuário será redirecionado pelo useEffect
       }
     } catch (error: any) {
       setError(error.message || 'Erro ao fazer login');
+    } finally {
       setLoading(false);
     }
   };
@@ -102,11 +99,11 @@ const Login: React.FC = () => {
           <div className="bg-white rounded-3xl p-8 shadow-2xl border border-emerald-400/10">
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 ml-1">Usuário</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 ml-1">Usuário ou email</label>
                 <input 
                   type="text" 
                   required
-                  placeholder="Insira seu login"
+                  placeholder="Login ou email cadastrado"
                   className={`w-full px-5 py-4 rounded-2xl bg-gray-50 border focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all font-medium ${error ? 'border-red-300' : 'border-gray-100'}`}
                   value={username}
                   onChange={(e) => { setUsername(e.target.value); setError(''); }}
@@ -142,9 +139,7 @@ const Login: React.FC = () => {
                   <AlertCircle className="flex-shrink-0 text-red-500 mt-0.5" size={20} />
                   <div>
                     <p className="text-red-800 text-sm font-bold">Não foi possível entrar</p>
-                    <p className="text-red-600 text-sm mt-0.5">
-                      {error.includes('incorretos') ? 'Usuário ou senha incorretos. Verifique e tente novamente.' : error}
-                    </p>
+                    <p className="text-red-600 text-sm mt-0.5">{error}</p>
                   </div>
                 </div>
               )}
