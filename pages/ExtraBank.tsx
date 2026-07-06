@@ -1,7 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown, Pencil } from 'lucide-react';
+import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import type { ExtraPerson } from '../types';
+
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 500, 1000] as const;
+const DEFAULT_PAGE_SIZE = 10;
 
 const ExtraBank: React.FC = () => {
   const { extras, sectors, deleteExtra, addExtra, updateExtra, checkCpfExists } = useExtras();
@@ -11,6 +14,8 @@ const ExtraBank: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetical' | 'recent'>('alphabetical');
   const [selectedSector, setSelectedSector] = useState('TODOS');
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState({
     fullName: '',
     birthDate: '',
@@ -357,6 +362,31 @@ const ExtraBank: React.FC = () => {
     return sorted;
   }, [extras, searchTerm, selectedSector, sortOrder, sectors]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredExtras.length / pageSize));
+
+  const paginatedExtras = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredExtras.slice(start, start + pageSize);
+  }, [filteredExtras, currentPage, pageSize]);
+
+  const paginationFrom = filteredExtras.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const paginationTo = Math.min(currentPage * pageSize, filteredExtras.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedSector, sortOrder]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handlePageSizeChange = (value: number) => {
+    setPageSize(value);
+    setCurrentPage(1);
+  };
+
   const sectorNamesSet = useMemo(() => new Set(sectors.map(s => s.name)), [sectors]);
 
   const getValidSectorNames = (extra: ExtraPerson) => {
@@ -367,18 +397,18 @@ const ExtraBank: React.FC = () => {
   const grouped = useMemo(() => {
     const bySector = sectors.map(sector => ({
       sector: sector.name,
-      extras: filteredExtras.filter(e =>
+      extras: paginatedExtras.filter(e =>
         e.sectors?.includes(sector.name) || e.sector === sector.name
       ),
     })).filter(g => g.extras.length > 0);
 
     const extrasComSetorValido = new Set(bySector.flatMap(g => g.extras.map(e => e.id)));
-    const semSetor = filteredExtras.filter(e => !extrasComSetorValido.has(e.id));
+    const semSetor = paginatedExtras.filter(e => !extrasComSetorValido.has(e.id));
     if (semSetor.length > 0) {
       return [...bySector, { sector: 'Sem setor', extras: semSetor }];
     }
     return bySector;
-  }, [filteredExtras, sectors]);
+  }, [paginatedExtras, sectors]);
 
   // Validar contatos em tempo real quando os campos mudarem
   useEffect(() => {
@@ -571,8 +601,8 @@ const ExtraBank: React.FC = () => {
           </button>
         </div>
         <div className="mt-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="relative">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="relative md:col-span-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
@@ -583,7 +613,7 @@ const ExtraBank: React.FC = () => {
               />
             </div>
             <div className="flex items-center gap-2">
-              <ArrowUpDown size={18} className="text-gray-400" />
+              <ArrowUpDown size={18} className="text-gray-400 shrink-0" />
               <select
                 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                 value={sortOrder}
@@ -608,6 +638,19 @@ const ExtraBank: React.FC = () => {
                 ))}
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-500 uppercase shrink-0">Itens/página</span>
+              <select
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                title="Quantidade de extras por página"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </header>
@@ -619,6 +662,10 @@ const ExtraBank: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
+          <p className="text-sm text-gray-500">
+            Mostrando <span className="font-semibold text-gray-700">{paginationFrom}–{paginationTo}</span> de{' '}
+            <span className="font-semibold text-gray-700">{filteredExtras.length}</span> extras
+          </p>
           {grouped.map(group => (
             <div key={group.sector} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-bold text-emerald-900 mb-4">{group.sector}</h2>
@@ -662,6 +709,35 @@ const ExtraBank: React.FC = () => {
               </div>
             </div>
           ))}
+
+          {totalPages > 1 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-sm text-gray-500 order-2 sm:order-1">
+                Página <span className="font-semibold text-gray-700">{currentPage}</span> de{' '}
+                <span className="font-semibold text-gray-700">{totalPages}</span>
+              </p>
+              <div className="flex items-center gap-2 order-1 sm:order-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={18} />
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Próxima
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

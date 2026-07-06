@@ -82,9 +82,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       `}>
         <div className="p-6 flex-1 flex flex-col min-h-0">
           <div className="flex items-center gap-3 mb-8 flex-shrink-0">
-            <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white">V</div>
+            <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center overflow-hidden p-1.5 shrink-0">
+              <img src="/mini-icon.svg" alt="Vivaz Cataratas" className="w-full h-full object-contain" />
+            </div>
             <div>
-              <h1 className="font-bold text-sm tracking-widest uppercase">Vivaz Resort</h1>
+              <h1 className="font-bold text-sm tracking-widest uppercase">Vivaz Cataratas</h1>
               <p className="text-xs text-emerald-400">Controle de Extras</p>
             </div>
           </div>

@@ -214,7 +214,8 @@ const Reports: React.FC = () => {
   const handleExportCSV = () => {
     const headers = [
       'Código', 'Setor', 'Função', 'Nome do Extra', 'Líder', 'Solicitante', 'Motivo',
-      'Valor (R$)', 'Status', 'Qtd. dias', 'Datas dos dias', 'Criado em', 'Observações'
+      'Valor (R$)', 'Status', 'Qtd. dias', 'Datas dos dias', 'Criado em', 'Observações',
+      'Justificativa aprovação'
     ];
     const rows = requestsForExport.map((req: ExtraRequest) => {
       const dates = req.workDays.map(d => formatDateCSV(d.date)).join('; ');
@@ -231,7 +232,8 @@ const Reports: React.FC = () => {
         String(req.workDays?.length ?? 0),
         csvEscape(dates),
         formatDateCSV(req.createdAt),
-        csvEscape(req.observations)
+        csvEscape(req.observations),
+        csvEscape(req.approvalJustification)
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\r\n');
