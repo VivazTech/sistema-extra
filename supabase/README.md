@@ -103,10 +103,17 @@ VITE_APP_URL=https://seu-dominio.com.br
 
 ## 📧 Email "Esqueci minha senha" abre localhost ou dá "link expired"
 
-1. **Defina `VITE_APP_URL`** no Vercel/Hosting com a URL pública do app (ex: `https://sistema-extras.vivazcataratas.com.br`)
+1. **Defina `VITE_APP_URL`** no Vercel/Hosting com a URL pública do app (ex: `https://extras.vivazcataratas.com.br`)
 2. **No Supabase Dashboard** → Authentication → URL Configuration:
    - **Site URL:** a mesma URL do app em produção
    - **Redirect URLs:** adicione `https://seu-dominio.com.br/#/reset-password` e `https://seu-dominio.com.br/**`
+
+## 📧 Personalizar e-mail de redefinição de senha
+
+1. Abra **Supabase Dashboard** → **Authentication** → **Email Templates** → **Reset password**
+2. **Subject:** `Redefinir senha — Portal Vivaz Extras`
+3. **Body:** copie o conteúdo de `supabase/templates/recovery-password.html` (sem o comentário inicial)
+4. Para remetente **Vivaz Cataratas** em vez de "Supabase Auth", configure **SMTP Settings** com e-mail do domínio (ex.: `noreply@vivazcataratas.com.br`)
 
 ## 🐛 Troubleshooting
 

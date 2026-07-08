@@ -31,6 +31,7 @@ import ExportFormatModal, { filterByEvento, filterBySector, type EventoFilterVal
 import RequestModal from '../components/RequestModal';
 import { formatDateBR, toDateOnlyString } from '../utils/date';
 import { requiresSaldoApprovalJustification } from '../utils/requestApproval';
+import { formatUserErrorMessage, logErrorForSupport } from '../utils/errorMessage';
 import type { ExtraRequest } from '../types';
 
 const PAGE_SIZE_OPTIONS = [10, 50, 100, 500, 1000] as const;
@@ -229,10 +230,10 @@ const Requests: React.FC = () => {
       setSelectedWorkDate(null);
       setApprovalJustification('');
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Erro ao aprovar';
+      const msg = formatUserErrorMessage(error, 'Erro ao aprovar');
+      logErrorForSupport('Solicitações > Aprovar com justificativa', error);
       logAction('Solicitações > Aprovar', `Erro: ${msg}`, { requestId: selectedRequestId });
-      console.error('Erro ao aprovar:', error);
-      alert(msg || 'Erro ao aprovar. Tente novamente.');
+      alert(msg);
     }
   };
 
