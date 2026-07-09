@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "mcp__f86c1e8f-c558-4ea5-b96b-f65e594c0810__list_projects"
     ]
   }
 }

@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ExtraRequest, Sector, RequestStatus, RequesterItem, ReasonItem, ShiftItem, EventItem, EscalaLegendItem, EmployeeScheduleItem, ExtraPerson, ExtraSaldoInput, ExtraSaldoRecord, ExtraSaldoSettings, TimeRecord, User, Employee, PjEmployee } from '../types';
 // Removido: INITIAL_SECTORS, INITIAL_REQUESTERS, INITIAL_REASONS - dados agora vêm apenas do banco
 import { calculateExtraSaldo } from '../services/extraSaldoService';
@@ -114,6 +114,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pjEmployees, setPjEmployees] = useState<PjEmployee[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  /** Geração da carga atual: invalida o carregamento em segundo plano quando um novo refresh começa. */
+  const loadGenRef = useRef(0);
 
   const managerSectorSet = useMemo(() => {
     if (user?.role !== 'MANAGER' && user?.role !== 'LEADER') return null;
@@ -158,25 +160,64 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const loadData = useCallback(async () => {
     setDataLoading(true);
+    const loadGen = ++loadGenRef.current;
     try {
-        // Carregar Setores
-        const { data: sectorsData, error: sectorsError } = await supabase
-          .from('sectors')
-          .select('*, sector_roles(*)')
-          .eq('active', true)
-          .order('name');
+        const requestsSelectQuery = `
+            *,
+            sectors(name),
+            users!extra_requests_approved_by_fkey(name),
+            extra_persons(cpf),
+            work_days(
+              *,
+              time_records(*)
+            )
+          `;
+        // Teto de linhas por resposta do PostgREST (max_rows = 1000 no servidor)
+        const requestsPageSize = 1000;
+
+        // Todas as consultas independentes em paralelo: evita ~14 round-trips sequenciais ao Supabase
+        const [
+          sectorsRes,
+          requestersRes,
+          reasonsRes,
+          shiftsRes,
+          eventsRes,
+          legendsRes,
+          schedulesRes,
+          extrasRes,
+          firstRequestsPage,
+          saldoRes,
+          settingsRes,
+          usersRes,
+          empRes,
+          pjRes,
+        ] = await Promise.all([
+          supabase.from('sectors').select('*, sector_roles(*)').eq('active', true).order('name'),
+          supabase.from('requesters').select('*').eq('active', true).order('name'),
+          supabase.from('reasons').select('*').eq('active', true).order('name'),
+          supabase.from('shifts').select('*').eq('active', true).order('display_order', { ascending: true }).order('name', { ascending: true }),
+          supabase.from('request_events').select('*').eq('active', true).order('name'),
+          supabase.from('escala_legends').select('*').eq('active', true).order('code', { ascending: true }),
+          supabase.from('employee_schedules').select('*').eq('active', true).order('entry_time', { ascending: true }).order('exit_time', { ascending: true }),
+          supabase.from('extra_persons').select('*, sectors(name)').eq('active', true).order('full_name'),
+          supabase.from('extra_requests').select(requestsSelectQuery).order('created_at', { ascending: false }).limit(requestsPageSize),
+          supabase.from('extra_saldo_records').select('*, sectors(name)').order('periodo_inicio', { ascending: false }),
+          supabase.from('extra_saldo_settings').select('*').order('updated_at', { ascending: false }).limit(1).single(),
+          supabase.from('users').select('*, user_sectors(sectors(name))').eq('active', true).order('name'),
+          supabase.from('employees').select('*, sectors(name)').eq('active', true).order('name'),
+          supabase.from('pj_employees').select('*, sectors(name)').eq('active', true).order('name'),
+        ]);
+
+        // Setores
+        const { data: sectorsData, error: sectorsError } = sectorsRes;
 
         if (!sectorsError && sectorsData) {
           const mappedSectors = sectorsData.map(s => mapSector(s, s.sector_roles));
           setSectors(sortSectorsByName(mappedSectors));
         }
 
-        // Carregar Solicitantes (apenas ativos; exclusão é hard delete no Supabase)
-        const { data: requestersData, error: requestersError } = await supabase
-          .from('requesters')
-          .select('*')
-          .eq('active', true)
-          .order('name');
+        // Solicitantes (apenas ativos; exclusão é hard delete no Supabase)
+        const { data: requestersData, error: requestersError } = requestersRes;
 
         if (!requestersError && requestersData) {
           setRequesters(requestersData.map(mapRequester));
@@ -184,35 +225,22 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           console.error('Erro ao carregar demandantes:', requestersError);
         }
 
-        // Carregar Motivos
-        const { data: reasonsData, error: reasonsError } = await supabase
-          .from('reasons')
-          .select('*')
-          .eq('active', true)
-          .order('name');
+        // Motivos
+        const { data: reasonsData, error: reasonsError } = reasonsRes;
 
         if (!reasonsError && reasonsData) {
           setReasons(reasonsData.map(mapReason));
         }
 
-        // Carregar Turnos
-        const { data: shiftsData, error: shiftsError } = await supabase
-          .from('shifts')
-          .select('*')
-          .eq('active', true)
-          .order('display_order', { ascending: true })
-          .order('name', { ascending: true });
+        // Turnos
+        const { data: shiftsData, error: shiftsError } = shiftsRes;
 
         if (!shiftsError && shiftsData) {
           setShifts(shiftsData.map(mapShift));
         }
 
-        // Carregar Eventos
-        const { data: eventsData, error: eventsError } = await supabase
-          .from('request_events')
-          .select('*')
-          .eq('active', true)
-          .order('name');
+        // Eventos
+        const { data: eventsData, error: eventsError } = eventsRes;
 
         if (!eventsError && eventsData) {
           setEvents(eventsData.map(mapEvent));
@@ -220,13 +248,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           console.error('Erro ao carregar eventos:', eventsError);
         }
 
-        // Carregar siglas/legendas da escala
+        // Siglas/legendas da escala
         try {
-          const { data: legendsData, error: legendsError } = await supabase
-            .from('escala_legends')
-            .select('*')
-            .eq('active', true)
-            .order('code', { ascending: true });
+          const { data: legendsData, error: legendsError } = legendsRes;
           if (!legendsError && legendsData && legendsData.length > 0) {
             setEscalaLegends(
               legendsData.map((row: any) => ({
@@ -243,13 +267,8 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // tabela pode não existir até rodar migration; mantém padrão local
         }
 
-        // Carregar Escalas de trabalho (hora entrada/saida)
-        const { data: schedulesData, error: schedulesError } = await supabase
-          .from('employee_schedules')
-          .select('*')
-          .eq('active', true)
-          .order('entry_time', { ascending: true })
-          .order('exit_time', { ascending: true });
+        // Escalas de trabalho (hora entrada/saida)
+        const { data: schedulesData, error: schedulesError } = schedulesRes;
 
         if (!schedulesError && schedulesData) {
           const mappedSchedules: EmployeeScheduleItem[] = schedulesData.map((s: any) => ({
@@ -260,96 +279,75 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setEmployeeSchedules(mappedSchedules);
         }
 
-        // Carregar Extras primeiro (para enriquecer CPF das solicitações)
-        const { data: extrasData, error: extrasError } = await supabase
-          .from('extra_persons')
-          .select('*, sectors(name)')
-          .eq('active', true)
-          .order('full_name');
+        // Extras (usados para enriquecer CPF das solicitações)
+        const { data: extrasData, error: extrasError } = extrasRes;
 
         const mappedExtras = !extrasError && extrasData ? extrasData.map(mapExtraPerson) : [];
         setExtras(mappedExtras);
 
-        // Carregar Solicitações com work_days e time_records: paginação por cursor (created_at) para contornar max_rows e range do Supabase
-        const selectQuery = `
-            *,
-            sectors(name),
-            users!extra_requests_approved_by_fkey(name),
-            extra_persons(cpf),
-            work_days(
-              *,
-              time_records(*)
-            )
-          `;
-        const pageSize = 500;
-        const maxPages = 200;
-        let allRequestsData: any[] = [];
-        let requestsError: Error | null = null;
-        let cursor: string | null = null;
-        for (let page = 0; page < maxPages; page++) {
-          let query = supabase
-            .from('extra_requests')
-            .select(selectQuery)
-            .order('created_at', { ascending: false })
-            .limit(pageSize);
-          if (cursor) query = query.lt('created_at', cursor);
-          const { data: pageData, error: pageError } = await query;
-          if (pageError) {
-            requestsError = pageError;
-            break;
-          }
-          const list = pageData ?? [];
-          allRequestsData = allRequestsData.concat(list);
-          if (list.length < pageSize) break;
-          cursor = list[list.length - 1]?.created_at ?? null;
-          if (!cursor) break;
-        }
-
-        if (!requestsError) {
-          const mappedRequests = allRequestsData.map((req: any) => mapExtraRequest(req, req.work_days));
-          // Preencher CPF a partir do banco de extras quando o extra estiver vinculado pelo nome
-          const enriched = mappedRequests.map(r => {
-            const cpf = r.extraCpf || mappedExtras.find(e => e.fullName === r.extraName)?.cpf;
-            return cpf != null ? { ...r, extraCpf: cpf } : r;
+        // Solicitações: a primeira página (mais recentes) entra imediatamente; o restante do
+        // histórico é paginado por cursor (created_at) em segundo plano, sem travar a UI.
+        // Preencher CPF a partir do banco de extras quando o extra estiver vinculado pelo nome
+        const enrichRequests = (rows: any[]) =>
+          rows.map((req: any) => {
+            const mapped = mapExtraRequest(req, req.work_days);
+            const cpf = mapped.extraCpf || mappedExtras.find(e => e.fullName === mapped.extraName)?.cpf;
+            return cpf != null ? { ...mapped, extraCpf: cpf } : mapped;
           });
-          setRequests(enriched);
-        } else if (requestsError) {
-          console.error('Erro ao carregar solicitações:', requestsError);
+
+        if (firstRequestsPage.error) {
+          console.error('Erro ao carregar solicitações:', firstRequestsPage.error);
+        } else {
+          const firstPageRows = firstRequestsPage.data ?? [];
+          setRequests(enrichRequests(firstPageRows));
+
+          if (firstPageRows.length === requestsPageSize) {
+            void (async () => {
+              const maxPages = 200;
+              let cursor: string | null = firstPageRows[firstPageRows.length - 1]?.created_at ?? null;
+              for (let page = 0; page < maxPages && cursor; page++) {
+                const { data: pageData, error: pageError } = await supabase
+                  .from('extra_requests')
+                  .select(requestsSelectQuery)
+                  .order('created_at', { ascending: false })
+                  .lt('created_at', cursor)
+                  .limit(requestsPageSize);
+                // Se um novo refresh começou nesse meio tempo, descarta para não duplicar
+                if (loadGen !== loadGenRef.current) return;
+                if (pageError) {
+                  console.error('Erro ao carregar histórico de solicitações:', pageError);
+                  return;
+                }
+                const list = pageData ?? [];
+                if (list.length === 0) return;
+                const enrichedPage = enrichRequests(list);
+                setRequests(prev => {
+                  const seen = new Set(prev.map(r => r.id));
+                  return [...prev, ...enrichedPage.filter(r => !seen.has(r.id))];
+                });
+                if (list.length < requestsPageSize) return;
+                cursor = list[list.length - 1]?.created_at ?? null;
+              }
+            })();
+          }
         }
 
-        // Carregar Saldo Records
-        const { data: saldoData, error: saldoError } = await supabase
-          .from('extra_saldo_records')
-          .select('*, sectors(name)')
-          .order('periodo_inicio', { ascending: false });
+        // Saldo Records
+        const { data: saldoData, error: saldoError } = saldoRes;
 
         if (!saldoError && saldoData) {
           setExtraSaldoRecords(saldoData.map(mapExtraSaldoRecord));
         }
 
-        // Carregar Settings
-        const { data: settingsData, error: settingsError } = await supabase
-          .from('extra_saldo_settings')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .single();
+        // Settings
+        const { data: settingsData, error: settingsError } = settingsRes;
 
         if (!settingsError && settingsData) {
           setExtraSaldoSettings(mapExtraSaldoSettings(settingsData));
         }
 
-        // Carregar Usuários
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select(`
-            *,
-            user_sectors(
-              sectors(name)
-            )
-          `)
-          .eq('active', true)
-          .order('name');
+        // Usuários
+        const { data: usersData, error: usersError } = usersRes;
 
         if (!usersError && usersData) {
           const mappedUsers = usersData.map((u: any) => ({
@@ -366,13 +364,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setUsers(mappedUsers);
         }
 
-        // Carregar Funcionários Registrados
-        const { data: empData, error: empError } = await supabase
-          .from('employees')
-          .select('*, sectors(name)')
-          .eq('active', true)
-          .order('name');
-          
+        // Funcionários Registrados
+        const { data: empData, error: empError } = empRes;
+
         if (!empError && empData) {
           const mappedEmp = empData.map((e: any) => ({
             id: e.id,
@@ -394,11 +388,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         try {
-          const { data: pjData, error: pjErr } = await supabase
-            .from('pj_employees')
-            .select('*, sectors(name)')
-            .eq('active', true)
-            .order('name');
+          const { data: pjData, error: pjErr } = pjRes;
           if (!pjErr && pjData) {
             setPjEmployees(
               pjData.map((e: any) => ({
