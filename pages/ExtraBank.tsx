@@ -346,15 +346,15 @@ const ExtraBank: React.FC = () => {
     if (searchTerm.trim()) {
       const query = searchTerm.toLowerCase();
       filtered = filtered.filter(extra =>
-        extra.fullName.toLowerCase().includes(query) ||
-        extra.cpf.toLowerCase().includes(query) ||
-        extra.contact.toLowerCase().includes(query)
+        (extra.fullName || '').toLowerCase().includes(query) ||
+        (extra.cpf || '').toLowerCase().includes(query) ||
+        (extra.contact || '').toLowerCase().includes(query)
       );
     }
 
     const sorted = [...filtered];
     if (sortOrder === 'alphabetical') {
-      sorted.sort((a, b) => a.fullName.localeCompare(b.fullName));
+      sorted.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'pt-BR'));
     } else {
       sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
