@@ -386,28 +386,32 @@ const ExtraSaldo: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-gray-50 text-gray-500 uppercase font-bold tracking-wider">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div
+          className="overflow-x-scroll overflow-y-auto max-h-[min(70vh,calc(100vh-16rem))] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:w-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-emerald-400/80 [&::-webkit-scrollbar-track]:bg-gray-100"
+          title="Role horizontalmente para ver todas as colunas"
+        >
+        <table className="min-w-max w-full text-left text-xs">
+          <thead className="bg-gray-50 text-gray-500 uppercase font-bold tracking-wider sticky top-0 z-10 shadow-sm">
             <tr>
-              <th className="px-4 py-3">Setor</th>
-              <th className="px-4 py-3">Período</th>
-              <th className="px-4 py-3">Aprovado</th>
-              <th className="px-4 py-3">Efetivo</th>
-              <th className="px-4 py-3">Folgas</th>
-              <th className="px-4 py-3">Domingos</th>
-              <th className="px-4 py-3">Demanda</th>
-              <th className="px-4 py-3">Atestado</th>
-              <th className="px-4 py-3">Aberto</th>
-              <th className="px-4 py-3">Vagas/dia</th>
-              <th className="px-4 py-3">Total diárias</th>
-              <th className="px-4 py-3" title="Dias solicitados no período (todas as solicitações)">Solicitado</th>
-              <th className="px-4 py-3" title="Dias aprovados de fato no período">Aprovado</th>
-              <th className="px-4 py-3" title="Estouro = Aprovado além do total de diárias (aprovado − total diárias)">Estouro</th>
-              <th className="px-4 py-3">Saldo</th>
-              <th className="px-4 py-3">Valor</th>
-              <th className="px-4 py-3">Saldo R$</th>
-              <th className="px-4 py-3 text-center">Ações</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Setor</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Período</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Aprovado</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Efetivo</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Folgas</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Domingos</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Demanda</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Atestado</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Aberto</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Vagas/dia</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Total diárias</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50" title="Dias solicitados no período (todas as solicitações)">Solicitado</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50" title="Dias aprovados de fato no período">Aprovado</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50" title="Estouro = Aprovado além do total de diárias (aprovado − total diárias)">Estouro</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Saldo</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Valor</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50">Saldo R$</th>
+              <th className="px-4 py-3 whitespace-nowrap bg-gray-50 text-center">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -419,24 +423,24 @@ const ExtraSaldo: React.FC = () => {
               const estouro = Math.max(0, aprovado - result.totalDiarias);
               return (
                 <tr key={record.id} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-3 font-semibold">{record.setor}</td>
-                  <td className="px-4 py-3">{formatDateBR(record.periodoInicio)} → {formatDateBR(record.periodoFim)}</td>
-                  <td className="px-4 py-3">{record.quadroAprovado}</td>
-                  <td className="px-4 py-3">{record.quadroEfetivo}</td>
-                  <td className="px-4 py-3">{record.folgas}</td>
-                  <td className="px-4 py-3">{record.domingos}</td>
-                  <td className="px-4 py-3">{record.demanda}</td>
-                  <td className="px-4 py-3">{record.atestado}</td>
-                  <td className="px-4 py-3">{result.quadroAberto}</td>
-                  <td className="px-4 py-3">{result.vagasDiarias}</td>
-                  <td className="px-4 py-3">{result.totalDiarias}</td>
-                  <td className="px-4 py-3">{solicitado}</td>
-                  <td className="px-4 py-3 font-medium">{aprovado}</td>
-                  <td className={`px-4 py-3 font-bold ${estouro > 0 ? 'text-red-600' : 'text-gray-400'}`}>{estouro > 0 ? estouro : '—'}</td>
-                  <td className={`px-4 py-3 font-bold ${saldoClass}`}>{result.saldo}</td>
-                  <td className="px-4 py-3">{result.valor.toFixed(2)}</td>
-                  <td className={`px-4 py-3 font-bold ${saldoClass}`}>{result.saldoEmReais.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 font-semibold whitespace-nowrap">{record.setor}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(record.periodoInicio)} → {formatDateBR(record.periodoFim)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{record.quadroAprovado}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{record.quadroEfetivo}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{record.folgas}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{record.domingos}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{record.demanda}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{record.atestado}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{result.quadroAberto}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{result.vagasDiarias}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{result.totalDiarias}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{solicitado}</td>
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">{aprovado}</td>
+                  <td className={`px-4 py-3 font-bold whitespace-nowrap ${estouro > 0 ? 'text-red-600' : 'text-gray-400'}`}>{estouro > 0 ? estouro : '—'}</td>
+                  <td className={`px-4 py-3 font-bold whitespace-nowrap ${saldoClass}`}>{result.saldo}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{result.valor.toFixed(2)}</td>
+                  <td className={`px-4 py-3 font-bold whitespace-nowrap ${saldoClass}`}>{result.saldoEmReais.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-center whitespace-nowrap">
                     <div className="flex justify-center gap-2">
                       <button onClick={() => handleEdit(record.id)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
                         <Edit2 size={14} />
@@ -483,6 +487,7 @@ const ExtraSaldo: React.FC = () => {
             </tfoot>
           )}
         </table>
+        </div>
       </div>
     </div>
   );
