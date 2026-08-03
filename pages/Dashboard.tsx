@@ -206,22 +206,6 @@ const Dashboard: React.FC = () => {
 
         {/* Quick Actions / Tips */}
         <div className="space-y-6">
-          <div className="bg-emerald-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
-            <div className="relative z-10">
-              <h3 className="font-bold text-lg mb-2">Dica de Gestão</h3>
-              <p className="text-emerald-100 text-sm opacity-90 leading-relaxed">
-                Mantenha os cadastros de setores, funções, demandantes e motivos atualizados para agilizar novas solicitações.
-              </p>
-              <button 
-                onClick={() => navigate('/solicitacoes')}
-                className="mt-4 flex items-center gap-2 text-sm font-bold bg-white text-emerald-900 px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors"
-              >
-                Nova Solicitação <ArrowUpRight size={16} />
-              </button>
-            </div>
-            <Users size={80} className="absolute -bottom-4 -right-4 text-emerald-800 opacity-30" />
-          </div>
-
           {/* Setores mais ativos (últimos 7 dias) - atualiza com base em requests */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
