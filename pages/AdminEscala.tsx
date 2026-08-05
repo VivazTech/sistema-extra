@@ -6,7 +6,7 @@ import { Save, FileText, ChevronLeft, ChevronRight, Loader2, Plus, Edit2, Trash2
 import { DatabaseLoading } from '../components/LoadingLottie';
 import { EscalaRecord, EscalaUser, Employee } from '../types';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type CellInput } from 'jspdf-autotable';
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const DIAS_SEMANA_LONGO = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -579,12 +579,12 @@ const AdminEscala: React.FC = () => {
     doc.text(selectedSector.toUpperCase() || 'NÃO DEFINIDO', 55, 48);
 
     // Tabela Headers
-    const headRow1 = [{ content: 'Colaborador', rowSpan: 2 }, { content: 'Escala', rowSpan: 2 }];
-    const headRow2 = [];
+    const headRow1: CellInput[] = [{ content: 'Colaborador', rowSpan: 2 }, { content: 'Escala', rowSpan: 2 }];
+    const headRow2: CellInput[] = [];
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dw = getDayOfWeek(d, currentMonth.month, currentMonth.year);
-      headRow1.push({ content: DIAS_SEMANA[dw], colSpan: 1, styles: { halign: 'center' } } as any);
+      headRow1.push({ content: DIAS_SEMANA[dw], colSpan: 1, styles: { halign: 'center' } });
       headRow2.push({ content: String(d).padStart(2, '0'), styles: { halign: 'center' } });
     }
 

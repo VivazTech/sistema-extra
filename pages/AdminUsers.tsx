@@ -38,14 +38,17 @@ const AdminUsers: React.FC = () => {
   const [showAdminConfirmPassword, setShowAdminConfirmPassword] = useState(false);
   const [filterName, setFilterName] = useState('');
   const [filterSector, setFilterSector] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [sectorsModalUser, setSectorsModalUser] = useState<User | null>(null);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchName = !filterName.trim() || user.name.toLowerCase().includes(filterName.trim().toLowerCase());
       const matchSector = !filterSector || (user.sectors && user.sectors.includes(filterSector));
-      return matchName && matchSector;
+      const matchRole = !filterRole || user.role === filterRole;
+      return matchName && matchSector && matchRole;
     });
-  }, [users, filterName, filterSector]);
+  }, [users, filterName, filterSector, filterRole]);
 
   // Verificar se é ADMIN
   useEffect(() => {
@@ -385,6 +388,18 @@ const AdminUsers: React.FC = () => {
           </div>
           <div className="min-w-[180px]">
             <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            >
+              <option value="">Todas as funções</option>
+              {ROLE_ORDER.map((role) => (
+                <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[180px]">
+            <select
               value={filterSector}
               onChange={(e) => setFilterSector(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -395,10 +410,10 @@ const AdminUsers: React.FC = () => {
               ))}
             </select>
           </div>
-          {(filterName || filterSector) && (
+          {(filterName || filterSector || filterRole) && (
             <button
               type="button"
-              onClick={() => { setFilterName(''); setFilterSector(''); }}
+              onClick={() => { setFilterName(''); setFilterSector(''); setFilterRole(''); }}
               className="text-sm text-gray-500 hover:text-gray-700 underline"
             >
               Limpar filtros
@@ -441,7 +456,21 @@ const AdminUsers: React.FC = () => {
                       {user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4">{user.sectors?.join(', ') || '-'}</td>
+                  <td className="px-6 py-4">
+                    {(user.sectors?.length ?? 0) > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setSectorsModalUser(user)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                        title="Ver setores vinculados"
+                      >
+                        <Eye size={14} />
+                        Ver setores ({user.sectors!.length})
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     {user.isRequester ? (
                       <span className="text-emerald-600 font-bold text-xs">✓ Sim</span>
@@ -490,6 +519,53 @@ const AdminUsers: React.FC = () => {
           </div>
         )}
       </div>
+
+      {sectorsModalUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Setores vinculados</h3>
+                <p className="text-sm text-gray-500 mt-0.5">{sectorsModalUser.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSectorsModalUser(null)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto">
+              {(sectorsModalUser.sectors?.length ?? 0) === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">Nenhum setor vinculado.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {[...(sectorsModalUser.sectors || [])]
+                    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+                    .map((sector) => (
+                      <li
+                        key={sector}
+                        className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm font-medium text-gray-800"
+                      >
+                        {sector}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setSectorsModalUser(null)}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {isModalOpen && (
