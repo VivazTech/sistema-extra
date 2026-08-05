@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Save, Trash2, Edit2, Filter, Plus } from 'lucide-react';
+import { Save, Trash2, Edit2, Filter, Plus, Download, X, FileText, FileSpreadsheet } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useExtras } from '../context/ExtraContext';
-import { ExtraSaldoInput } from '../types';
+import { ExtraSaldoInput, ExtraSaldoRecord, ExtraRequest } from '../types';
 import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { formatDateBR } from '../utils/date';
 
@@ -15,6 +17,8 @@ type CadastroRow = {
   atestado: string;
 };
 
+type ExportFormat = 'csv' | 'pdf';
+
 const emptyRow = (): CadastroRow => ({
   setor: '',
   quadroAprovado: '',
@@ -24,6 +28,16 @@ const emptyRow = (): CadastroRow => ({
   demanda: '',
   atestado: ''
 });
+
+/** Escapa valor para CSV. */
+function csvEscape(value: string | number | undefined | null): string {
+  if (value === undefined || value === null) return '';
+  const s = String(value).trim();
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
 
 const ExtraSaldo: React.FC = () => {
   const {
@@ -54,6 +68,8 @@ const ExtraSaldo: React.FC = () => {
   const [periodoInicio, setPeriodoInicio] = useState('');
   const [periodoFim, setPeriodoFim] = useState('');
   const [cadastros, setCadastros] = useState<CadastroRow[]>(() => [emptyRow()]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
 
   const toNumber = (value: string) => {
     if (value === '' || value === null || value === undefined) return 0;
@@ -221,6 +237,146 @@ const ExtraSaldo: React.FC = () => {
     );
   }, [filteredRecords, requests]);
 
+  /** Justificativas de aprovação vinculadas ao setor/período do registro de saldo. */
+  const getJustificationsForRecord = (record: ExtraSaldoRecord) => {
+    const related = requests.filter((r: ExtraRequest) => {
+      if (r.sector !== record.setor) return false;
+      if (!r.approvalJustification?.trim()) return false;
+      return (r.workDays || []).some(d => d.date >= record.periodoInicio && d.date <= record.periodoFim);
+    });
+    const justificativas = related
+      .map(r => r.approvalJustification!.trim())
+      .filter(Boolean);
+    const autores = related
+      .map(r => (r.approvedBy || '').trim())
+      .filter(Boolean);
+    return {
+      justificativas: Array.from(new Set(justificativas)).join(' | '),
+      autores: Array.from(new Set(autores)).join(' | '),
+    };
+  };
+
+  const exportHeaders = [
+    'Setor',
+    'Período início',
+    'Período fim',
+    'Quadro aprovado',
+    'Quadro efetivo',
+    'Folgas',
+    'Domingos',
+    'Demanda',
+    'Atestado',
+    'Aberto',
+    'Vagas/dia',
+    'Total diárias',
+    'Solicitado',
+    'Dias aprovados',
+    'Estouro',
+    'Saldo',
+    'Valor',
+    'Saldo R$',
+    'Justificativas',
+    'Quem escreveu a justificativa',
+  ];
+
+  const buildExportRows = (list: ExtraSaldoRecord[]) =>
+    list.map((record) => {
+      const result = calculateExtraSaldo(record, record.valorDiariaSnapshot);
+      const solicitado = countWorkDaysInPeriod(record.setor, record.periodoInicio, record.periodoFim);
+      const aprovado = countWorkDaysInPeriod(record.setor, record.periodoInicio, record.periodoFim, 'APROVADO');
+      const estouro = Math.max(0, aprovado - result.totalDiarias);
+      const { justificativas, autores } = getJustificationsForRecord(record);
+      return [
+        record.setor,
+        formatDateBR(record.periodoInicio),
+        formatDateBR(record.periodoFim),
+        String(record.quadroAprovado),
+        String(record.quadroEfetivo),
+        String(record.folgas),
+        String(record.domingos),
+        String(record.demanda),
+        String(record.atestado),
+        String(result.quadroAberto),
+        String(result.vagasDiarias),
+        String(result.totalDiarias),
+        String(solicitado),
+        String(aprovado),
+        estouro > 0 ? String(estouro) : '',
+        String(result.saldo),
+        result.valor.toFixed(2),
+        result.saldoEmReais.toFixed(2),
+        justificativas,
+        autores,
+      ];
+    });
+
+  const exportFileBaseName = () => {
+    const setorLabel = (filters.setor || 'todos').replace(/\s+/g, '-');
+    return `saldo-extras-${setorLabel}-${filters.inicio || 'inicio'}-${filters.fim || 'fim'}`;
+  };
+
+  const handleExportCSV = () => {
+    const rows = buildExportRows(filteredRecords).map((row) =>
+      row.map((cell) => csvEscape(cell)).join(',')
+    );
+    const csv = [exportHeaders.join(','), ...rows].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${exportFileBaseName()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const setorLabel = filters.setor || 'Todos os setores';
+    const periodoLabel = `${filters.inicio ? formatDateBR(filters.inicio) : 'início'} até ${filters.fim ? formatDateBR(filters.fim) : 'hoje'}`;
+
+    doc.setFontSize(14);
+    doc.setTextColor(20, 83, 45);
+    doc.text('Relatório de Saldo de Extras', 148, 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Setor: ${setorLabel}  |  Período filtro: ${periodoLabel}  |  Total: ${filteredRecords.length}`, 148, 18, { align: 'center' });
+
+    autoTable(doc, {
+      startY: 22,
+      margin: { left: 6, right: 6 },
+      head: [exportHeaders],
+      body: buildExportRows(filteredRecords),
+      styles: { fontSize: 5.5, cellPadding: 1, overflow: 'linebreak' },
+      headStyles: { fillColor: [5, 150, 105], fontSize: 5.5, cellPadding: 1 },
+      columnStyles: {
+        18: { cellWidth: 35 },
+        19: { cellWidth: 28 },
+      },
+    });
+
+    const totalPages = doc.getNumberOfPages();
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.text(`${i} / ${totalPages}`, 290, 205, { align: 'right' });
+    }
+
+    doc.save(`${exportFileBaseName()}.pdf`);
+  };
+
+  const handleConfirmExport = () => {
+    if (!exportFormat) return;
+    if (filteredRecords.length === 0) {
+      alert('Nenhum registro para exportar com os filtros atuais.');
+      return;
+    }
+    if (exportFormat === 'csv') handleExportCSV();
+    else handleExportPDF();
+    setExportFormat(null);
+    setIsExportModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <header>
@@ -382,9 +538,95 @@ const ExtraSaldo: React.FC = () => {
               value={filters.fim}
               onChange={(e) => setFilters({ ...filters, fim: e.target.value })}
             />
+            <button
+              type="button"
+              onClick={() => {
+                setExportFormat(null);
+                setIsExportModalOpen(true);
+              }}
+              className="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
+              title="Exportar saldo de extras filtrado em CSV ou PDF"
+            >
+              <Download size={18} />
+              Exportar relatório
+            </button>
           </div>
         </div>
       </div>
+
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Exportar Saldo de Extras</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setExportFormat(null);
+                  setIsExportModalOpen(false);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              Escolha o formato do relatório com os filtros já selecionados.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button
+                type="button"
+                onClick={() => setExportFormat('csv')}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  exportFormat === 'csv'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-gray-200 hover:border-emerald-300 text-gray-700'
+                }`}
+              >
+                <FileSpreadsheet size={28} />
+                <span className="font-semibold text-sm">CSV</span>
+                <span className="text-xs text-gray-500">Planilha (.csv)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat('pdf')}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  exportFormat === 'pdf'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-gray-200 hover:border-emerald-300 text-gray-700'
+                }`}
+              >
+                <FileText size={28} />
+                <span className="font-semibold text-sm">PDF</span>
+                <span className="text-xs text-gray-500">Documento (.pdf)</span>
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setExportFormat(null);
+                  setIsExportModalOpen(false);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-semibold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExport}
+                disabled={!exportFormat}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Baixar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div
