@@ -18,8 +18,6 @@ import {
   mapExtraSaldoSettings 
 } from '../services/supabaseMappers';
 
-// Definição do contexto - comentario teste para o commit
-
 interface ExtraContextType {
   requests: ExtraRequest[];
   sectors: Sector[];

@@ -16,7 +16,11 @@ import {
   Calendar,
   Filter,
   Timer,
+  X,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import type { ExtraRequest } from '../types';
@@ -65,12 +69,16 @@ function formatDateCSV(iso?: string): string {
   return d.toLocaleDateString('pt-BR');
 }
 
+type ExportRequestsFormat = 'csv' | 'pdf';
+
 const Reports: React.FC = () => {
   const { user, requests } = useExtras();
   const [activeTab, setActiveTab] = useState('resumo-graficos');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSector, setSelectedSector] = useState<string>('VIVAZ');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportRequestsFormat | null>(null);
 
   const reportTabs: ReportTab[] = [
     { 
@@ -211,40 +219,97 @@ const Reports: React.FC = () => {
     return list;
   }, [requests, startDate, endDate, selectedSector]);
 
-  const handleExportCSV = () => {
-    const headers = [
-      'Código', 'Setor', 'Função', 'Nome do Extra', 'Líder', 'Solicitante', 'Motivo',
-      'Valor (R$)', 'Status', 'Qtd. dias', 'Datas dos dias', 'Criado em', 'Observações',
-      'Justificativa aprovação'
-    ];
-    const rows = requestsForExport.map((req: ExtraRequest) => {
+  const exportFileBaseName = () => {
+    const sectorLabel = selectedSector || 'todos';
+    return `relatorio-extras-${sectorLabel.replace(/\s+/g, '-')}-${startDate || 'inicio'}-${endDate || 'fim'}`;
+  };
+
+  const buildExportRows = (list: ExtraRequest[]) =>
+    list.map((req) => {
       const dates = req.workDays.map(d => formatDateCSV(d.date)).join('; ');
       return [
-        csvEscape(req.code),
-        csvEscape(req.sector),
-        csvEscape(req.role),
-        csvEscape(req.extraName),
-        csvEscape(req.leaderName),
-        csvEscape(req.requester),
-        csvEscape(req.reason),
+        req.code || '',
+        req.sector || '',
+        req.role || '',
+        req.extraName || '',
+        req.leaderName || '',
+        req.requester || '',
+        req.reason || '',
         req.value != null ? String(req.value) : '',
-        csvEscape(req.status),
+        req.status || '',
         String(req.workDays?.length ?? 0),
-        csvEscape(dates),
+        dates,
         formatDateCSV(req.createdAt),
-        csvEscape(req.observations),
-        csvEscape(req.approvalJustification)
-      ].join(',');
+        req.observations || '',
+        req.approvalJustification || '',
+        req.approvalJustification ? (req.approvedBy || '') : '',
+      ];
     });
-    const csv = [headers.join(','), ...rows].join('\r\n');
+
+  const exportHeaders = [
+    'Código', 'Setor', 'Função', 'Nome do Extra', 'Líder', 'Solicitante', 'Motivo',
+    'Valor (R$)', 'Status', 'Qtd. dias', 'Datas dos dias', 'Criado em', 'Observações',
+    'Justificativa aprovação', 'Usuário da justificativa',
+  ];
+
+  const handleExportCSV = () => {
+    const rows = buildExportRows(requestsForExport).map((row) =>
+      row.map((cell) => csvEscape(cell)).join(',')
+    );
+    const csv = [exportHeaders.join(','), ...rows].join('\r\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const sectorLabel = selectedSector || 'todos';
-    a.download = `relatorio-extras-${sectorLabel.replace(/\s+/g, '-')}-${startDate || 'inicio'}-${endDate || 'fim'}.csv`;
+    a.download = `${exportFileBaseName()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const sectorLabel = selectedSector || 'todos';
+    const periodoLabel = `${startDate ? formatDateCSV(startDate) : 'início'} até ${endDate ? formatDateCSV(endDate) : 'hoje'}`;
+
+    doc.setFontSize(14);
+    doc.setTextColor(20, 83, 45);
+    doc.text('Relatório de Solicitações de Extras', 148, 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Setor: ${sectorLabel}  |  Período: ${periodoLabel}  |  Total: ${requestsForExport.length}`, 148, 18, { align: 'center' });
+
+    autoTable(doc, {
+      startY: 22,
+      margin: { left: 8, right: 8 },
+      head: [exportHeaders],
+      body: buildExportRows(requestsForExport),
+      styles: { fontSize: 6, cellPadding: 1.2, overflow: 'linebreak' },
+      headStyles: { fillColor: [5, 150, 105], fontSize: 6, cellPadding: 1.2 },
+      columnStyles: {
+        10: { cellWidth: 28 },
+        12: { cellWidth: 28 },
+        13: { cellWidth: 28 },
+        14: { cellWidth: 22 },
+      },
+    });
+
+    const totalPages = doc.getNumberOfPages();
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.text(`${i} / ${totalPages}`, 290, 205, { align: 'right' });
+    }
+
+    doc.save(`${exportFileBaseName()}.pdf`);
+  };
+
+  const handleConfirmExport = () => {
+    if (!exportFormat) return;
+    if (exportFormat === 'csv') handleExportCSV();
+    else handleExportPDF();
+    setExportFormat(null);
+    setIsExportModalOpen(false);
   };
 
   return (
@@ -293,16 +358,93 @@ const Reports: React.FC = () => {
           {activeTab !== 'pj-hours' && (
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={() => {
+                setExportFormat(null);
+                setIsExportModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
-              title="Exportar solicitações de extras (período e setor selecionados) em CSV — não inclui ponto PJ"
+              title="Exportar solicitações de extras (período e setor selecionados) em CSV ou PDF — não inclui ponto PJ"
             >
               <Download size={18} />
-              Exportar solicitações (CSV)
+              Exportar solicitações
             </button>
           )}
         </div>
       </header>
+
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Exportar solicitações</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setExportFormat(null);
+                  setIsExportModalOpen(false);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              Escolha o formato do relatório com o período e setor já selecionados.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button
+                type="button"
+                onClick={() => setExportFormat('csv')}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  exportFormat === 'csv'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-gray-200 hover:border-emerald-300 text-gray-700'
+                }`}
+              >
+                <FileSpreadsheet size={28} />
+                <span className="font-semibold text-sm">CSV</span>
+                <span className="text-xs text-gray-500">Planilha (.csv)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat('pdf')}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  exportFormat === 'pdf'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-gray-200 hover:border-emerald-300 text-gray-700'
+                }`}
+              >
+                <FileText size={28} />
+                <span className="font-semibold text-sm">PDF</span>
+                <span className="text-xs text-gray-500">Documento (.pdf)</span>
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setExportFormat(null);
+                  setIsExportModalOpen(false);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-semibold hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExport}
+                disabled={!exportFormat}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Baixar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs Navigation */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
