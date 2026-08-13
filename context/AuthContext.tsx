@@ -78,6 +78,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Verificar sessão existente ao carregar
   useEffect(() => {
+    let settled = false;
+    const finishLoading = (step: string) => {
+      if (settled) return;
+      settled = true;
+      setLoading(false);
+      setDebugStep(step);
+    };
+
     const checkSession = async () => {
       try {
         // 1) Cache local para evitar "loading infinito" em reload
@@ -88,8 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const parsed = JSON.parse(raw) as AuthState;
             if (parsed?.isAuthenticated && parsed?.user?.id) {
               setState(parsed);
-              setLoading(false);
-              setDebugStep('cache:vivaz_auth -> setLoading(false)');
+              finishLoading('cache:vivaz_auth -> setLoading(false)');
             }
           }
         } catch {
@@ -100,7 +107,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Fallback (caso o envio de logs para 127.0.0.1 esteja bloqueado no navegador)
         console.info('[AGENT_DEBUG][A] checkSession:start');
         setDebugStep('checkSession:start');
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => {
+            const signal = AbortSignal.timeout(5000);
+            signal.addEventListener('abort', () => reject(new Error('getSession-timeout')), { once: true });
+          }),
+        ]);
+        const session = sessionResult.data.session;
 
         agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:gotSession',message:'checkSession gotSession',data:{hasSession:!!session,hasSessionUser:!!session?.user},timestamp:Date.now()});
         console.info('[AGENT_DEBUG][A] checkSession:gotSession', { hasSession: !!session, hasSessionUser: !!session?.user });
@@ -109,8 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           if (isPasswordRecoveryHash()) {
             setState({ user: null, isAuthenticated: false });
-            setLoading(false);
-            setDebugStep('checkSession:recovery -> skip login');
+            finishLoading('checkSession:recovery -> skip login');
             return;
           }
 
@@ -124,22 +137,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           // Não bloquear o boot esperando o banco; o app já pode renderizar com cache
           void loadUserInFlightRef.current;
-          // Se ainda está em loading, liberar aqui
-          setLoading(false);
+          finishLoading('checkSession:hasSessionUser -> setLoading(false)');
         } else {
-          setLoading(false);
+          finishLoading('checkSession:noSession -> setLoading(false)');
           agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'context/AuthContext.tsx:checkSession:noSession',message:'checkSession noSession -> setLoading(false)',data:{},timestamp:Date.now()});
-          setDebugStep('checkSession:noSession -> setLoading(false)');
         }
       } catch (error) {
         console.error('Erro ao verificar sessão:', error);
-        setLoading(false);
+        finishLoading(`checkSession:catch ${(error as any)?.name || 'Error'}`);
         agentPost({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'context/AuthContext.tsx:checkSession:catch',message:'checkSession catch -> setLoading(false)',data:{errorName:(error as any)?.name,errorMessage:(error as any)?.message},timestamp:Date.now()});
-        setDebugStep(`checkSession:catch ${(error as any)?.name || 'Error'}`);
       }
     };
 
     checkSession();
+
+    const bootSignal = AbortSignal.timeout(6000);
+    bootSignal.addEventListener('abort', () => {
+      finishLoading('boot-timeout -> setLoading(false)');
+    }, { once: true });
 
     // Ouvir mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -185,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
+      settled = true;
       subscription.unsubscribe();
     };
   }, []);

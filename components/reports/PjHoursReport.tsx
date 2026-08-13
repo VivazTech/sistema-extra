@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Download } from 'lucide-react';
 import { supabase } from '../../services/supabase';
-import { formatWorkedHours } from '../../utils/pjHours';
+import { formatWorkedHours, getPjAbsenceLabel, getPjAbsenceType } from '../../utils/pjHours';
 import { formatDateBR } from '../../utils/date';
 import { DatabaseLoading } from '../LoadingLottie';
 import { catalogSectorMatchesFilter } from '../ExportFormatModal';
@@ -21,6 +21,7 @@ type Row = {
   break_start: string | null;
   break_end: string | null;
   departure: string | null;
+  observations: string | null;
   employee_name: string;
   sector_name: string;
 };
@@ -49,6 +50,7 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
             break_start,
             break_end,
             departure,
+            observations,
             pj_employees (
               name,
               active,
@@ -69,6 +71,7 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
             break_start: r.break_start,
             break_end: r.break_end,
             departure: r.departure,
+            observations: r.observations || null,
             employee_name: r.pj_employees?.name || '—',
             sector_name: r.pj_employees?.sectors?.name || '—',
           }));
@@ -116,14 +119,18 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
       'Volta intervalo',
       'Saída final',
       'Total trabalhado',
+      'Situação',
     ];
     const lines = sorted.map((r) => {
-      const total = formatWorkedHours(
-        r.arrival || undefined,
-        r.break_start || undefined,
-        r.break_end || undefined,
-        r.departure || undefined
-      );
+      const absence = getPjAbsenceLabel(r.observations);
+      const total = absence
+        ? absence
+        : formatWorkedHours(
+            r.arrival || undefined,
+            r.break_start || undefined,
+            r.break_end || undefined,
+            r.departure || undefined
+          );
       const dateDisp = formatDateBR(new Date(`${r.work_date}T12:00:00`));
       return [
         csvEscape(dateDisp),
@@ -134,6 +141,7 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
         csvEscape(r.break_end || ''),
         csvEscape(r.departure || ''),
         csvEscape(total),
+        csvEscape(absence),
       ].join(',');
     });
     const csv = [headers.join(','), ...lines].join('\r\n');
@@ -156,7 +164,7 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
         <div>
           <h2 className="text-lg font-bold text-gray-900">Ponto — Funcionários PJ</h2>
           <p className="text-sm text-gray-500">
-            Lista por dia: entrada, intervalo, volta do intervalo, saída final e total de horas (sem valores financeiros).
+            Lista por dia: entrada, intervalo, volta do intervalo, saída final, total de horas, folga e férias (sem valores financeiros).
           </p>
         </div>
         {sorted.length > 0 && (
@@ -187,23 +195,42 @@ const PjHoursReport: React.FC<Props> = ({ startDate, endDate, sector }) => {
                 <th className="px-3 py-2">Volta intervalo</th>
                 <th className="px-3 py-2">Saída final</th>
                 <th className="px-3 py-2">Total</th>
+                <th className="px-3 py-2">Situação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sorted.map((r, i) => (
+              {sorted.map((r, i) => {
+                const absence = getPjAbsenceType(r.observations);
+                return (
                 <tr key={`${r.work_date}-${r.employee_name}-${i}`} className="hover:bg-gray-50">
                   <td className="px-3 py-2 whitespace-nowrap">{formatDateBR(new Date(`${r.work_date}T12:00:00`))}</td>
                   <td className="px-3 py-2 font-medium text-gray-900">{r.employee_name}</td>
                   <td className="px-3 py-2">{r.sector_name}</td>
-                  <td className="px-3 py-2 font-mono">{r.arrival || '—'}</td>
-                  <td className="px-3 py-2 font-mono">{r.break_start || '—'}</td>
-                  <td className="px-3 py-2 font-mono">{r.break_end || '—'}</td>
-                  <td className="px-3 py-2 font-mono">{r.departure || '—'}</td>
+                  <td className="px-3 py-2 font-mono">{absence ? '—' : (r.arrival || '—')}</td>
+                  <td className="px-3 py-2 font-mono">{absence ? '—' : (r.break_start || '—')}</td>
+                  <td className="px-3 py-2 font-mono">{absence ? '—' : (r.break_end || '—')}</td>
+                  <td className="px-3 py-2 font-mono">{absence ? '—' : (r.departure || '—')}</td>
                   <td className="px-3 py-2 font-mono font-semibold text-violet-700">
-                    {formatWorkedHours(r.arrival || undefined, r.break_start || undefined, r.break_end || undefined, r.departure || undefined)}
+                    {absence
+                      ? '—'
+                      : formatWorkedHours(r.arrival || undefined, r.break_start || undefined, r.break_end || undefined, r.departure || undefined)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {absence === 'FOLGA' && (
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full">
+                        Folga
+                      </span>
+                    )}
+                    {absence === 'FERIAS' && (
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                        Férias
+                      </span>
+                    )}
+                    {!absence && <span className="text-gray-400">—</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

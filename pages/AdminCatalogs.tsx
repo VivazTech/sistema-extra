@@ -697,19 +697,19 @@ const AdminCatalogs: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-lg font-bold text-gray-900">Demandantes</h2>
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex flex-col gap-2 w-full lg:w-auto lg:flex-row lg:items-center lg:flex-wrap">
               <input
                 type="text"
                 placeholder="Nome do demandante"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-48 min-w-0"
                 value={newRequesterName}
                 onChange={(e) => setNewRequesterName(e.target.value)}
               />
               <button
                 onClick={handleAddRequester}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+                className="flex items-center justify-center gap-2 w-full lg:w-auto px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
               >
                 <Plus size={16} /> Novo Demandante
               </button>
@@ -765,13 +765,13 @@ const AdminCatalogs: React.FC = () => {
           </div>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-lg font-bold text-gray-900">Motivos da Solicitação</h2>
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex flex-col gap-2 w-full lg:w-auto lg:flex-row lg:items-center lg:flex-wrap">
               <input
                 type="text"
                 placeholder="Nome do motivo"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-40 min-w-0"
                 value={newReasonName}
                 onChange={(e) => setNewReasonName(e.target.value)}
               />
@@ -780,13 +780,13 @@ const AdminCatalogs: React.FC = () => {
                 step="0.01"
                 min="0"
                 placeholder="Valor máx. (R$)"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-28"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-28 min-w-0"
                 value={newReasonMaxValue}
                 onChange={(e) => setNewReasonMaxValue(e.target.value)}
               />
               <button
                 onClick={handleAddReason}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+                className="flex items-center justify-center gap-2 w-full lg:w-auto px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
               >
                 <Plus size={16} /> Novo Motivo
               </button>
@@ -844,19 +844,19 @@ const AdminCatalogs: React.FC = () => {
           <p className="text-xs text-amber-600 mt-1">Para o motivo <strong>TESTE</strong>, defina sempre o valor máximo; caso contrário a solicitação não poderá ser salva.</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-lg font-bold text-gray-900">Turnos</h2>
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex flex-col gap-2 w-full lg:w-auto lg:flex-row lg:items-center lg:flex-wrap">
               <input
                 type="text"
                 placeholder="Nome do turno"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-40 min-w-0"
                 value={newShiftName}
                 onChange={(e) => setNewShiftName(e.target.value)}
               />
               <button
                 onClick={handleAddShift}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+                className="flex items-center justify-center gap-2 w-full lg:w-auto px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
               >
                 <Plus size={16} /> Novo Turno
               </button>
@@ -900,19 +900,19 @@ const AdminCatalogs: React.FC = () => {
           </div>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-lg font-bold text-gray-900">Eventos</h2>
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex flex-col gap-2 w-full lg:w-auto lg:flex-row lg:items-center lg:flex-wrap">
               <input
                 type="text"
                 placeholder="Nome do evento"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-40"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-40 min-w-0"
                 value={newEventName}
                 onChange={(e) => setNewEventName(e.target.value)}
               />
               <button
                 onClick={handleAddEvent}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+                className="flex items-center justify-center gap-2 w-full lg:w-auto px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
               >
                 <Plus size={16} /> Novo Evento
               </button>
@@ -971,24 +971,24 @@ const AdminCatalogs: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-w-0">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-lg font-bold text-gray-900">Escalas (Hora de Entrada e Saída)</h2>
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex flex-col gap-2 w-full lg:w-auto lg:flex-row lg:items-center lg:flex-wrap">
               <input
                 type="time"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-auto min-w-0"
                 value={newScheduleEntryTime}
                 onChange={(e) => setNewScheduleEntryTime(e.target.value)}
               />
               <input
                 type="time"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full lg:w-auto min-w-0"
                 value={newScheduleExitTime}
                 onChange={(e) => setNewScheduleExitTime(e.target.value)}
               />
               <button
                 onClick={handleAddSchedule}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
+                className="flex items-center justify-center gap-2 w-full lg:w-auto px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-xs shadow-md"
               >
                 <Plus size={16} /> Nova Escala
               </button>

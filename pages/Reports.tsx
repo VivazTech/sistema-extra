@@ -19,30 +19,26 @@ import {
   X,
   FileSpreadsheet,
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { useExtras } from '../context/ExtraContext';
-import { useAuth } from '../context/AuthContext';
 import type { ExtraRequest } from '../types';
-
-// Importar componentes de relatórios
-import FrequencyReport from '../components/reports/FrequencyReport';
-import PunctualityReport from '../components/reports/PunctualityReport';
-import FinancialReport from '../components/reports/FinancialReport';
-import SaldoUsageReport from '../components/reports/SaldoUsageReport';
-import ApprovalReport from '../components/reports/ApprovalReport';
-import DemandReport from '../components/reports/DemandReport';
-import PerformanceReport from '../components/reports/PerformanceReport';
-import ObservationsReport from '../components/reports/ObservationsReport';
-import RequesterReport from '../components/reports/RequesterReport';
-import IncompleteRecordsReport from '../components/reports/IncompleteRecordsReport';
-import PjHoursReport from '../components/reports/PjHoursReport';
-import AuditReport from '../components/reports/AuditReport';
-import ExecutiveDashboard from '../components/reports/ExecutiveDashboard';
-import RecibosExtrasReport from '../components/reports/RecibosExtrasReport';
-import ReportsOverviewCharts from '../components/reports/ReportsOverviewCharts';
 import { SECTOR_FILTER_OPTIONS, filterBySector } from '../components/ExportFormatModal';
 import { DatabaseLoading } from '../components/LoadingLottie';
+
+const FrequencyReport = React.lazy(() => import('../components/reports/FrequencyReport'));
+const PunctualityReport = React.lazy(() => import('../components/reports/PunctualityReport'));
+const FinancialReport = React.lazy(() => import('../components/reports/FinancialReport'));
+const SaldoUsageReport = React.lazy(() => import('../components/reports/SaldoUsageReport'));
+const ApprovalReport = React.lazy(() => import('../components/reports/ApprovalReport'));
+const DemandReport = React.lazy(() => import('../components/reports/DemandReport'));
+const PerformanceReport = React.lazy(() => import('../components/reports/PerformanceReport'));
+const ObservationsReport = React.lazy(() => import('../components/reports/ObservationsReport'));
+const RequesterReport = React.lazy(() => import('../components/reports/RequesterReport'));
+const IncompleteRecordsReport = React.lazy(() => import('../components/reports/IncompleteRecordsReport'));
+const PjHoursReport = React.lazy(() => import('../components/reports/PjHoursReport'));
+const AuditReport = React.lazy(() => import('../components/reports/AuditReport'));
+const ExecutiveDashboard = React.lazy(() => import('../components/reports/ExecutiveDashboard'));
+const RecibosExtrasReport = React.lazy(() => import('../components/reports/RecibosExtrasReport'));
+const ReportsOverviewCharts = React.lazy(() => import('../components/reports/ReportsOverviewCharts'));
 
 interface ReportTab {
   id: string;
@@ -266,7 +262,9 @@ const Reports: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF('l', 'mm', 'a4');
     const sectorLabel = selectedSector || 'todos';
     const periodoLabel = `${startDate ? formatDateCSV(startDate) : 'início'} até ${endDate ? formatDateCSV(endDate) : 'hoje'}`;
@@ -304,30 +302,30 @@ const Reports: React.FC = () => {
     doc.save(`${exportFileBaseName()}.pdf`);
   };
 
-  const handleConfirmExport = () => {
+  const handleConfirmExport = async () => {
     if (!exportFormat) return;
     if (exportFormat === 'csv') handleExportCSV();
-    else handleExportPDF();
+    else await handleExportPDF();
     setExportFormat(null);
     setIsExportModalOpen(false);
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
           <p className="text-gray-500">Análises e estatísticas do sistema de controle de extras</p>
         </div>
         
         {/* Filtros: Setor e Período (período oculto na sessão Recibos de Extras) */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-gray-400" />
+        <div className="flex flex-col gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Filter size={18} className="text-gray-400 shrink-0" />
             <select
               value={selectedSector}
               onChange={(e) => setSelectedSector(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+              className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
               title="Filtrar relatórios e exportação CSV por agrupamento de setor"
             >
               {SECTOR_FILTER_OPTIONS.map(opt => (
@@ -336,24 +334,26 @@ const Reports: React.FC = () => {
             </select>
           </div>
           {activeTab !== 'recibos' && (
-            <>
-              <Calendar size={18} className="text-gray-400" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                placeholder="Data inicial"
-              />
-              <span className="text-gray-400">até</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                placeholder="Data final"
-              />
-            </>
+            <div className="flex items-center gap-2 min-w-0">
+              <Calendar size={18} className="text-gray-400 shrink-0" />
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full min-w-0">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  placeholder="Data inicial"
+                />
+                <span className="text-gray-400 shrink-0 text-sm">até</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  placeholder="Data final"
+                />
+              </div>
+            </div>
           )}
           {activeTab !== 'pj-hours' && (
             <button
@@ -362,7 +362,7 @@ const Reports: React.FC = () => {
                 setExportFormat(null);
                 setIsExportModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
               title="Exportar solicitações de extras (período e setor selecionados) em CSV ou PDF — não inclui ponto PJ"
             >
               <Download size={18} />

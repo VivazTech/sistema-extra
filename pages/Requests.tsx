@@ -22,11 +22,10 @@ import {
   Trash2,
   Calendar
 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
-import { generateSingleReciboPDF, generateListPDF, generateIndividualPDF } from '../services/pdfService';
-import { exportSingleReciboExcel, exportListExcel } from '../services/excelService';
 import ExportFormatModal, { filterByEvento, filterBySector, type EventoFilterValue } from '../components/ExportFormatModal';
 import RequestModal from '../components/RequestModal';
 import { formatDateBR, toDateOnlyString } from '../utils/date';
@@ -36,10 +35,20 @@ import type { ExtraRequest } from '../types';
 
 const PAGE_SIZE_OPTIONS = [10, 50, 100, 500, 1000] as const;
 const DEFAULT_PAGE_SIZE = 10;
+const STATUS_FILTERS = ['ALL', 'SOLICITADO', 'APROVADO', 'REPROVADO', 'CANCELADO'] as const;
+const STATUS_OPTIONS = [
+  { value: 'ALL', label: 'Todos os Status' },
+  { value: 'SOLICITADO', label: 'Solicitado' },
+  { value: 'APROVADO', label: 'Aprovado' },
+  { value: 'REPROVADO', label: 'Reprovado' },
+  { value: 'CANCELADO', label: 'Cancelado' },
+] as const;
+type DatePreset = '' | 'hoje' | '7' | '30' | '60' | '90' | '365' | 'custom';
 
 const Requests: React.FC = () => {
   const { requests, sectors, events, updateStatus, updateRequest, updateTimeRecord, deleteRequest, deleteWorkDay, approveWorkDay, rejectWorkDay } = useExtras();
   const { user } = useAuth();
+  const location = useLocation();
   const isAdmin = user?.role === 'ADMIN';
   const { logAction } = useActionLog();
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,7 +73,7 @@ const Requests: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [exportModal, setExportModal] = useState<{ type: 'recibo'; request: ExtraRequest } | { type: 'list' } | null>(null);
   const [updatingValueTypeId, setUpdatingValueTypeId] = useState<string | null>(null);
-  const [filterDatePreset, setFilterDatePreset] = useState<'' | '7' | '30' | '60' | '90' | '365' | 'custom'>('');
+  const [filterDatePreset, setFilterDatePreset] = useState<DatePreset>('');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -74,6 +83,9 @@ const Requests: React.FC = () => {
     if (!filterDatePreset || filterDatePreset === '') return null;
     const today = new Date();
     const end = today.toISOString().slice(0, 10);
+    if (filterDatePreset === 'hoje') {
+      return { start: end, end };
+    }
     if (filterDatePreset === 'custom') {
       if (filterDateStart && filterDateEnd) return { start: filterDateStart, end: filterDateEnd };
       return null;
@@ -83,6 +95,16 @@ const Requests: React.FC = () => {
     startDate.setDate(startDate.getDate() - days);
     return { start: startDate.toISOString().slice(0, 10), end };
   }, [filterDatePreset, filterDateStart, filterDateEnd]);
+
+  useEffect(() => {
+    const state = location.state as { filterStatus?: string; filterPeriodo?: string } | null;
+    if (state?.filterStatus && (STATUS_FILTERS as readonly string[]).includes(state.filterStatus)) {
+      setFilterStatus(state.filterStatus);
+    }
+    if (state?.filterPeriodo === 'hoje') {
+      setFilterDatePreset('hoje');
+    }
+  }, [location.state]);
 
   const toggleGroupExpanded = (requestId: string) => {
     setExpandedGroups(prev => {
@@ -282,7 +304,8 @@ const Requests: React.FC = () => {
     }
   };
 
-  const handlePrint = (r: any) => {
+  const handlePrint = async (r: any) => {
+    const { generateIndividualPDF } = await import('../services/pdfService');
     generateIndividualPDF(r);
   };
 
@@ -294,11 +317,16 @@ const Requests: React.FC = () => {
     setExportModal({ type: 'list' });
   };
 
-  const handleExportFormat = (format: 'pdf' | 'excel', sectorFilter?: string, listOptions?: { startDate: string; endDate: string }, eventoFilter?: EventoFilterValue) => {
+  const handleExportFormat = async (format: 'pdf' | 'excel', sectorFilter?: string, listOptions?: { startDate: string; endDate: string }, eventoFilter?: EventoFilterValue) => {
     if (!exportModal) return;
     if (exportModal.type === 'recibo') {
-      if (format === 'pdf') generateSingleReciboPDF(exportModal.request);
-      else exportSingleReciboExcel(exportModal.request);
+      if (format === 'pdf') {
+        const { generateSingleReciboPDF } = await import('../services/pdfService');
+        generateSingleReciboPDF(exportModal.request);
+      } else {
+        const { exportSingleReciboExcel } = await import('../services/excelService');
+        exportSingleReciboExcel(exportModal.request);
+      }
     } else {
       let list = filteredRequests;
       if (listOptions?.startDate && listOptions?.endDate) {
@@ -339,8 +367,11 @@ const Requests: React.FC = () => {
               : '';
       const periodSuffix = listOptions?.startDate && listOptions?.endDate ? ` (${listOptions.startDate} a ${listOptions.endDate})` : '';
       const title = `Solicitações - Filtro: ${filterStatus}${sectorSuffix}${eventoSuffix}${periodSuffix}`;
-      if (format === 'pdf') generateListPDF(list, title);
-      else {
+      if (format === 'pdf') {
+        const { generateListPDF } = await import('../services/pdfService');
+        generateListPDF(list, title);
+      } else {
+        const { exportListExcel } = await import('../services/excelService');
         const includeEventNameColumn = !!eventoFilter || list.some(r => !!(r.eventName || '').trim());
         exportListExcel(list, title, undefined, includeEventNameColumn);
       }
@@ -487,23 +518,80 @@ const Requests: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Filter size={18} className="text-gray-400" />
+        <div className="flex flex-col gap-2 w-full sm:hidden">
+          {STATUS_OPTIONS.map((opt) => {
+            const active = filterStatus === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setFilterStatus(opt.value)}
+                className={`w-full px-3 py-2.5 min-h-11 rounded-lg text-sm font-bold border transition-colors ${
+                  active
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-gray-700 border-gray-200'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="hidden sm:flex items-center gap-2">
+          <Filter size={18} className="text-gray-400 shrink-0" />
           <select 
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           >
-            <option value="ALL">Todos os Status</option>
-            <option value="SOLICITADO">Solicitado</option>
-            <option value="APROVADO">Aprovado</option>
-            <option value="REPROVADO">Reprovado</option>
-            <option value="CANCELADO">Cancelado</option>
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden sm:block w-full basis-full h-0" aria-hidden />
+        <div className="flex flex-col gap-2 w-full min-w-0 sm:w-auto">
+          <div className="flex items-center gap-2 min-w-0 w-full">
+            <Calendar size={18} className="text-gray-400 shrink-0" />
+            <select 
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none min-w-0 flex-1 sm:flex-none sm:w-auto"
+              value={filterDatePreset}
+              onChange={(e) => setFilterDatePreset(e.target.value as typeof filterDatePreset)}
+              title="Filtrar por período (data dos dias trabalhados)"
+            >
+              <option value="">Todos os períodos</option>
+              <option value="hoje">Hoje</option>
+              <option value="7">Últimos 7 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="60">Últimos 60 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="365">Último ano</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </div>
+          {filterDatePreset === 'custom' && (
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <input
+                type="date"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none min-w-0 flex-1"
+                value={filterDateStart}
+                onChange={(e) => setFilterDateStart(e.target.value)}
+                title="Data inicial"
+              />
+              <span className="text-gray-400 text-sm">até</span>
+              <input
+                type="date"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none min-w-0 flex-1"
+                value={filterDateEnd}
+                onChange={(e) => setFilterDateEnd(e.target.value)}
+                title="Data final"
+              />
+            </div>
+          )}
+        </div>
+        <div className={`grid gap-2 w-full min-w-0 sm:flex sm:w-auto sm:items-center ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <select
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none min-w-0 w-full sm:w-auto"
             value={filterEvent}
             onChange={(e) => setFilterEvent(e.target.value)}
             title="Filtrar por evento cadastrado"
@@ -513,11 +601,9 @@ const Requests: React.FC = () => {
               <option key={ev.id} value={ev.name}>{ev.name}</option>
             ))}
           </select>
-        </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
+          {isAdmin && (
             <select 
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none min-w-0 w-full sm:w-auto"
               value={filterSector}
               onChange={(e) => setFilterSector(e.target.value)}
               title="Filtrar por setor (apenas admin)"
@@ -527,42 +613,6 @@ const Requests: React.FC = () => {
                 <option key={s.id} value={s.name}>{s.name}</option>
               ))}
             </select>
-          </div>
-        )}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Calendar size={18} className="text-gray-400 shrink-0" />
-          <select 
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            value={filterDatePreset}
-            onChange={(e) => setFilterDatePreset(e.target.value as typeof filterDatePreset)}
-            title="Filtrar por período (data dos dias trabalhados)"
-          >
-            <option value="">Todos os períodos</option>
-            <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
-            <option value="60">Últimos 60 dias</option>
-            <option value="90">Últimos 90 dias</option>
-            <option value="365">Último ano</option>
-            <option value="custom">Personalizado</option>
-          </select>
-          {filterDatePreset === 'custom' && (
-            <>
-              <input
-                type="date"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={filterDateStart}
-                onChange={(e) => setFilterDateStart(e.target.value)}
-                title="Data inicial"
-              />
-              <span className="text-gray-400 text-sm">até</span>
-              <input
-                type="date"
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={filterDateEnd}
-                onChange={(e) => setFilterDateEnd(e.target.value)}
-                title="Data final"
-              />
-            </>
           )}
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -599,10 +649,10 @@ const Requests: React.FC = () => {
               {/* Header do card (igual vibe Banco de Extras) */}
               <div className="p-6 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-col gap-0.5 md:flex-row md:flex-wrap md:items-center md:gap-2 min-w-0">
                     <span className="font-mono text-xs font-bold text-gray-500">{req.code}</span>
-                    <span className="text-xs text-gray-300">•</span>
-                    <span className="text-sm font-black text-gray-900 truncate">{req.extraName}</span>
+                    <span className="hidden md:inline text-xs text-gray-300">•</span>
+                    <span className="text-base md:text-sm font-black text-gray-900 break-words">{req.extraName}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                     <span className="font-bold text-gray-700">{req.sector}</span>
@@ -614,8 +664,8 @@ const Requests: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between lg:justify-end gap-4">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start lg:items-center justify-between lg:justify-end gap-3 w-full min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     {req.status === 'APROVADO' && user?.role !== 'LEADER' && (
                       <button
                         onClick={() => handleRecibo(req as ExtraRequest)}
@@ -656,8 +706,8 @@ const Requests: React.FC = () => {
                       </>
                     )}
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="text-right">
+                  <div className="flex flex-col items-start sm:items-end gap-1 min-w-0 w-full sm:w-auto">
+                    <div className="text-left sm:text-right w-full">
                       <div className="text-xs text-gray-500 font-bold uppercase">Valor</div>
                       <div className="text-lg font-black text-gray-900">
                         {(req.value * (req.workDays?.length || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -668,7 +718,7 @@ const Requests: React.FC = () => {
                         </div>
                       )}
                       {req.valueType === 'combinado' && (
-                        <div className="text-[10px] text-emerald-600 font-semibold">Valor combinado (por dia/turno)</div>
+                        <div className="text-[10px] text-emerald-600 font-semibold break-words">Valor combinado (por dia/turno)</div>
                       )}
                     </div>
                     {user?.role === 'ADMIN' && (
@@ -689,7 +739,7 @@ const Requests: React.FC = () => {
                           }
                         }}
                         disabled={updatingValueTypeId === req.id}
-                        className="text-[10px] font-bold text-gray-600 border border-gray-200 rounded-lg px-2 py-1 bg-white min-w-[120px] disabled:opacity-50"
+                        className="text-[10px] font-bold text-gray-600 border border-gray-200 rounded-lg px-2 py-1 bg-white w-full sm:w-auto sm:min-w-[10.5rem] max-w-full disabled:opacity-50"
                         title="Combinado = valor por dia/turno × dias; por hora = cálculo pelas horas da portaria"
                       >
                         <option value="por_hora">Por hora</option>
@@ -698,22 +748,23 @@ const Requests: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex flex-col items-end gap-1">
+                  <div className="flex flex-col items-start sm:items-end gap-1 min-w-0 w-full sm:w-auto">
                     {req.status === 'SOLICITADO' && (user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
                         <button
                           onClick={() => handleApprove(req.id)}
-                          className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700"
+                          className="flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
                           title="Aprovar todos os dias desta solicitação (mantém tudo em uma única linha)"
                         >
+                          <Check size={16} />
                           Aprovar todos
                         </button>
-                        <span className="text-gray-300">|</span>
                         <button
                           onClick={() => handleOpenReject(req.id)}
-                          className="text-[10px] font-bold text-red-600 hover:text-red-700"
+                          className="flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
                           title="Reprovar todos os dias desta solicitação"
                         >
+                          <X size={16} />
                           Reprovar todos
                         </button>
                       </div>
@@ -771,14 +822,16 @@ const Requests: React.FC = () => {
                       return (
                         <div key={`${req.id}-${workDay.date}-${workDay.shift}`} className={`${zebra} p-4 sm:p-5`}>
                           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <div>
-                                <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
-                                <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
-                                <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
+                            <div className="flex-1 min-w-0 space-y-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-[10px] font-bold text-gray-500 uppercase">Data</div>
+                                  <div className="text-sm font-bold text-gray-900">{formatDateBR(workDay.date)}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-[10px] font-bold text-gray-500 uppercase">Turno</div>
+                                  <div className="text-sm font-semibold text-gray-700">{workDay.shift}</div>
+                                </div>
                               </div>
                               <div>
                                 <div className="text-[10px] font-bold text-gray-500 uppercase">Portaria</div>
@@ -826,7 +879,7 @@ const Requests: React.FC = () => {
                               </div>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-2 justify-end">
+                            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto lg:justify-end">
                               {/* Botão para apagar apenas este dia (apenas ADMIN, quando há mais de um dia) */}
                               {user?.role === 'ADMIN' && totalDays > 1 && (
                                 <button
@@ -841,7 +894,7 @@ const Requests: React.FC = () => {
                                       }
                                     }
                                   }}
-                                  className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg text-xs"
+                                  className="col-span-2 sm:col-auto flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg text-xs"
                                   title="Apagar este dia da solicitação"
                                 >
                                   <Trash2 size={16} />
@@ -852,7 +905,7 @@ const Requests: React.FC = () => {
                               {hasMissing && user?.role === 'ADMIN' && (
                                 <button
                                   onClick={() => handleOpenTimeEdit(req.id, workDay.date, workDay)}
-                                  className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs"
+                                  className="col-span-2 sm:col-auto flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs"
                                   title="Preencher horários não informados"
                                 >
                                   <Edit size={16} />
@@ -863,7 +916,7 @@ const Requests: React.FC = () => {
                               {!hasMissing && user?.role === 'ADMIN' && (
                                 <button
                                   onClick={() => handleOpenTimeEdit(req.id, workDay.date, workDay)}
-                                  className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-800 text-white font-bold rounded-lg text-xs"
+                                  className="col-span-2 sm:col-auto flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-gray-700 hover:bg-gray-800 text-white font-bold rounded-lg text-xs"
                                   title="Editar horários registrados"
                                 >
                                   <Clock size={16} />
@@ -876,7 +929,7 @@ const Requests: React.FC = () => {
                                 <>
                                   <button
                                     onClick={() => handleApproveDay(req.id, workDay.date)}
-                                    className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
+                                    className="flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs"
                                     title="Aprovar mantendo a solicitação na mesma linha."
                                   >
                                     <Check size={16} />
@@ -884,7 +937,7 @@ const Requests: React.FC = () => {
                                   </button>
                                   <button
                                     onClick={() => handleOpenReject(req.id, workDay.date)}
-                                    className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
+                                    className="flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs"
                                     title="Reprovar apenas este dia"
                                   >
                                     <X size={16} />
@@ -897,7 +950,7 @@ const Requests: React.FC = () => {
                               {req.status === 'SOLICITADO' && user?.role === 'LEADER' && (
                                 <button
                                   onClick={() => handleCancel(req.id)}
-                                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
+                                  className="col-span-2 sm:col-auto flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs"
                                   title="Cancelar"
                                 >
                                   <Ban size={16} />

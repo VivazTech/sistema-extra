@@ -1,3 +1,20 @@
+export const PJ_ABSENCE_FOLGA = 'FOLGA';
+export const PJ_ABSENCE_FERIAS = 'FERIAS';
+
+export function getPjAbsenceType(observations?: string | null): typeof PJ_ABSENCE_FOLGA | typeof PJ_ABSENCE_FERIAS | null {
+  const raw = String(observations || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (raw === PJ_ABSENCE_FOLGA) return PJ_ABSENCE_FOLGA;
+  if (raw === PJ_ABSENCE_FERIAS) return PJ_ABSENCE_FERIAS;
+  return null;
+}
+
+export function getPjAbsenceLabel(observations?: string | null): string {
+  const t = getPjAbsenceType(observations);
+  if (t === PJ_ABSENCE_FOLGA) return 'Folga';
+  if (t === PJ_ABSENCE_FERIAS) return 'Férias';
+  return '';
+}
+
 /** Converte "HH:MM" para minutos desde meia-noite. */
 export function parseHHMM(s: string | undefined | null): number | null {
   if (s == null || String(s).trim() === '') return null;

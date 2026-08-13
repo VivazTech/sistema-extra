@@ -1,16 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, RefreshCw, Filter } from 'lucide-react';
+import { FileText, RefreshCw, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useExtras } from '../context/ExtraContext';
 import { fetchActionLogs, ActionLogFilters } from '../services/actionLogService';
-import { ActionLog } from '../types';
+import { ActionLog, ExtraRequest } from '../types';
 import { formatDateTimeWithSeconds } from '../utils/date';
 import { DatabaseLoading } from '../components/LoadingLottie';
 
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 500] as const;
+const DEFAULT_PAGE_SIZE = 10;
+
+function getLogRequestCode(log: ActionLog, extraRequests: ExtraRequest[]): string {
+  const fromDetails = log.details?.code;
+  if (typeof fromDetails === 'string' && fromDetails.trim()) return fromDetails.trim();
+  if (log.result !== 'Solicitação criada') return '';
+  const extraName = typeof log.details?.extraName === 'string' ? log.details.extraName : '';
+  const setor = typeof log.details?.setor === 'string' ? log.details.setor : '';
+  if (!extraName) return '';
+  const match = extraRequests.find((r) =>
+    r.extraName === extraName && (!setor || r.sector === setor)
+  );
+  return match?.code || '';
+}
+
 const Logs: React.FC = () => {
   const { user } = useAuth();
-  const { users } = useExtras();
+  const { users, requests } = useExtras();
   const navigate = useNavigate();
   const [logs, setLogs] = useState<ActionLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +34,8 @@ const Logs: React.FC = () => {
   const [filterUserId, setFilterUserId] = useState<string>('');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadLogs = async () => {
     setLoading(true);
@@ -41,8 +59,26 @@ const Logs: React.FC = () => {
       navigate('/');
       return;
     }
+    setCurrentPage(1);
     loadLogs();
   }, [user?.role, navigate, filterUserId, filterDateFrom, filterDateTo]);
+
+  const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return logs.slice(start, start + pageSize);
+  }, [logs, currentPage, pageSize]);
+  const paginationFrom = logs.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const paginationTo = Math.min(currentPage * pageSize, logs.length);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const handlePageSizeChange = (value: number) => {
+    setPageSize(value);
+    setCurrentPage(1);
+  };
 
   if (!user || user.role !== 'ADMIN') return null;
 
@@ -101,6 +137,18 @@ const Logs: React.FC = () => {
               className="w-full border border-gray-200 rounded-xl p-2.5 text-sm"
             />
           </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Itens/página</label>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="w-full border border-gray-200 rounded-xl p-2.5 text-sm bg-white"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -108,6 +156,13 @@ const Logs: React.FC = () => {
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
           {error}
         </div>
+      )}
+
+      {!loading && logs.length > 0 && (
+        <p className="text-sm text-gray-500">
+          Mostrando <span className="font-semibold text-gray-700">{paginationFrom}–{paginationTo}</span> de{' '}
+          <span className="font-semibold text-gray-700">{logs.length}</span> registros
+        </p>
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -124,10 +179,13 @@ const Logs: React.FC = () => {
                   <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Data e hora</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Onde clicou / Ação</th>
                   <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Retorno</th>
+                  <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Código</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {logs.map((log) => (
+                {paginatedLogs.map((log) => {
+                  const requestCode = getLogRequestCode(log, requests);
+                  return (
                   <tr key={log.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 text-sm font-medium text-gray-800">{log.user_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
@@ -137,13 +195,46 @@ const Logs: React.FC = () => {
                     <td className="px-4 py-3 text-sm text-gray-600 max-w-md truncate" title={log.result}>
                       {log.result}
                     </td>
+                    <td className="px-4 py-3 text-sm font-mono font-bold text-gray-800 whitespace-nowrap">
+                      {requestCode || '—'}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {!loading && logs.length > 0 && totalPages > 1 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-500 order-2 sm:order-1">
+            Página <span className="font-semibold text-gray-700">{currentPage}</span> de{' '}
+            <span className="font-semibold text-gray-700">{totalPages}</span>
+          </p>
+          <div className="flex items-center gap-2 order-1 sm:order-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={18} />
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Próxima
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -31,7 +31,7 @@ interface ExtraContextType {
   extraSaldoRecords: ExtraSaldoRecord[];
   extraSaldoSettings: ExtraSaldoSettings;
   users: User[];
-  addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => void;
+  addRequest: (request: Omit<ExtraRequest, 'id' | 'code' | 'status' | 'createdAt' | 'updatedAt'>) => Promise<ExtraRequest>;
   updateRequest: (id: string, data: Partial<Pick<ExtraRequest, 'sector' | 'role' | 'requester' | 'reason' | 'extraName' | 'value' | 'valueType' | 'observations' | 'contact' | 'urgency' | 'eventName'>> & { workDays?: Array<{ date: string; shift: string }> }) => Promise<void>;
   updateStatus: (id: string, status: RequestStatus, reason?: string, approvedBy?: string, approvalJustification?: string) => void;
   approveWorkDay: (requestId: string, workDate: string, approvedBy: string, approvalJustification?: string) => Promise<void>;
@@ -669,11 +669,11 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (fullRequest) {
         const mappedRequest = mapExtraRequest(fullRequest, fullRequest.work_days);
         const extraCpf = mappedRequest.extraCpf || extras.find(e => e.fullName === mappedRequest.extraName)?.cpf;
-        setRequests(prev => [{ ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf }, ...prev]);
-      } else {
-        throw new Error('Solicitação criada mas não foi possível buscar os dados completos');
+        const created = { ...mappedRequest, extraCpf: extraCpf ?? mappedRequest.extraCpf };
+        setRequests(prev => [created, ...prev]);
+        return created;
       }
-      return true; // Sucesso
+      throw new Error('Solicitação criada mas não foi possível buscar os dados completos');
     } catch (error) {
       console.error('Erro ao adicionar solicitação:', error);
       throw error; // Re-throw para que o componente possa tratar

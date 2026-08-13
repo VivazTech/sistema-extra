@@ -482,17 +482,17 @@ const Portaria: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="text-gray-900 space-y-6 p-6">
-        <header className="flex justify-between items-center">
+        <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <Clock className="text-emerald-600" size={28} />
-              Portaria - Registro de Ponto
+              Portaria
             </h1>
             <p className="text-gray-500 mt-1">
               Controle de entrada e saída dos funcionários extras do dia
             </p>
           </div>
-          <div className="text-right">
+          <div className="flex items-baseline gap-2 text-left md:text-right md:flex-col md:items-end md:gap-0">
             <div className="text-3xl font-black text-emerald-600">
               {formatDateBR(new Date()).slice(0, 5)}
             </div>
@@ -516,75 +516,86 @@ const Portaria: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <ArrowUpDown size={18} className="text-gray-400" />
-            <span className="text-sm font-medium text-gray-600">Ordenar:</span>
-            <button
-              onClick={() => setSortOrder('alphabetical')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
-                sortOrder === 'alphabetical'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <ArrowUpAZ size={16} />
-              Alfabética
-            </button>
-            <button
-              onClick={() => setSortOrder('recent')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
-                sortOrder === 'recent'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <ArrowDownAZ size={16} />
-              Mais Recentes
-            </button>
+          <div className="flex flex-col md:flex-row md:items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2">
+              <ArrowUpDown size={18} className="text-gray-400 shrink-0" />
+              <span className="text-sm font-medium text-gray-600">Ordenar:</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto">
+              <button
+                type="button"
+                onClick={() => setSortOrder('alphabetical')}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl text-sm font-bold transition-all ${
+                  sortOrder === 'alphabetical'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <ArrowUpAZ size={16} />
+                Alfabética
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortOrder('recent')}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl text-sm font-bold transition-all ${
+                  sortOrder === 'recent'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <ArrowDownAZ size={16} />
+                Mais Recentes
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Segunda linha: Período e Turno */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-4">
-            <Calendar size={20} className="text-gray-400" />
-            <span className="text-sm font-medium text-gray-600">Período:</span>
+        <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-4 min-w-0">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 min-w-0 w-full md:w-auto">
             <div className="flex items-center gap-2">
+              <Calendar size={20} className="text-gray-400 shrink-0" />
+              <span className="text-sm font-medium text-gray-600">Período:</span>
+            </div>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full md:flex md:w-auto min-w-0">
               <input
                 type="date"
-                className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
                 value={dateStart}
                 onChange={(e) => setDateStart(e.target.value)}
                 placeholder="Data início"
               />
-              <span className="text-gray-400">até</span>
+              <span className="text-gray-400 shrink-0 text-sm">até</span>
               <input
                 type="date"
-                className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
                 value={dateEnd}
                 onChange={(e) => setDateEnd(e.target.value)}
                 placeholder="Data fim"
               />
               {(dateStart || dateEnd) && (
                 <button
+                  type="button"
                   onClick={() => {
                     setDateStart('');
                     setDateEnd('');
                   }}
-                  className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                  className="col-span-3 md:col-span-1 px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
                 >
                   Limpar
                 </button>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
-            <Clock size={20} className="text-gray-400" />
-            <span className="text-sm font-medium text-gray-600">Turno:</span>
+          <div className="flex flex-col md:flex-row md:items-center gap-2 min-w-0 w-full md:w-auto md:border-l md:border-gray-200 md:pl-4">
+            <div className="flex items-center gap-2">
+              <Clock size={20} className="text-gray-400 shrink-0" />
+              <span className="text-sm font-medium text-gray-600">Turno:</span>
+            </div>
             <select
               value={selectedShift}
               onChange={(e) => setSelectedShift(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium bg-white"
+              className="w-full md:w-auto min-w-0 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium bg-white"
             >
               <option value="TODOS">Todos</option>
               {shifts.filter(s => s.name).map(shift => {
@@ -606,38 +617,28 @@ const Portaria: React.FC = () => {
         </div>
 
         {/* Terceira linha: Filtro por Setor */}
-        <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
-          <Filter size={20} className="text-gray-400" />
-          <span className="text-sm font-medium text-gray-600">Setor:</span>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setSelectedSector('TODOS')}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                selectedSector === 'TODOS'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Todos ({periodExtras.length})
-            </button>
+        <div className="flex flex-col md:flex-row md:items-center gap-2 pt-2 border-t border-gray-100 min-w-0">
+          <div className="flex items-center gap-2">
+            <Filter size={20} className="text-gray-400 shrink-0" />
+            <label htmlFor="portaria-setor" className="text-sm font-medium text-gray-600">Setor:</label>
+          </div>
+          <select
+            id="portaria-setor"
+            value={selectedSector}
+            onChange={(e) => setSelectedSector(e.target.value)}
+            className="w-full md:w-auto md:min-w-[220px] min-w-0 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium bg-white"
+          >
+            <option value="TODOS">Todos ({periodExtras.length})</option>
             {sectors.map(sector => {
               const count = periodExtras.filter(r => r.sector === sector.name).length;
               if (count === 0) return null;
               return (
-                <button
-                  key={sector.id}
-                  onClick={() => setSelectedSector(sector.name)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                    selectedSector === sector.name
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
+                <option key={sector.id} value={sector.name}>
                   {sector.name} ({count})
-                </button>
+                </option>
               );
             })}
-          </div>
+          </select>
         </div>
       </div>
 
@@ -673,6 +674,53 @@ const Portaria: React.FC = () => {
             const hasPhoto = timeRecord.photoUrl || capturedPhoto === photoKey;
             const workHours = calculateWorkHours(timeRecord);
 
+            const valorBlock = canViewValues ? (
+              <div className="text-left md:text-right text-emerald-600">
+                <div className="text-xs font-bold uppercase mb-1">Valor</div>
+                <div className="text-lg font-black">
+                  R$ {(request.value * (request.workDays?.length || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                {(request.workDays?.length || 0) > 1 && (
+                  <div className="text-[10px] opacity-90">
+                    {request.workDays.length} × R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
+              </div>
+            ) : null;
+
+            const statusBlock = completed ? (
+              <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full w-fit">
+                <CheckCircle size={16} />
+                <span className="text-xs font-bold uppercase">Completo</span>
+              </div>
+            ) : timeRecord.arrival ? (
+              <div className="flex items-center gap-2 bg-amber-100 text-amber-700 px-3 py-1 rounded-full w-fit">
+                <Clock size={16} />
+                <span className="text-xs font-bold uppercase">Em andamento</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-1 rounded-full w-fit">
+                <Clock size={16} />
+                <span className="text-xs font-bold uppercase">Pendente</span>
+              </div>
+            );
+
+            const faltouBlock = !timeRecord.arrival ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${formatDateBR(workDayDate)}?`)) {
+                    removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-md"
+                title="Marcar como faltou"
+              >
+                FALTOU
+              </button>
+            ) : null;
+
             return (
               <div 
                 key={request.id} 
@@ -681,19 +729,16 @@ const Portaria: React.FC = () => {
                 {/* Header - Clicável */}
                 <button
                   onClick={() => setExpandedRequest(isExpanded ? null : request.id)}
-                  className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  className="w-full p-5 flex items-start md:items-center justify-between gap-2 hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center font-black text-emerald-700 text-lg">
-                      {request.extraName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="text-left flex-1">
-                      <h3 className="font-bold text-gray-900 text-lg">{request.extraName}</h3>
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="text-left flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 text-lg break-words">{request.extraName}</h3>
                       <p className="text-sm text-gray-500">
                         <span className="font-bold">{request.sector}</span> • {request.role}
                       </p>
                       {/* Horários em tempo real */}
-                      <div className="flex items-center gap-4 mt-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
                         {timeRecord.arrival ? (
                           <div className="flex items-center gap-1">
                             <LogIn size={12} className="text-emerald-600" />
@@ -739,58 +784,24 @@ const Portaria: React.FC = () => {
                           </div>
                         )}
                         {workHours && (
-                          <div className="ml-2 px-2 py-1 rounded bg-emerald-100 text-emerald-700 text-xs font-bold">
+                          <div className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 text-xs font-bold">
                             {workHours}h
                           </div>
                         )}
                       </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-3 md:hidden">
+                        {valorBlock}
+                        {statusBlock}
+                        {faltouBlock}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    {/* Valor: combinado = valor por dia/turno × dias; por hora = ref. × dias */}
-                    {canViewValues && (
-                      <div className="text-right text-emerald-600">
-                        <div className="text-xs font-bold uppercase mb-1">Valor</div>
-                        <div className="text-lg font-black">
-                          R$ {(request.value * (request.workDays?.length || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                        {(request.workDays?.length || 0) > 1 && (
-                          <div className="text-[10px] opacity-90">
-                            {request.workDays.length} × R$ {request.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {completed ? (
-                      <div className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full">
-                        <CheckCircle size={16} />
-                        <span className="text-xs font-bold uppercase">Completo</span>
-                      </div>
-                    ) : timeRecord.arrival ? (
-                      <div className="flex items-center gap-2 bg-amber-100 text-amber-700 px-3 py-1 rounded-full">
-                        <Clock size={16} />
-                        <span className="text-xs font-bold uppercase">Em andamento</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
-                        <Clock size={16} />
-                        <span className="text-xs font-bold uppercase">Pendente</span>
-                      </div>
-                    )}
-                    {!timeRecord.arrival && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm(`Confirmar que ${request.extraName} faltou no dia ${formatDateBR(workDayDate)}?`)) {
-                            removeWorkDay(request.id, workDayDate, user?.name || 'Portaria');
-                          }
-                        }}
-                        className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-md"
-                        title="Marcar como faltou"
-                      >
-                        FALTOU
-                      </button>
-                    )}
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="hidden md:flex items-center gap-4">
+                      {valorBlock}
+                      {statusBlock}
+                      {faltouBlock}
+                    </div>
                     {isExpanded ? (
                       <ChevronUp className="text-gray-400" size={20} />
                     ) : (

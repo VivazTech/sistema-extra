@@ -278,13 +278,18 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
         return;
       }
 
-      await addRequest({
+      const created = await addRequest({
         ...formData,
         valueType: isAdmin ? (formData.valueType === 'combinado' ? 'combinado' : 'por_hora') : 'por_hora',
         leaderId: user.id,
         leaderName: user.name || 'Usuário'
       });
-      logAction('Solicitações > Solicitar funcionário extra', 'Solicitação criada', { setor: formData.sector, extraName: formData.extraName });
+      logAction('Solicitações > Solicitar funcionário extra', 'Solicitação criada', {
+        setor: formData.sector,
+        extraName: formData.extraName,
+        code: created?.code,
+        requestId: created?.id,
+      });
       setFormData({
         sector: '',
         role: '',

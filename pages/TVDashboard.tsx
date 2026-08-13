@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Clock, 
   ChevronLeft,
@@ -76,11 +76,13 @@ const TVDashboard: React.FC = () => {
     return todayRequests.filter(r => r.sector === selectedSector);
   }, [todayRequests, selectedSector]);
 
+  const initializedSector = useRef(false);
   useEffect(() => {
-    if (!selectedSector && sectors.length > 0) {
+    if (!initializedSector.current && sectors.length > 0) {
       setSelectedSector(sectors[0]);
+      initializedSector.current = true;
     }
-  }, [sectors, selectedSector]);
+  }, [sectors]);
 
   const getCurrentShift = () => {
     const hour = currentTime.getHours();
@@ -108,24 +110,33 @@ const TVDashboard: React.FC = () => {
   const countWorkDaysInWeek = (workDays: { date: string }[], start: Date, end: Date) =>
     workDays.filter(d => isDateInRange(d.date, start, end)).length;
 
+  const toLocalDateStr = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const getSaldoForSectorWeek = (sector: string) => {
-    if (!sector) return null;
+    if (!sector) return { type: 'none' as const };
+    if (sector.trim().toUpperCase() === 'AQUAMANIA') return { type: 'unlimited' as const };
     const { start, end } = getWeekRange(todayStr);
-    const weekStartStr = start.toISOString().split('T')[0];
-    const weekEndStr = end.toISOString().split('T')[0];
+    const weekStartStr = toLocalDateStr(start);
+    const weekEndStr = toLocalDateStr(end);
+    const sectorNorm = sector.trim().toUpperCase();
     const record = extraSaldoRecords.find(r =>
-      r.setor === sector &&
+      (r.setor || '').trim().toUpperCase() === sectorNorm &&
       r.periodoInicio <= weekStartStr &&
       r.periodoFim >= weekEndStr
     );
-    if (!record) return null;
+    if (!record) return { type: 'no-record' as const };
     const result = calculateExtraSaldo(record, record.valorDiariaSnapshot);
     const usedDiarias = requests
-      .filter(r => r.sector === sector && r.status === 'APROVADO')
+      .filter(r => r.sector === sector && r.status === 'APROVADO' && r.reason !== 'EVENTO')
       .reduce((acc, r) => acc + countWorkDaysInWeek(r.workDays, start, end), 0);
     const saldo = result.saldo - usedDiarias;
     const saldoEmReais = Number(Math.abs(saldo * record.valorDiariaSnapshot).toFixed(2));
-    return { saldo, saldoEmReais };
+    return { type: 'ok' as const, saldo, saldoEmReais };
   };
 
   const currentShift = getCurrentShift();
@@ -144,9 +155,40 @@ const TVDashboard: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-[#050505]' : 'bg-gray-50'} ${isDarkMode ? 'text-white' : 'text-gray-900'} p-8 flex flex-col font-sans overflow-hidden transition-colors duration-300`}>
-      {/* Header */}
-      <header className={`flex justify-between items-center mb-12 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} pb-8`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-[#050505]' : 'bg-gray-50'} ${isDarkMode ? 'text-white' : 'text-gray-900'} p-4 md:p-8 flex flex-col font-sans overflow-y-auto md:overflow-hidden transition-colors duration-300`}>
+      {/* Cabeçalho mobile */}
+      <header className={`md:hidden sticky top-0 z-50 -mx-4 -mt-4 mb-6 px-4 py-3 flex items-center gap-3 border-b ${isDarkMode ? 'bg-[#050505] border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className={`p-2.5 rounded-full transition-colors no-print shrink-0 ${isDarkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-gray-200 hover:bg-gray-300'}`}
+          title="Voltar"
+          aria-label="Voltar"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-black tracking-tight uppercase truncate">Painel 24h</h1>
+          <p className={`text-[10px] font-bold uppercase tracking-widest truncate ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+            Vivaz Cataratas
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className={`p-2.5 rounded-xl transition-all shrink-0 ${
+            isDarkMode
+              ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400'
+              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+          }`}
+          title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+        >
+          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </header>
+
+      {/* Header desktop */}
+      <header className={`hidden md:flex justify-between items-center mb-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} pb-4`}>
         <div className="flex items-center gap-6">
           <button 
             onClick={() => navigate('/')} 
@@ -154,77 +196,67 @@ const TVDashboard: React.FC = () => {
           >
             <ChevronLeft size={32} />
           </button>
-          <div className={`w-16 h-16 ${isDarkMode ? 'bg-emerald-600 shadow-emerald-900/40' : 'bg-emerald-500 shadow-emerald-200/40'} rounded-2xl flex items-center justify-center font-bold text-3xl shadow-lg`}>V</div>
           <div>
-            <h1 className={`text-4xl font-black tracking-tighter uppercase ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Painel de Extras 24h</h1>
-            <p className={`${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'} text-xl font-bold tracking-widest uppercase`}>Vivaz Cataratas Resort</p>
+            <h1 className={`text-xl font-black tracking-tighter uppercase leading-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Painel de Extras 24h</h1>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-3 rounded-xl transition-all ${
-              isDarkMode 
-                ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' 
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-            }`}
-            title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
-          >
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <div className="text-right">
-            <p className={`text-5xl font-mono font-black tabular-nums ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-            <p className={`text-xl ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} font-bold uppercase mt-1`}>
-              {formatDateBR(currentTime)}
-            </p>
-          </div>
-        </div>
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className={`p-3 rounded-xl transition-all ${
+            isDarkMode 
+              ? 'bg-gray-800 hover:bg-gray-700 text-yellow-400' 
+              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+          }`}
+          title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+        >
+          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
       </header>
+
+      <div className="flex items-baseline gap-3 mb-6">
+        <p className={`text-lg font-mono font-bold tabular-nums ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+          {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </p>
+        <p className={`text-sm font-bold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          {formatDateBR(currentTime)}
+        </p>
+      </div>
 
       {/* Sector selector + balance */}
       <div className={`${isDarkMode ? 'bg-gray-900/60 border-gray-800' : 'bg-white border-gray-200'} border rounded-3xl p-6 mb-8`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <span className={`text-xs font-bold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Filtrar por Setor</span>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedSector('')}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                  !selectedSector
-                    ? 'bg-emerald-600 text-white'
-                    : isDarkMode
-                      ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                Todos ({todayRequests.length})
-              </button>
+          <div className="flex flex-col gap-2 min-w-0 w-full lg:max-w-md">
+            <label htmlFor="tv-setor" className={`text-xs font-bold uppercase ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Filtrar por Setor</label>
+            <select
+              id="tv-setor"
+              value={selectedSector}
+              onChange={(e) => setSelectedSector(e.target.value)}
+              className={`w-full px-4 py-3 rounded-xl text-sm font-bold border ${
+                isDarkMode
+                  ? 'bg-gray-800 text-white border-gray-700'
+                  : 'bg-gray-100 text-gray-900 border-gray-200'
+              }`}
+            >
+              <option value="">Todos ({todayRequests.length})</option>
               {sectors.map(sector => {
                 const count = todayRequests.filter(r => r.sector === sector).length;
                 return (
-                  <button
-                    key={sector}
-                    onClick={() => setSelectedSector(sector)}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                      selectedSector === sector
-                        ? 'bg-emerald-600 text-white'
-                        : isDarkMode
-                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
+                  <option key={sector} value={sector}>
                     {sector} ({count})
-                  </button>
+                  </option>
                 );
               })}
-            </div>
+            </select>
           </div>
-          <div className="text-right">
+          <div className="text-left lg:text-right">
             <p className="text-xs font-bold uppercase text-gray-400">Saldo semanal</p>
             <p className={`text-3xl font-black ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-              {saldoInfo ? `${saldoInfo.saldo} diárias` : 'Indisponível'}
+              {saldoInfo.type === 'none' && 'Selecione um setor'}
+              {saldoInfo.type === 'unlimited' && 'Sem limite'}
+              {saldoInfo.type === 'no-record' && 'Sem registro'}
+              {saldoInfo.type === 'ok' && `${saldoInfo.saldo} diárias`}
             </p>
-            {saldoInfo && (
+            {saldoInfo.type === 'ok' && (
               <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Saldo R$: {saldoInfo.saldoEmReais.toFixed(2)}</p>
             )}
           </div>
@@ -246,8 +278,8 @@ const TVDashboard: React.FC = () => {
             {workingNow.map(req => {
               const timeRecord = getTimeRecord(req, todayStr);
               return (
-                <div key={req.id} className={`border ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} rounded-2xl p-4`}>
-                  <p className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
+                <div key={req.id} className={`border ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} rounded-2xl p-4 overflow-hidden min-w-0`}>
+                  <p className={`text-xl font-bold break-words ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
                   <p className={`text-sm ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600'} font-bold uppercase`}>{req.role}</p>
                   {/* Horários em tempo real */}
                   {timeRecord.arrival || timeRecord.departure ? (
@@ -312,9 +344,9 @@ const TVDashboard: React.FC = () => {
                     {sectorReqs.map(req => {
                       const timeRecord = getTimeRecord(req, todayStr);
                       return (
-                        <div key={req.id} className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 py-4 px-4 rounded-xl ${isDarkMode ? 'bg-gray-800/30 border-gray-700' : 'bg-gray-50 border-gray-100'} border`}>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
-                            <p className={`text-xl font-bold leading-tight ${isDarkMode ? 'text-white' : 'text-gray-900'} shrink-0`}>{req.extraName}</p>
+                        <div key={req.id} className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 py-4 px-4 rounded-xl overflow-hidden min-w-0 ${isDarkMode ? 'bg-gray-800/30 border-gray-700' : 'bg-gray-50 border-gray-100'} border`}>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0 w-full">
+                            <p className={`text-xl font-bold leading-tight min-w-0 max-w-full break-words ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{req.extraName}</p>
                             <span className={`text-sm font-bold shrink-0 ${isDarkMode ? 'text-emerald-400/90' : 'text-emerald-600'}`}>{req.role}</span>
                             <span className={`flex items-center gap-1.5 shrink-0 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               <Clock size={16} /> {getShiftForDate(req.workDays, todayStr)}
@@ -373,14 +405,18 @@ const TVDashboard: React.FC = () => {
         )}
       </div>
 
-      <footer className={`mt-8 pt-8 border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} flex justify-between items-center ${isDarkMode ? 'text-gray-600' : 'text-gray-500'} font-bold uppercase text-xs tracking-[0.2em]`}>
-        <p>Sistema de Gestão Vivaz v1.0 • Atualização Automática Ativada</p>
-        <div className="flex items-center gap-4">
+      <footer className={`mt-8 pt-8 border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-200'} flex flex-col gap-2 items-start md:flex-row md:justify-between md:items-center ${isDarkMode ? 'text-gray-600' : 'text-gray-500'} font-bold uppercase text-xs tracking-[0.2em]`}>
+        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2">
+          <p className="whitespace-nowrap">Sistema de Gestão Vivaz v1.0</p>
+          <span className="hidden md:inline">•</span>
+          <p className="whitespace-nowrap">Atualização Automática Ativada</p>
+        </div>
+        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
             <span>Conectado</span>
           </div>
-          <p>Total de Extras Hoje: {todayRequests.length}</p>
+          <p className="whitespace-nowrap">Total de Extras Hoje: {todayRequests.length}</p>
         </div>
       </footer>
     </div>

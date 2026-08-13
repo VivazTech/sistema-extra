@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useExtras } from '../context/ExtraContext';
+import { lettersAndNumbers, lettersOnlyName } from '../utils/personName';
 
 const ExtraBankForm: React.FC = () => {
   const { sectors, addExtra, checkCpfExists } = useExtras();
@@ -68,7 +69,16 @@ const ExtraBankForm: React.FC = () => {
   };
 
   const maskPhone = (value: string, ddi: string = '+55') => {
-    const digits = value.replace(/\D/g, '');
+    const maxDigits: Record<string, number> = {
+      '+55': 11,
+      '+54': 10,
+      '+595': 10,
+      '+598': 10,
+      '+1': 10,
+      '+351': 9,
+      '+34': 9,
+    };
+    const digits = value.replace(/\D/g, '').slice(0, maxDigits[ddi] ?? 15);
     if (!digits) return '';
 
     switch (ddi) {
@@ -227,7 +237,7 @@ const ExtraBankForm: React.FC = () => {
     try {
       await addExtra({
         id: Math.random().toString(36).substr(2, 9),
-        fullName: formData.fullName,
+        fullName: lettersOnlyName(formData.fullName).trim(),
         birthDate: formData.birthDate,
         cpf: formData.isForeign ? formData.foreignDoc : formData.cpf,
         contact: `${formData.ddiContact} ${formData.contactNumber}`,
@@ -273,10 +283,14 @@ const ExtraBankForm: React.FC = () => {
             <input
               required
               type="text"
+              inputMode="text"
+              autoComplete="name"
+              placeholder="Somente letras"
               className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
               value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, fullName: lettersOnlyName(e.target.value) })}
             />
+            <p className="text-xs text-gray-400 mt-1">Não use números, CPF ou data de nascimento.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -299,12 +313,15 @@ const ExtraBankForm: React.FC = () => {
                 required={!formData.isForeign}
                 disabled={formData.isForeign}
                 type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={14}
                 placeholder="000.000.000-00"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-gray-50"
                 value={formData.cpf}
                 onChange={(e) => {
-                  const masked = maskCpf(e.target.value);
-                  setFormData({ ...formData, cpf: masked });
+                  const allowed = e.target.value.replace(/[^0-9.-]/g, '');
+                  setFormData({ ...formData, cpf: maskCpf(allowed) });
                   setCpfError('');
                 }}
               />
@@ -329,11 +346,13 @@ const ExtraBankForm: React.FC = () => {
                 <input
                   required
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   placeholder="Documento estrangeiro"
                   className="mt-2 w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                   value={formData.foreignDoc}
                   onChange={(e) => {
-                    setFormData({ ...formData, foreignDoc: e.target.value });
+                    setFormData({ ...formData, foreignDoc: e.target.value.replace(/\D/g, '') });
                     setCpfError('');
                   }}
                 />
@@ -370,7 +389,10 @@ const ExtraBankForm: React.FC = () => {
               </select>
               <input
                 required
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={15}
                 placeholder={formData.ddiContact === '+55' ? '(XX) XXXXX-XXXX' : 
                             formData.ddiContact === '+1' ? '(XXX) XXX-XXXX' :
                             formData.ddiContact === '+351' ? 'XXX XXX XXX' :
@@ -379,7 +401,19 @@ const ExtraBankForm: React.FC = () => {
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.contactNumber}
                 onChange={(e) => {
-                  setFormData({ ...formData, contactNumber: maskPhone(e.target.value, formData.ddiContact) });
+                  setFormData({
+                    ...formData,
+                    contactNumber: maskPhone(e.target.value.replace(/\D/g, ''), formData.ddiContact),
+                  });
+                  setContactError('');
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const pasted = e.clipboardData.getData('text').replace(/\D/g, '');
+                  setFormData({
+                    ...formData,
+                    contactNumber: maskPhone(pasted, formData.ddiContact),
+                  });
                   setContactError('');
                 }}
               />
@@ -391,12 +425,15 @@ const ExtraBankForm: React.FC = () => {
             <input
               required
               type="text"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              maxLength={9}
               placeholder="00000-000"
               className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
               value={formData.cep}
               onChange={(e) => {
-                const masked = maskCep(e.target.value);
-                setFormData({ ...formData, cep: masked });
+                const digitsOnly = e.target.value.replace(/\D/g, '');
+                setFormData({ ...formData, cep: maskCep(digitsOnly) });
                 setCepError('');
               }}
               onBlur={() => fetchCep(formData.cep)}
@@ -410,9 +447,11 @@ const ExtraBankForm: React.FC = () => {
             <input
               required
               type="text"
+              autoComplete="address-line1"
+              placeholder="Somente letras"
               className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
               value={formData.street}
-              onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, street: lettersOnlyName(e.target.value) })}
             />
           </div>
 
@@ -422,9 +461,12 @@ const ExtraBankForm: React.FC = () => {
               <input
                 required
                 type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Somente números"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.number}
-                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, number: e.target.value.replace(/\D/g, '') })}
               />
             </div>
             <div>
@@ -432,9 +474,10 @@ const ExtraBankForm: React.FC = () => {
               <input
                 required
                 type="text"
+                placeholder="Letras e números"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.complement}
-                onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, complement: lettersAndNumbers(e.target.value) })}
               />
             </div>
           </div>
@@ -445,9 +488,11 @@ const ExtraBankForm: React.FC = () => {
               <input
                 required
                 type="text"
+                autoComplete="address-level3"
+                placeholder="Somente letras"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.neighborhood}
-                onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, neighborhood: lettersOnlyName(e.target.value) })}
               />
             </div>
             <div>
@@ -455,9 +500,11 @@ const ExtraBankForm: React.FC = () => {
               <input
                 required
                 type="text"
+                autoComplete="address-level2"
+                placeholder="Somente letras"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, city: lettersOnlyName(e.target.value) })}
               />
             </div>
           </div>
@@ -467,9 +514,17 @@ const ExtraBankForm: React.FC = () => {
             <input
               required
               type="text"
-              className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
+              autoComplete="address-level1"
+              maxLength={2}
+              placeholder="UF"
+              className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none uppercase"
               value={formData.state}
-              onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  state: lettersOnlyName(e.target.value).replace(/\s/g, '').toUpperCase().slice(0, 2),
+                })
+              }
             />
           </div>
 
@@ -502,7 +557,10 @@ const ExtraBankForm: React.FC = () => {
               </select>
               <input
                 required
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={15}
                 placeholder={formData.ddiEmergency === '+55' ? '(XX) XXXXX-XXXX' : 
                             formData.ddiEmergency === '+1' ? '(XXX) XXX-XXXX' :
                             formData.ddiEmergency === '+351' ? 'XXX XXX XXX' :
@@ -511,7 +569,19 @@ const ExtraBankForm: React.FC = () => {
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.emergencyContactNumber}
                 onChange={(e) => {
-                  setFormData({ ...formData, emergencyContactNumber: maskPhone(e.target.value, formData.ddiEmergency) });
+                  setFormData({
+                    ...formData,
+                    emergencyContactNumber: maskPhone(e.target.value.replace(/\D/g, ''), formData.ddiEmergency),
+                  });
+                  setContactError('');
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const pasted = e.clipboardData.getData('text').replace(/\D/g, '');
+                  setFormData({
+                    ...formData,
+                    emergencyContactNumber: maskPhone(pasted, formData.ddiEmergency),
+                  });
                   setContactError('');
                 }}
               />
@@ -521,29 +591,38 @@ const ExtraBankForm: React.FC = () => {
 
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase">Setores *</label>
-            <p className="text-xs text-gray-500 mb-2">Selecione um ou mais setores em que o extra pode atuar.</p>
-            <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50">
-              {sectors.map(s => (
-                <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+            <p className="text-xs text-gray-500 mb-2">Selecione até 2 setores em que o extra pode atuar.</p>
+            <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50 max-h-56 overflow-y-auto">
+              {sectors.map(s => {
+                const selected = formData.sectors.includes(s.name);
+                const atLimit = formData.sectors.length >= 2 && !selected;
+                return (
+                <label key={s.id} className={`flex items-center gap-2 ${atLimit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <input
                     type="checkbox"
                     className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                    checked={formData.sectors.includes(s.name)}
+                    checked={selected}
+                    disabled={atLimit}
                     onChange={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        sectors: prev.sectors.includes(s.name)
-                          ? prev.sectors.filter(sec => sec !== s.name)
-                          : [...prev.sectors, s.name],
-                      }));
+                      setFormData(prev => {
+                        if (prev.sectors.includes(s.name)) {
+                          return { ...prev, sectors: prev.sectors.filter(sec => sec !== s.name) };
+                        }
+                        if (prev.sectors.length >= 2) return prev;
+                        return { ...prev, sectors: [...prev.sectors, s.name] };
+                      });
                     }}
                   />
                   <span className="text-sm font-medium text-gray-700">{s.name}</span>
                 </label>
-              ))}
+                );
+              })}
             </div>
             {formData.sectors.length === 0 && (
               <p className="text-xs text-amber-600 mt-1">Selecione ao menos um setor.</p>
+            )}
+            {formData.sectors.length >= 2 && (
+              <p className="text-xs text-gray-500 mt-1">Máximo de 2 setores selecionados.</p>
             )}
           </div>
 

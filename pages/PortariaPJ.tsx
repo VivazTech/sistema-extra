@@ -10,13 +10,15 @@ import {
   ArrowDownAZ,
   ArrowUpDown,
   Download,
+  Sun,
+  CalendarOff,
 } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { TimeRecord } from '../types';
 import { supabase } from '../services/supabase';
 import { formatDateBR } from '../utils/date';
-import { formatWorkedHours } from '../utils/pjHours';
+import { formatWorkedHours, getPjAbsenceLabel, getPjAbsenceType, PJ_ABSENCE_FERIAS, PJ_ABSENCE_FOLGA } from '../utils/pjHours';
 import { DatabaseLoading, LoadingLottie } from '../components/LoadingLottie';
 
 function csvEscape(value: string | number | undefined): string {
@@ -75,7 +77,7 @@ const PortariaPJ: React.FC = () => {
           breakStart: normalizePjTime(row.break_start) || undefined,
           breakEnd: normalizePjTime(row.break_end) || undefined,
           departure: normalizePjTime(row.departure) || undefined,
-          observations: row.observations || undefined,
+          observations: typeof row.observations === 'string' ? row.observations : undefined,
         };
       });
       setRecordsByEmp(next);
@@ -156,7 +158,11 @@ const PortariaPJ: React.FC = () => {
     }
     const value = normalizedDisplay || getCurrentTime();
     const merged = buildMergedRecord(empId);
-    const updated: TimeRecord = { ...merged, [field]: value };
+    const updated: TimeRecord = {
+      ...merged,
+      [field]: value,
+      observations: getPjAbsenceType(merged) ? undefined : merged.observations,
+    };
     setSavingKey(`${empId}-${field}`);
     try {
       await updatePjTimeRecord(empId, workDate, updated, user?.name || 'Portaria');
@@ -177,6 +183,41 @@ const PortariaPJ: React.FC = () => {
     }
   };
 
+  const handleMarkAbsence = async (empId: string, type: typeof PJ_ABSENCE_FOLGA | typeof PJ_ABSENCE_FERIAS) => {
+    const current = getPjAbsenceType(buildMergedRecord(empId));
+    const nextType = current === type ? null : type;
+    const updated: TimeRecord = nextType
+      ? {
+          arrival: undefined,
+          breakStart: undefined,
+          breakEnd: undefined,
+          departure: undefined,
+          observations: nextType,
+        }
+      : {
+          arrival: undefined,
+          breakStart: undefined,
+          breakEnd: undefined,
+          departure: undefined,
+          observations: undefined,
+        };
+    setSavingKey(`${empId}-absence`);
+    try {
+      await updatePjTimeRecord(empId, workDate, updated, user?.name || 'Portaria');
+      setRecordsByEmp((prev) => ({ ...prev, [empId]: updated }));
+      setTimeDraft((prev) => {
+        const next = { ...prev };
+        delete next[empId];
+        return next;
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao marcar o dia. Tente novamente.');
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
   /** CSV do dia em **Data do ponto** e da lista **filtrada** (setor + busca), refletindo o que aparece na tela (inclui rascunho não salvo). */
   const handleExportDayCSV = () => {
     const headers = [
@@ -188,6 +229,7 @@ const PortariaPJ: React.FC = () => {
       'Volta intervalo',
       'Saída final',
       'Total trabalhado',
+      'Situação',
     ];
     const dateDisp = formatDateBR(new Date(`${workDate}T12:00:00`));
     const lines = filtered.map((emp) => {
@@ -197,6 +239,7 @@ const PortariaPJ: React.FC = () => {
       const be = m.breakEnd?.trim() || '';
       const dep = m.departure?.trim() || '';
       const total = formatWorkedHours(arr || undefined, bs || undefined, be || undefined, dep || undefined);
+      const situacao = getPjAbsenceLabel(m.observations);
       return [
         csvEscape(dateDisp),
         csvEscape(emp.name),
@@ -206,6 +249,7 @@ const PortariaPJ: React.FC = () => {
         csvEscape(be),
         csvEscape(dep),
         csvEscape(total),
+        csvEscape(situacao),
       ].join(',');
     });
     const csv = [headers.join(','), ...lines].join('\r\n');
@@ -256,7 +300,7 @@ const PortariaPJ: React.FC = () => {
           </div>
         </header>
 
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 space-y-4 min-w-0 overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -268,52 +312,56 @@ const PortariaPJ: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <ArrowUpDown size={18} className="text-gray-400" />
-              <span className="text-sm font-medium text-gray-600">Ordenar:</span>
-              <button
-                type="button"
-                onClick={() => setSortOrder('alphabetical')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
-                  sortOrder === 'alphabetical'
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <ArrowUpAZ size={16} />
-                Alfabética
-              </button>
-              <button
-                type="button"
-                onClick={() => setSortOrder('recent')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all ${
-                  sortOrder === 'recent'
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <ArrowDownAZ size={16} />
-                Nome (Z–A)
-              </button>
+            <div className="flex flex-col md:flex-row md:items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown size={18} className="text-gray-400 shrink-0" />
+                <span className="text-sm font-medium text-gray-600">Ordenar:</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('alphabetical')}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl text-sm font-bold transition-all ${
+                    sortOrder === 'alphabetical'
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <ArrowUpAZ size={16} />
+                  Alfabética
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('recent')}
+                  className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl text-sm font-bold transition-all ${
+                    sortOrder === 'recent'
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <ArrowDownAZ size={16} />
+                  Nome (Z–A)
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="text-sm font-bold text-gray-600 flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-4 min-w-0">
+            <label className="text-sm font-bold text-gray-600 flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 w-full sm:w-auto">
               Data do ponto
               <input
                 type="date"
                 value={workDate}
                 onChange={(e) => setWorkDate(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none"
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none w-full sm:w-auto min-w-0"
               />
             </label>
-            <label className="text-sm font-bold text-gray-600 flex items-center gap-2">
+            <label className="text-sm font-bold text-gray-600 flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 w-full sm:w-auto">
               Setor
               <select
                 value={selectedSector}
                 onChange={(e) => setSelectedSector(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm min-w-[180px] focus:ring-2 focus:ring-violet-500 outline-none bg-white"
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-full min-w-0 max-w-full sm:min-w-[180px] sm:w-auto focus:ring-2 focus:ring-violet-500 outline-none bg-white"
               >
                 <option value="TODOS">Todos</option>
                 {sectors.map((s) => (
@@ -349,8 +397,9 @@ const PortariaPJ: React.FC = () => {
             <div className={`space-y-4 ${loadingRecords ? 'pointer-events-none select-none opacity-40' : ''}`}>
             {filtered.map((emp) => {
               const tr = recordsByEmp[emp.id] || {};
+              const absence = getPjAbsenceType(tr);
               const complete =
-                !!(tr.arrival && tr.breakStart && tr.breakEnd && tr.departure);
+                !!absence || !!(tr.arrival && tr.breakStart && tr.breakEnd && tr.departure);
               const mergedPreview = buildMergedRecord(emp.id);
               const totalWorkedLabel = formatWorkedHours(
                 mergedPreview.arrival,
@@ -358,18 +407,25 @@ const PortariaPJ: React.FC = () => {
                 mergedPreview.breakEnd,
                 mergedPreview.departure
               );
+              const absenceSaving = savingKey === `${emp.id}-absence`;
               return (
                 <div
                   key={emp.id}
                   className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
-                    complete ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-gray-100'
+                    absence === PJ_ABSENCE_FOLGA
+                      ? 'border-sky-200 ring-1 ring-sky-100'
+                      : absence === PJ_ABSENCE_FERIAS
+                        ? 'border-amber-200 ring-1 ring-amber-100'
+                        : complete
+                          ? 'border-emerald-200 ring-1 ring-emerald-100'
+                          : 'border-gray-100'
                   }`}
                 >
-                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex flex-wrap justify-between items-center gap-2">
-                    <div>
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex flex-col sm:flex-row sm:flex-wrap sm:justify-between sm:items-center gap-3">
+                    <div className="min-w-0">
                       <h3 className="font-bold text-gray-900">{emp.name}</h3>
                       <p className="text-xs text-gray-500 uppercase font-bold">{emp.sector || '—'}</p>
-                      {adminShowTotals && (
+                      {adminShowTotals && !absence && (
                         <p
                           className="text-sm font-semibold text-violet-900 mt-2"
                           title="Calculado a partir dos horários exibidos nos campos (inclui rascunho não salvo)"
@@ -379,11 +435,53 @@ const PortariaPJ: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    {complete && (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full flex items-center gap-1 shrink-0">
-                        <Check size={14} /> Dia completo
-                      </span>
-                    )}
+                    <div className="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
+                      <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+                        <button
+                          type="button"
+                          disabled={absenceSaving}
+                          onClick={() => handleMarkAbsence(emp.id, PJ_ABSENCE_FOLGA)}
+                          className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl text-xs font-bold transition-all disabled:opacity-50 ${
+                            absence === PJ_ABSENCE_FOLGA
+                              ? 'bg-sky-600 text-white'
+                              : 'bg-white text-sky-700 border border-sky-200 hover:bg-sky-50'
+                          }`}
+                          title="Marca o dia como folga, sem informar horários"
+                        >
+                          <CalendarOff size={16} />
+                          Folga
+                        </button>
+                        <button
+                          type="button"
+                          disabled={absenceSaving}
+                          onClick={() => handleMarkAbsence(emp.id, PJ_ABSENCE_FERIAS)}
+                          className={`flex items-center justify-center gap-2 px-3 py-2.5 min-h-11 rounded-xl text-xs font-bold transition-all disabled:opacity-50 ${
+                            absence === PJ_ABSENCE_FERIAS
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
+                          }`}
+                          title="Marca o dia como férias, sem informar horários"
+                        >
+                          <Sun size={16} />
+                          Férias
+                        </button>
+                      </div>
+                      {absence === PJ_ABSENCE_FOLGA && (
+                        <span className="text-xs font-bold text-sky-700 bg-sky-100 px-2 py-1 rounded-full text-center">
+                          Folga — horários não necessários
+                        </span>
+                      )}
+                      {absence === PJ_ABSENCE_FERIAS && (
+                        <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-1 rounded-full text-center">
+                          Férias — horários não necessários
+                        </span>
+                      )}
+                      {!absence && complete && (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full flex items-center justify-center gap-1">
+                          <Check size={14} /> Dia completo
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {(
@@ -401,13 +499,14 @@ const PortariaPJ: React.FC = () => {
                         <div className="flex gap-2">
                           <input
                             type="time"
+                            disabled={!!absence}
                             className="flex-1 border border-gray-200 rounded-xl px-2 py-2 text-sm disabled:bg-gray-100"
                             value={getDisplayTime(emp.id, key)}
                             onChange={(e) => setDraftField(emp.id, key, e.target.value)}
                           />
                           <button
                             type="button"
-                            disabled={savingKey === `${emp.id}-${key}`}
+                            disabled={!!absence || savingKey === `${emp.id}-${key}`}
                             onClick={() => handleRegister(emp.id, key)}
                             className="px-3 py-2 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >

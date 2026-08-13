@@ -1,32 +1,38 @@
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccessProvider, useAccess } from './context/AccessContext';
 import { AccessPageKey } from './types';
 import { ExtraProvider } from './context/ExtraContext';
 import { ActionLogProvider } from './context/ActionLogContext';
-import Layout from './components/Layout';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
+import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Requests from './pages/Requests';
-import TVDashboard from './pages/TVDashboard';
-import Portaria from './pages/Portaria';
-import PortariaPJ from './pages/PortariaPJ';
-import AdminCatalogs from './pages/AdminCatalogs';
-import AdminEscala from './pages/AdminEscala';
-import AdminUsers from './pages/AdminUsers';
-import TestSupabase from './pages/TestSupabase';
-import TestExtraRequestsOld from './pages/TestExtraRequestsOld';
-import ExtraBank from './pages/ExtraBank';
-import ExtraBankForm from './pages/ExtraBankForm';
-import ExtraSaldo from './pages/ExtraSaldo';
-import Reports from './pages/Reports';
-import Graficos from './pages/Graficos';
-import PDFPreview from './pages/PDFPreview';
-import Profile from './pages/Profile';
-import Logs from './pages/Logs';
+const TVDashboard = React.lazy(() => import('./pages/TVDashboard'));
+const Portaria = React.lazy(() => import('./pages/Portaria'));
+const PortariaPJ = React.lazy(() => import('./pages/PortariaPJ'));
+const AdminCatalogs = React.lazy(() => import('./pages/AdminCatalogs'));
+const AdminEscala = React.lazy(() => import('./pages/AdminEscala'));
+const AdminUsers = React.lazy(() => import('./pages/AdminUsers'));
+const TestSupabase = React.lazy(() => import('./pages/TestSupabase'));
+const TestExtraRequestsOld = React.lazy(() => import('./pages/TestExtraRequestsOld'));
+const ExtraBank = React.lazy(() => import('./pages/ExtraBank'));
+const ExtraBankForm = React.lazy(() => import('./pages/ExtraBankForm'));
+const ExtraSaldo = React.lazy(() => import('./pages/ExtraSaldo'));
+const Reports = React.lazy(() => import('./pages/Reports'));
+const Graficos = React.lazy(() => import('./pages/Graficos'));
+const PDFPreview = React.lazy(() => import('./pages/PDFPreview'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const Logs = React.lazy(() => import('./pages/Logs'));
+
+const BootFallback: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+    Carregando...
+  </div>
+);
 
 const PrivateRoute: React.FC<{ children: React.ReactNode; page?: AccessPageKey }> = ({ children, page }) => {
   const { isAuthenticated, user } = useAuth();
@@ -37,7 +43,13 @@ const PrivateRoute: React.FC<{ children: React.ReactNode; page?: AccessPageKey }
     return <Navigate to={getFirstAccessiblePath(user.role)} />;
   }
   
-  return <Layout>{children}</Layout>;
+  return (
+    <Layout>
+      <Suspense fallback={<div className="p-8 text-center text-gray-500">Carregando...</div>}>
+        {children}
+      </Suspense>
+    </Layout>
+  );
 };
 
 const AppRoutes = () => {
@@ -75,7 +87,9 @@ const App: React.FC = () => {
         <ActionLogProvider>
         <AccessProvider>
           <Router>
-            <AppRoutes />
+            <Suspense fallback={<BootFallback />}>
+              <AppRoutes />
+            </Suspense>
           </Router>
         </AccessProvider>
         </ActionLogProvider>

@@ -88,10 +88,10 @@ const Dashboard: React.FC = () => {
   }, [requestsLast7Days]);
 
   const stats = [
-    { label: 'Do Dia', value: todayRequests.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Solicitados', value: requests.filter(r => r.status === 'SOLICITADO').length, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Aprovados', value: requests.filter(r => r.status === 'APROVADO').length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Reprovados', value: requests.filter(r => r.status === 'REPROVADO').length, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
+    { label: 'Do Dia', value: todayRequests.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50', to: '/solicitacoes', state: { filterPeriodo: 'hoje' } },
+    { label: 'Solicitados', value: requests.filter(r => r.status === 'SOLICITADO').length, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50', to: '/solicitacoes', state: { filterStatus: 'SOLICITADO' } },
+    { label: 'Aprovados', value: requests.filter(r => r.status === 'APROVADO').length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', to: '/solicitacoes', state: { filterStatus: 'APROVADO' } },
+    { label: 'Reprovados', value: requests.filter(r => r.status === 'REPROVADO').length, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', to: '/solicitacoes', state: { filterStatus: 'REPROVADO' } },
   ];
 
   const filteredRequests = useMemo(() => {
@@ -119,8 +119,14 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+        {stats.map((stat) => (
+          <button
+            key={stat.label}
+            type="button"
+            onClick={() => navigate(stat.to, { state: stat.state })}
+            className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 text-left w-full hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer"
+            title={`Ver solicitações: ${stat.label}`}
+          >
             <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
               <stat.icon size={24} />
             </div>
@@ -128,7 +134,7 @@ const Dashboard: React.FC = () => {
               <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
               <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
