@@ -2356,6 +2356,17 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saldo;
   };
 
+  const conflictUserMessage = (err: unknown): string | null => {
+    const e = err as { code?: string; status?: number; message?: string; details?: string } | null;
+    if (!e) return null;
+    const blob = `${e.code || ''} ${e.message || ''} ${e.details || ''}`.toLowerCase();
+    const isConflict = e.code === '23505' || e.status === 409 || blob.includes('duplicate') || blob.includes('already exists');
+    if (!isConflict) return null;
+    if (blob.includes('username')) return 'Já existe um usuário com este nome de usuário. Escolha outro.';
+    if (blob.includes('email')) return 'Já existe um usuário cadastrado com este e-mail. Use Editar ou redefina a senha na tela de login.';
+    return 'Já existe um cadastro com este usuário ou e-mail.';
+  };
+
   const addUser = async (userData: Partial<User>) => {
     try {
       if (!userData.name || !userData.username) {
@@ -2370,6 +2381,27 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Senha é obrigatória para criar usuário');
       }
 
+      const username = userData.username.toLowerCase().trim();
+      const email = userData.email.trim().toLowerCase();
+
+      const { data: existingUsername } = await supabase
+        .from('users')
+        .select('id, name')
+        .eq('username', username)
+        .maybeSingle();
+      if (existingUsername) {
+        throw new Error(`O nome de usuário "${username}" já está em uso por ${existingUsername.name}.`);
+      }
+
+      const { data: existingEmail } = await supabase
+        .from('users')
+        .select('id, name, username')
+        .ilike('email', email)
+        .maybeSingle();
+      if (existingEmail) {
+        throw new Error(`Já existe um usuário com este e-mail (${existingEmail.name}). Use Editar para alterar os dados.`);
+      }
+
       // Guardar sessão atual para restaurar depois do signUp (evita deslogar o admin)
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession) {
@@ -2378,12 +2410,12 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // Criar usuário no Supabase Auth primeiro
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userData.email,
+        email,
         password: userData.password,
         options: {
           data: {
             name: userData.name,
-            username: userData.username.toLowerCase(),
+            username,
           },
         },
       });
@@ -2401,14 +2433,13 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const { data: existingByEmail } = await supabase
             .from('users')
             .select('id')
-            .eq('email', userData.email)
-            .eq('active', true)
+            .ilike('email', email)
             .maybeSingle();
 
           if (existingByEmail) {
-            throw new Error('Já existe um usuário cadastrado com este e-mail. Use "Editar" para alterar os dados ou "Redefinir senha" na tela de login para enviar um novo link.');
+            throw new Error('Já existe um usuário cadastrado com este e-mail. Use "Editar" para alterar os dados ou "Redefinir senha" na tela de login.');
           }
-          throw new Error('Este e-mail já existe no Auth, mas não está vinculado ao cadastro local. Para usuários comuns, execute no servidor: node scripts/repair-user-from-auth.js <email> --role <ROLE> (ou node scripts/sync-user-auth.js <email>). Use create-admin-user.js apenas para o admin padrão.');
+          throw new Error('Este e-mail já está no login, mas ainda não aparece em Gerenciar Usuários. Tente outro e-mail ou peça para vincular o cadastro existente.');
         }
         console.error('Erro ao criar usuário no Auth:', authError);
         throw new Error(`Erro ao criar usuário: ${authError.message}`);
@@ -2419,25 +2450,32 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Criar usuário na tabela users com o ID do Auth
-      const { data: newUser, error: userError } = await supabase
+      const payload = {
+        id: authData.user.id,
+        name: userData.name,
+        username,
+        email,
+        ramal: userData.ramal || null,
+        whatsapp: userData.whatsapp || null,
+        role: userData.role || 'VIEWER',
+        is_requester: userData.isRequester || false,
+        active: true,
+      };
+
+      let { data: newUser, error: userError } = await supabase
         .from('users')
-        .insert({
-          id: authData.user.id, // Usar o ID do Auth
-          name: userData.name,
-          username: userData.username.toLowerCase(),
-          email: userData.email,
-          ramal: userData.ramal || null,
-          whatsapp: userData.whatsapp || null,
-          role: userData.role || 'VIEWER',
-          is_requester: userData.isRequester || false,
-        })
+        .upsert(payload, { onConflict: 'id' })
         .select()
         .single();
 
       if (userError || !newUser) {
+        const friendly = conflictUserMessage(userError);
+        if (friendly) {
+          throw new Error(friendly);
+        }
         console.error('Erro ao criar usuário na tabela:', userError);
-        // Se falhar, tentar remover o usuário do Auth (opcional)
-        throw userError;
+        const raw = (userError as { message?: string } | null)?.message;
+        throw new Error(raw || 'Não foi possível salvar o usuário na tabela. Tente outro usuário ou e-mail.');
       }
 
       // Se o usuário é demandante, criar também na tabela requesters
@@ -2506,7 +2544,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     } catch (error) {
       console.error('Erro ao adicionar usuário:', error);
-      throw error;
+      if (error instanceof Error) throw error;
+      const friendly = conflictUserMessage(error);
+      throw new Error(friendly || 'Não foi possível salvar o usuário. Tente outro usuário ou e-mail.');
     }
   };
 
