@@ -2386,20 +2386,110 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const { data: existingUsername } = await supabase
         .from('users')
-        .select('id, name')
+        .select('id, name, email, username, active')
         .eq('username', username)
         .maybeSingle();
-      if (existingUsername) {
-        throw new Error(`O nome de usuário "${username}" já está em uso por ${existingUsername.name}.`);
-      }
 
       const { data: existingEmail } = await supabase
         .from('users')
-        .select('id, name, username')
+        .select('id, name, email, username, active')
         .ilike('email', email)
         .maybeSingle();
-      if (existingEmail) {
+
+      if (existingUsername?.active) {
+        throw new Error(`O nome de usuário "${username}" já está em uso por ${existingUsername.name}.`);
+      }
+      if (existingEmail?.active) {
         throw new Error(`Já existe um usuário com este e-mail (${existingEmail.name}). Use Editar para alterar os dados.`);
+      }
+      if (
+        existingUsername &&
+        existingEmail &&
+        existingUsername.id !== existingEmail.id
+      ) {
+        throw new Error('Usuário e e-mail pertencem a cadastros diferentes (inativos). Escolha outro usuário ou e-mail.');
+      }
+
+      const inactiveToReactivate = existingUsername || existingEmail || null;
+
+      const refreshUsersList = async () => {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select(`*, user_sectors(sectors(name))`)
+          .eq('active', true)
+          .order('name');
+        if (usersData) {
+          setUsers(usersData.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            username: u.username,
+            role: u.role,
+            email: u.email,
+            ramal: u.ramal,
+            whatsapp: u.whatsapp,
+            isRequester: u.is_requester || false,
+            sectors: u.user_sectors?.map((us: any) => us.sectors?.name).filter(Boolean) || [],
+          })));
+        }
+      };
+
+      // Cadastro excluído (soft delete): reativa em vez de bloquear — por isso some da lista e ainda “já existe”
+      if (inactiveToReactivate && inactiveToReactivate.active === false) {
+        const { data: reactivated, error: reactivateError } = await supabase
+          .from('users')
+          .update({
+            name: userData.name,
+            username,
+            email,
+            ramal: userData.ramal || null,
+            whatsapp: userData.whatsapp || null,
+            role: userData.role || 'VIEWER',
+            is_requester: userData.isRequester || false,
+            active: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', inactiveToReactivate.id)
+          .select()
+          .single();
+
+        if (reactivateError || !reactivated) {
+          const friendly = conflictUserMessage(reactivateError);
+          throw new Error(friendly || reactivateError?.message || 'Não foi possível reativar o usuário.');
+        }
+
+        await supabase.from('user_sectors').delete().eq('user_id', reactivated.id);
+        if (userData.sectors && userData.sectors.length > 0) {
+          const rows = userData.sectors
+            .map(name => sectors.find(s => s.name === name)?.id)
+            .filter(Boolean) as string[];
+          if (rows.length > 0) {
+            await supabase
+              .from('user_sectors')
+              .insert(rows.map(sector_id => ({ user_id: reactivated.id, sector_id })));
+          }
+        }
+
+        if (userData.password) {
+          try {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token && supabaseUrl) {
+              await fetch(`${supabaseUrl}/functions/v1/admin-set-password`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ userId: reactivated.id, password: userData.password }),
+              });
+            }
+          } catch (pwdErr) {
+            console.warn('Usuário reativado, mas a senha pode precisar ser redefinida:', pwdErr);
+          }
+        }
+
+        await refreshUsersList();
+        return;
       }
 
       // Guardar sessão atual para restaurar depois do signUp (evita deslogar o admin)
@@ -2429,15 +2519,17 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (authError) {
         const isAlreadyRegistered = authError.message?.toLowerCase().includes('already registered') || authError.message?.toLowerCase().includes('já registrado');
         if (isAlreadyRegistered) {
-          // E-mail já existe no Auth: verificar se já temos na tabela users e atualizar ou orientar
           const { data: existingByEmail } = await supabase
             .from('users')
-            .select('id')
+            .select('id, active, name')
             .ilike('email', email)
             .maybeSingle();
 
-          if (existingByEmail) {
+          if (existingByEmail?.active) {
             throw new Error('Já existe um usuário cadastrado com este e-mail. Use "Editar" para alterar os dados ou "Redefinir senha" na tela de login.');
+          }
+          if (existingByEmail && existingByEmail.active === false) {
+            throw new Error('Este e-mail pertence a um cadastro inativo. Use o mesmo nome de usuário do cadastro antigo para reativá-lo, ou escolha outro e-mail.');
           }
           throw new Error('Este e-mail já está no login, mas ainda não aparece em Gerenciar Usuários. Tente outro e-mail ou peça para vincular o cadastro existente.');
         }

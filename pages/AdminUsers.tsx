@@ -168,14 +168,10 @@ const AdminUsers: React.FC = () => {
 
       if (editingId) {
         await updateUser(editingId, userData);
+        alert('Usuário atualizado com sucesso.');
       } else {
         await addUser(userData as User);
-        if (formData.email) {
-          alert(
-            `Usuário criado. Se a confirmação de email estiver habilitada no Supabase, ` +
-            `foi enviado um email de confirmação para ${formData.email}.`
-          );
-        }
+        alert('Usuário salvo com sucesso. Se o cadastro já existia e estava inativo, ele foi reativado.');
       }
 
       handleCloseModal();
