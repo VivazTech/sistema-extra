@@ -2472,16 +2472,22 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (userData.password) {
           try {
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+            await supabase.auth.refreshSession();
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.access_token && supabaseUrl) {
-              await fetch(`${supabaseUrl}/functions/v1/admin-set-password`, {
+              const pwdRes = await fetch(`${supabaseUrl}/functions/v1/admin-set-password`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                   Authorization: `Bearer ${session.access_token}`,
+                  ...(supabaseAnonKey ? { apikey: supabaseAnonKey } : {}),
                 },
-                body: JSON.stringify({ userId: reactivated.id, password: userData.password }),
+                body: JSON.stringify({ user_id: reactivated.id, new_password: userData.password }),
               });
+              if (!pwdRes.ok) {
+                console.warn('Usuário reativado, mas a senha não foi atualizada no login.');
+              }
             }
           } catch (pwdErr) {
             console.warn('Usuário reativado, mas a senha pode precisar ser redefinida:', pwdErr);

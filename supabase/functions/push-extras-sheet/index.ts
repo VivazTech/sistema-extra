@@ -14,6 +14,123 @@ const corsHeaders = {
 const ALLOWED_ROLES = ['ADMIN', 'MANAGER', 'LEADER'] as const;
 const MAX_ROWS = 5000;
 
+type AppsScriptOk = { ok?: boolean; appended?: number; error?: string };
+type AppsScriptFail = { error: string; detail?: string };
+
+function parseJsonLoose(text: string): AppsScriptOk | null {
+  const t = text.replace(/^\uFEFF/, '').trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t) as AppsScriptOk;
+  } catch {
+    /* continue */
+  }
+  const start = t.indexOf('{');
+  const end = t.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(t.slice(start, end + 1)) as AppsScriptOk;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function extractGoogleEchoUrl(html: string): string | null {
+  const m =
+    html.match(/<A HREF="(https:\/\/script\.googleusercontent\.com\/[^"]+)"/i) ||
+    html.match(/href="(https:\/\/script\.googleusercontent\.com\/[^"]+)"/i);
+  return m ? m[1].replace(/&amp;/g, '&') : null;
+}
+
+function explainHtmlResponse(status: number, text: string): AppsScriptFail {
+  const sample = text.replace(/\s+/g, ' ').trim().slice(0, 180);
+  if (status === 403 || /<title>[^<]*403|access denied|acesso negado/i.test(text)) {
+    return {
+      error:
+        'O Apps Script bloqueou o acesso (403). Edite a implantação e defina «Quem tem acesso» = Qualquer pessoa (não «somente eu» nem «qualquer usuário do Google»).',
+      detail: sample,
+    };
+  }
+  if (status === 404 || /<title>[^<]*404|not found|não encontrado/i.test(text)) {
+    return {
+      error:
+        'A URL do Apps Script não existe mais (404). Gere uma nova implantação (Aplicativo da Web → Qualquer pessoa) e atualize o secret GOOGLE_SHEETS_WEBHOOK_URL.',
+      detail: sample,
+    };
+  }
+  if (/sign in|fazer login|accounts\.google|Authorization needed|autorização necessária/i.test(text)) {
+    return {
+      error:
+        'O Apps Script exigiu login do Google. Na implantação, defina «Quem tem acesso» = Qualquer pessoa e use a URL /exec (não /dev).',
+      detail: sample,
+    };
+  }
+  if (/Moved Temporarily/i.test(text)) {
+    return {
+      error:
+        'O Google devolveu um redirecionamento em HTML em vez do JSON do script. Confira se a implantação está ativa e «Qualquer pessoa».',
+      detail: sample,
+    };
+  }
+  return {
+    error: 'A planilha (Apps Script) não retornou JSON válido. Confira o deploy e os logs do script.',
+    detail: sample,
+  };
+}
+
+async function postToAppsScript(
+  url: string,
+  payload: Record<string, unknown>
+): Promise<{ status: number; text: string }> {
+  const body = JSON.stringify(payload);
+  const headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+
+  try {
+    const first = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      redirect: 'manual',
+    });
+
+    if (first.status >= 300 && first.status < 400) {
+      const loc = first.headers.get('Location');
+      if (loc) {
+        const second = await fetch(loc, { method: 'GET', redirect: 'follow' });
+        return { status: second.status, text: await second.text() };
+      }
+    }
+
+    const text = await first.text();
+    const echo = extractGoogleEchoUrl(text);
+    if (echo) {
+      const echoed = await fetch(echo, { method: 'GET', redirect: 'follow' });
+      return { status: echoed.status, text: await echoed.text() };
+    }
+
+    if (first.status === 0 || (!text && first.status >= 300)) {
+      const followed = await fetch(url, { method: 'POST', headers, body, redirect: 'follow' });
+      return { status: followed.status, text: await followed.text() };
+    }
+
+    return { status: first.status, text };
+  } catch {
+    const followed = await fetch(url, { method: 'POST', headers, body, redirect: 'follow' });
+    return { status: followed.status, text: await followed.text() };
+  }
+}
+
+async function parseAppsScriptResponse(
+  status: number,
+  text: string
+): Promise<AppsScriptOk | AppsScriptFail> {
+  const parsed = parseJsonLoose(text);
+  if (parsed) return parsed;
+  return explainHtmlResponse(status, text);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders });
@@ -144,29 +261,20 @@ Deno.serve(async (req) => {
       payload.token = webhookToken;
     }
 
-    const whRes = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      redirect: 'follow',
-    });
+    // Apps Script redireciona POST → GET no echo do Google. text/plain evita
+    // HTML de login/preflight; se ainda vier HTML, seguimos o href manualmente.
+    const { status: whStatus, text: whText } = await postToAppsScript(webhookUrl, payload);
+    const whJson = await parseAppsScriptResponse(whStatus, whText);
 
-    const whText = await whRes.text();
-    let whJson: { ok?: boolean; appended?: number; error?: string };
-    try {
-      whJson = JSON.parse(whText) as { ok?: boolean; appended?: number; error?: string };
-    } catch {
-      return new Response(
-        JSON.stringify({
-          error: 'A planilha (Apps Script) não retornou JSON válido. Confira o deploy e os logs do script.',
-          detail: whText.slice(0, 200),
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if ('error' in whJson && !('ok' in whJson)) {
+      return new Response(JSON.stringify({ error: whJson.error, detail: whJson.detail }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    if (!whRes.ok || whJson.ok === false) {
-      const err = whJson.error || `Webhook HTTP ${whRes.status}`;
+    if (whStatus >= 400 || whJson.ok === false) {
+      const err = whJson.error || `Webhook HTTP ${whStatus}`;
       return new Response(JSON.stringify({ error: err }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

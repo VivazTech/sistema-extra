@@ -94,7 +94,8 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { user_id: userId, new_password: newPassword } = body || {};
+    const userId = body?.user_id || body?.userId;
+    const newPassword = body?.new_password || body?.password;
 
     if (!userId || typeof newPassword !== 'string' || newPassword.length < 6) {
       return new Response(

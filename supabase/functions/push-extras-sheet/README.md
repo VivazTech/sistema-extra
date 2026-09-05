@@ -42,120 +42,42 @@ supabase functions deploy push-extras-sheet
 
 Em `supabase/config.toml` esta função usa `verify_jwt = false` para o pedido chegar ao `index.ts`; a autorização é feita dentro do código (JWT + papel no banco), como em `admin-set-password`.
 
-## Google Apps Script (planilha)
+## Google Apps Script (planilha Controle de Extras)
 
-1. Abra a planilha desejada (ou crie uma).
-2. **Extensões → Apps Script** (ou script vinculado à planilha).
-3. Cole o código abaixo em `Código.gs`.
-4. **Configuração do projeto** (ícone engrenagem) → marque **mostrar arquivo de manifesto** `appsscript.json` se quiser; não é obrigatório para o fluxo básico.
-5. Em **Execuções**, escolha a função `doPost` não — o deploy é como **Implantar → Nova implantação** → tipo **Aplicativo da Web**:
+A planilha de destino é a **Controle de Extras**, aba **Base de Dados**. O código oficial está em `Codigo.gs` neste mesmo diretório.
+
+1. Abra a planilha → **Extensões → Apps Script**.
+2. Apague o conteúdo antigo e cole o arquivo `Codigo.gs`.
+3. **Salvar**.
+4. **Implantar → Nova implantação** → tipo **Aplicativo da Web**:
    - Executar como: **Eu**
-   - Quem tem acesso: **Qualquer pessoa** (o token no corpo JSON protege o endpoint; só o Supabase conhece a URL completa + token)
-6. Copie a **URL da Web** e use em `GOOGLE_SHEETS_WEBHOOK_URL`.
-7. No editor Apps Script: **Configurações do projeto** → **Propriedades do script** → **Propriedades do script** (Script properties):
-   - `SPREADSHEET_ID` = ID da planilha (da URL `.../d/ESTE_ID/edit`)
-   - `SHEET_NAME` = nome da aba (ex.: `Extras`) — padrão `Extras` se omitir
-   - `WEBHOOK_TOKEN` = só se usar token: **mesmo texto** que o secret `GOOGLE_SHEETS_WEBHOOK_TOKEN` no Supabase (veja «Token (opcional)» acima)
+   - Quem tem acesso: **Qualquer pessoa**
+5. Copie a **URL da Web** (`…/exec`) e grave em `GOOGLE_SHEETS_WEBHOOK_URL`.
+6. Teste no navegador: abrir a URL `/exec` deve devolver JSON `{"ok":true,"service":"vivaz-controle-extras",…}`. Se aparecer HTML de login ou 404, a implantação está errada.
+7. Propriedades do script (opcionais):
+   - `SHEET_NAME` — padrão `Base de Dados`
+   - `SPREADSHEET_ID` — só se o script não estiver vinculado à planilha
+   - `WEBHOOK_TOKEN` — só se usar token (veja acima)
 
-### Código do Apps Script
+Colunas gravadas: NOME, SETOR, ATIVIDADE, FINALIDADE, DIA, ENTRADA, SAÍDA intervalo, CHEGADA, SAÍDA final, DIARIA, VALOR HORA, VALOR PAGAR.  
+ANO, MÊS, SEMANA e HORAS TRABALHADAS **não** são preenchidos — o script copia a fórmula da última linha.
 
-```javascript
-/**
- * Webhook: recebe POST JSON { token?, rows: [...] } e acrescenta linhas na aba.
- * Propriedades do script: SPREADSHEET_ID, SHEET_NAME (opcional), WEBHOOK_TOKEN (opcional).
- */
-function doPost(e) {
-  try {
-    var props = PropertiesService.getScriptProperties();
-    var expected = props.getProperty('WEBHOOK_TOKEN');
-    var data = JSON.parse(e.postData.contents);
+### Erro «não retornou JSON válido»
 
-    if (expected && data.token !== expected) {
-      return jsonOut({ ok: false, error: 'Unauthorized' });
-    }
+O Google devolveu **HTML** (não o `{ ok: true }` do script). Causas mais comuns:
 
-    var rows = data.rows;
-    if (!rows || !rows.length) {
-      return jsonOut({ ok: false, error: 'rows vazio' });
-    }
+1. **URL `/exec` antiga (404)** — implantação apagada ou nova implantação gerou outra URL. Crie **Nova implantação** e atualize o secret.
+2. **Acesso não é «Qualquer pessoa»** — o Google devolve página de login em HTML.
+3. **URL `/dev`** — só funciona logado; use a URL da implantação `/exec`.
 
-    var ssId = props.getProperty('SPREADSHEET_ID');
-    if (!ssId) {
-      return jsonOut({ ok: false, error: 'Defina SPREADSHEET_ID nas propriedades do script' });
-    }
-
-    var sheetName = props.getProperty('SHEET_NAME') || 'Extras';
-    var ss = SpreadsheetApp.openById(ssId);
-    var sheet = ss.getSheetByName(sheetName);
-    if (!sheet) {
-      sheet = ss.insertSheet(sheetName);
-    }
-
-    var headers = [
-      'Código',
-      'Nome do extra',
-      'Setor',
-      'Função',
-      'Motivo',
-      'Data trabalho',
-      'Entrada',
-      'Saída intervalo',
-      'Volta intervalo',
-      'Saída final',
-      'Valor cadastrado',
-      'Tipo valor',
-      'Total horas (dia)',
-      'Valor hora',
-      'Valor a pagar',
-      'RequestId',
-    ];
-
-    var last = sheet.getLastRow();
-    if (last === 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      last = 1;
-    }
-
-    var values = rows.map(function (r) {
-      return [
-        r.code || '',
-        r.extraName || '',
-        r.sector || '',
-        r.role || '',
-        r.reason || '',
-        r.workDate || '',
-        r.arrival || '',
-        r.breakStart || '',
-        r.breakEnd || '',
-        r.departure || '',
-        r.valorCadastrado != null ? r.valorCadastrado : '',
-        r.valueTypeLabel || '',
-        r.totalHorasDia || '',
-        r.valorHora != null ? r.valorHora : '',
-        r.valorPagar != null ? r.valorPagar : '',
-        r.requestId || '',
-      ];
-    });
-
-    sheet.getRange(last + 1, 1, last + values.length, values[0].length).setValues(values);
-
-    return jsonOut({ ok: true, appended: values.length });
-  } catch (err) {
-    return jsonOut({ ok: false, error: String(err) });
-  }
-}
-
-function jsonOut(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
-}
-```
+Depois de colar o `Codigo.gs` novo, é obrigatório **Nova implantação** (não basta salvar o código).
 
 ### Payload enviado pelo Edge
 
 O Apps Script recebe um objeto JSON com:
 
 - `token` (se configurado no Supabase)
-- `rows`: array de objetos com os mesmos campos da prévia (`code`, `extraName`, `sector`, `role`, `reason`, `workDate`, `arrival`, `breakStart`, `breakEnd`, `departure`, `valorCadastrado`, `valueTypeLabel`, `totalHorasDia`, `valorHora`, `valorPagar`, `requestId`)
+- `rows`: array da prévia (`extraName`, `sector`, `role`, `reason`, `workDate`, `arrival`, `breakStart`, `breakEnd`, `departure`, `valorCadastrado`, `valorHora`, `valorPagar`, …)
 - `source`, `sentAt` (metadados)
 
 ## CORS
