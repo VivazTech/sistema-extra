@@ -7,6 +7,7 @@ import { useActionLog } from '../context/ActionLogContext';
 import { formatUserErrorMessage, logErrorForSupport } from '../utils/errorMessage';
 import { SHIFTS } from '../constants';
 import type { ExtraRequest } from '../types';
+import { formatDateOnlyLocal, todayDateString } from '../utils/date';
 
 interface RequestModalProps {
   isOpen: boolean;
@@ -15,13 +16,6 @@ interface RequestModalProps {
   initialRequest?: ExtraRequest | null;
 }
 
-const getTodayDateString = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 const sectorNamesSet = (sectors: { name: string }[]) => new Set(sectors.map(s => s.name));
 const getValidSectorNames = (extra: { sector?: string; sectors?: string[] }, validNames: Set<string>) => {
@@ -35,7 +29,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
   const { logAction } = useActionLog();
   const isEditMode = !!initialRequest?.id;
   const { user } = useAuth();
-  const todayStr = getTodayDateString();
+  const todayStr = todayDateString();
   const shiftOptions = shifts.length > 0 ? shifts.map(s => s.name) : [...SHIFTS];
   const defaultShift = shiftOptions[0] || 'Manhã';
 
@@ -146,9 +140,9 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
   }, [formData.extraName, requests, todayStr]);
 
   const addDays = (dateStr: string, days: number) => {
-    const date = new Date(`${dateStr}T00:00:00`);
+    const date = new Date(`${dateStr}T12:00:00`);
     date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
+    return formatDateOnlyLocal(date);
   };
 
   const handleAddDay = () => {
@@ -167,7 +161,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
     }
     
     const lastDay = formData.workDays[formData.workDays.length - 1];
-    const nextDate = lastDay?.date ? addDays(lastDay.date, 1) : new Date().toISOString().split('T')[0];
+    const nextDate = lastDay?.date ? addDays(lastDay.date, 1) : todayDateString();
     const nextShift = lastDay?.shift || defaultShift;
     setFormData({
       ...formData,

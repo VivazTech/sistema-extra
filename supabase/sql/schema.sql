@@ -264,24 +264,34 @@ CREATE TRIGGER update_extra_saldo_settings_updated_at BEFORE UPDATE ON extra_sal
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Função para gerar código único de solicitação
+-- Usa advisory lock para evitar colisão em inserts concorrentes.
+-- LPAD com largura fixa 4 TRUNCA após 9999 (10000→1000) e gera 23505; por isso usa GREATEST(4, length).
 CREATE OR REPLACE FUNCTION generate_request_code()
 RETURNS TRIGGER AS $$
 DECLARE
   year_num INTEGER;
   seq_num INTEGER;
-  new_code VARCHAR(50);
+  seq_text TEXT;
 BEGIN
-  year_num := EXTRACT(YEAR FROM NOW());
-  
-  -- Buscar o último número de sequência do ano
-  SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 'EXT-\d{4}-(\d+)') AS INTEGER)), 0) + 1
+  year_num := EXTRACT(YEAR FROM NOW())::INTEGER;
+
+  PERFORM pg_advisory_xact_lock(87201405, year_num);
+
+  SELECT COALESCE(
+    MAX(
+      CAST(
+        substring(code from ('^EXT-' || year_num::text || '-([0-9]+)$'))
+        AS INTEGER
+      )
+    ),
+    0
+  ) + 1
   INTO seq_num
   FROM extra_requests
-  WHERE code LIKE 'EXT-' || year_num || '-%';
-  
-  new_code := 'EXT-' || year_num || '-' || LPAD(seq_num::TEXT, 4, '0');
-  NEW.code := new_code;
-  
+  WHERE code ~ ('^EXT-' || year_num::text || '-[0-9]+$');
+
+  seq_text := LPAD(seq_num::TEXT, GREATEST(4, LENGTH(seq_num::TEXT)), '0');
+  NEW.code := 'EXT-' || year_num || '-' || seq_text;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

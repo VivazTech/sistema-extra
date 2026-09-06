@@ -1,3 +1,27 @@
+/** Fuso do negócio (Vivaz Cataratas / Foz do Iguaçu). */
+export const BUSINESS_TIME_ZONE = 'America/Sao_Paulo';
+
+/**
+ * Data civil de hoje em Brasília (YYYY-MM-DD).
+ * Não usar `toISOString().split('T')[0]`: após 21h no Brasil o UTC já é o dia seguinte.
+ */
+export function todayDateString(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+/** YYYY-MM-DD a partir dos componentes locais do Date (não UTC). */
+export function formatDateOnlyLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function parseISODate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
   // Expecting YYYY-MM-DD

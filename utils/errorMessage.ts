@@ -72,9 +72,28 @@ export interface SafeErrorDisplay {
  * @param error Erro capturado
  * @param action Descrição curta da ação (ex.: "salvar a solicitação")
  */
+function describeUniqueViolation(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const e = error as SupabaseLikeError;
+  if (e.code !== '23505') return null;
+  const blob = `${e.message || ''} ${e.details || ''} ${e.hint || ''}`.toLowerCase();
+  if (blob.includes('(code)') || blob.includes('extra_requests_code') || /\bext-\d{4}-\d+/i.test(blob)) {
+    return 'Conflito ao gerar o código da solicitação. Tente salvar novamente em alguns segundos.';
+  }
+  if (blob.includes('work_date') || blob.includes('request_id') || blob.includes('work_days')) {
+    return 'Há dias duplicados nesta solicitação. Ajuste as datas e tente novamente.';
+  }
+  return 'Já existe um registro com os mesmos dados. Verifique as informações e tente novamente.';
+}
+
 export function formatUserErrorMessage(error: unknown, action = 'concluir a operação'): SafeErrorDisplay {
   if (isBusinessError(error)) {
     return { userMessage: error.message, code: null };
+  }
+
+  const uniqueMsg = describeUniqueViolation(error);
+  if (uniqueMsg) {
+    return { userMessage: uniqueMsg, code: '23505' };
   }
 
   const code = extractErrorCode(error);
