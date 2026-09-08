@@ -103,7 +103,7 @@ interface ExportFormatModalProps {
   onClose: () => void;
   /** Para type 'list' recebe (format, sector?, { startDate, endDate }, eventoFilter?). Para 'bulk' (format, sector?, { groupByExtra? }, eventoFilter?). Para 'recibo' (format, sector?). */
   onExport: (format: ExportFormat, sector?: string, listOptions?: { startDate: string; endDate: string; groupByExtra?: boolean }, eventoFilter?: EventoFilterValue) => void;
-  type: 'recibo' | 'list' | 'bulk';
+  type: 'recibo' | 'list' | 'bulk' | 'pj';
   /** Ignorado para type 'list' e 'bulk' (usa filtro VIVAZ / AQUAMANIA / NÚCLEO ENTRETENIMENTO). */
   sectors?: string[];
 }
@@ -121,6 +121,11 @@ const LABELS = {
   },
   bulk: {
     title: 'Baixar Recibos de Pagamento',
+    pdf: 'PDF',
+    excel: 'Excel (.xlsx)',
+  },
+  pj: {
+    title: 'Baixar Relatório de Ponto PJ',
     pdf: 'PDF',
     excel: 'Excel (.xlsx)',
   },

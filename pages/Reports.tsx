@@ -333,7 +333,7 @@ const Reports: React.FC = () => {
               ))}
             </select>
           </div>
-          {activeTab !== 'recibos' && (
+          {activeTab !== 'recibos' && activeTab !== 'pj-hours' && (
             <div className="flex items-center gap-2 min-w-0">
               <Calendar size={18} className="text-gray-400 shrink-0" />
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full min-w-0">

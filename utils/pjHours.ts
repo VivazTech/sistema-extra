@@ -27,22 +27,36 @@ export function parseHHMM(s: string | undefined | null): number | null {
   return h * 60 + min;
 }
 
-/**
- * Total trabalhado = (saída - entrada) - (volta intervalo - saída intervalo).
- * Retorna string tipo "8h15min" ou "—" se incompleto.
- */
-export function formatWorkedHours(arrival?: string, breakStart?: string, breakEnd?: string, departure?: string): string {
+/** Minutos trabalhados no dia, ou null se horários incompletos. */
+export function workedMinutes(
+  arrival?: string,
+  breakStart?: string,
+  breakEnd?: string,
+  departure?: string
+): number | null {
   const a = parseHHMM(arrival);
   const d = parseHHMM(departure);
-  if (a === null || d === null || d <= a) return '—';
+  if (a === null || d === null || d <= a) return null;
   let total = d - a;
   const bs = parseHHMM(breakStart);
   const be = parseHHMM(breakEnd);
   if (bs !== null && be !== null && be > bs) {
     total -= be - bs;
   }
-  if (total < 0) return '—';
+  return total >= 0 ? total : null;
+}
+
+export function formatMinutesWorked(total: number): string {
   const hh = Math.floor(total / 60);
   const mm = total % 60;
   return `${hh}h${String(mm).padStart(2, '0')}min`;
+}
+
+/**
+ * Total trabalhado = (saída - entrada) - (volta intervalo - saída intervalo).
+ * Retorna string tipo "8h15min" ou "—" se incompleto.
+ */
+export function formatWorkedHours(arrival?: string, breakStart?: string, breakEnd?: string, departure?: string): string {
+  const total = workedMinutes(arrival, breakStart, breakEnd, departure);
+  return total == null ? '—' : formatMinutesWorked(total);
 }
