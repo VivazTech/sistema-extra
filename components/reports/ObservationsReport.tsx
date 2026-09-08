@@ -1,10 +1,13 @@
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useExtras } from '../../context/ExtraContext';
 import { filterBySector } from '../ExportFormatModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { AlertCircle, FileText, TrendingUp } from 'lucide-react';
+import { AlertCircle, FileText, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDateBR } from '../../utils/date';
+
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 500] as const;
+const DEFAULT_PAGE_SIZE = 10;
 
 interface ObservationsReportProps {
   startDate?: string;
@@ -14,6 +17,8 @@ interface ObservationsReportProps {
 
 const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endDate, sector }) => {
   const { requests } = useExtras();
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredRequests = useMemo(() => {
     let list = requests;
@@ -94,6 +99,23 @@ const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endD
 
   const totalObservations = observations.length;
   const requestsWithObservations = filteredRequests.filter(r => r.observations).length;
+  const totalPages = Math.max(1, Math.ceil(observations.length / pageSize));
+
+  const paginatedObservations = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return observations.slice(start, start + pageSize);
+  }, [observations, currentPage, pageSize]);
+
+  const paginationFrom = observations.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const paginationTo = Math.min(currentPage * pageSize, observations.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [startDate, endDate, sector]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-6">
@@ -157,8 +179,23 @@ const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endD
 
       {/* Lista Detalhada */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100">
+        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="text-lg font-bold text-gray-900">Detalhamento de Observações</h3>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <span className="text-xs font-bold text-gray-500 uppercase">Itens/página</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -172,8 +209,8 @@ const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endD
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {observations.map((obs, idx) => (
-                <tr key={idx} className="hover:bg-gray-50">
+              {paginatedObservations.map((obs, idx) => (
+                <tr key={`${obs.extraName}-${obs.date}-${idx}`} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{obs.extraName}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {obs.date ? (obs.date.includes('/') ? obs.date : formatDateBR(obs.date)) : 'N/A'}
@@ -195,6 +232,39 @@ const ObservationsReport: React.FC<ObservationsReportProps> = ({ startDate, endD
             </tbody>
           </table>
         </div>
+        {observations.length > 0 && (
+          <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              Mostrando <span className="font-semibold text-gray-700">{paginationFrom}–{paginationTo}</span> de{' '}
+              <span className="font-semibold text-gray-700">{observations.length}</span>
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft size={18} />
+                  Anterior
+                </button>
+                <span className="text-sm text-gray-600">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="flex items-center gap-1 px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Próxima
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,17 +1,154 @@
-import React, { Suspense, useState } from 'react';
-import { Calendar, Filter, BarChart3 } from 'lucide-react';
+import React, { Suspense, useEffect, useState } from 'react';
+import {
+  Calendar,
+  Filter,
+  BarChart3,
+  TrendingDown,
+  Clock,
+  DollarSign,
+  CheckCircle2,
+  Users,
+  UserCheck,
+  AlertCircle,
+  FileText,
+  Shield,
+  LayoutDashboard,
+} from 'lucide-react';
 import { SECTOR_FILTER_OPTIONS } from '../components/ExportFormatModal';
 import { useExtras } from '../context/ExtraContext';
+import { useAuth } from '../context/AuthContext';
 import { DatabaseLoading } from '../components/LoadingLottie';
 
 const ReportsOverviewCharts = React.lazy(() => import('../components/reports/ReportsOverviewCharts'));
+const FrequencyReport = React.lazy(() => import('../components/reports/FrequencyReport'));
+const PunctualityReport = React.lazy(() => import('../components/reports/PunctualityReport'));
+const FinancialReport = React.lazy(() => import('../components/reports/FinancialReport'));
+const SaldoUsageReport = React.lazy(() => import('../components/reports/SaldoUsageReport'));
+const ApprovalReport = React.lazy(() => import('../components/reports/ApprovalReport'));
+const DemandReport = React.lazy(() => import('../components/reports/DemandReport'));
+const PerformanceReport = React.lazy(() => import('../components/reports/PerformanceReport'));
+const ObservationsReport = React.lazy(() => import('../components/reports/ObservationsReport'));
+const RequesterReport = React.lazy(() => import('../components/reports/RequesterReport'));
+const AuditReport = React.lazy(() => import('../components/reports/AuditReport'));
+const ExecutiveDashboard = React.lazy(() => import('../components/reports/ExecutiveDashboard'));
+
+interface ChartTab {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+  component: React.ComponentType<{ startDate?: string; endDate?: string; sector?: string; event?: string }>;
+  roles: string[];
+}
 
 const Graficos: React.FC = () => {
   const { events } = useExtras();
+  const { user } = useAuth();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSector, setSelectedSector] = useState<string>('VIVAZ');
   const [selectedEvent, setSelectedEvent] = useState<string>('');
+  const [activeTab, setActiveTab] = useState('resumo-graficos');
+
+  const chartTabs: ChartTab[] = [
+    {
+      id: 'resumo-graficos',
+      label: 'Resumo e Gráficos',
+      icon: BarChart3,
+      component: ReportsOverviewCharts,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'executive',
+      label: 'Dashboard Executivo',
+      icon: LayoutDashboard,
+      component: ExecutiveDashboard,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'frequency',
+      label: 'Frequência e Faltas',
+      icon: TrendingDown,
+      component: FrequencyReport,
+      roles: ['ADMIN', 'MANAGER', 'LEADER'],
+    },
+    {
+      id: 'punctuality',
+      label: 'Pontualidade',
+      icon: Clock,
+      component: PunctualityReport,
+      roles: ['ADMIN', 'MANAGER', 'LEADER'],
+    },
+    {
+      id: 'financial',
+      label: 'Financeiro',
+      icon: DollarSign,
+      component: FinancialReport,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'saldo',
+      label: 'Utilização de Saldo',
+      icon: BarChart3,
+      component: SaldoUsageReport,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'approval',
+      label: 'Aprovações',
+      icon: CheckCircle2,
+      component: ApprovalReport,
+      roles: ['ADMIN', 'MANAGER', 'LEADER'],
+    },
+    {
+      id: 'demand',
+      label: 'Demanda por Setor',
+      icon: Users,
+      component: DemandReport,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'performance',
+      label: 'Performance de Extras',
+      icon: UserCheck,
+      component: PerformanceReport,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'observations',
+      label: 'Observações',
+      icon: AlertCircle,
+      component: ObservationsReport,
+      roles: ['ADMIN', 'MANAGER', 'LEADER'],
+    },
+    {
+      id: 'requester',
+      label: 'Por Solicitante',
+      icon: FileText,
+      component: RequesterReport,
+      roles: ['ADMIN', 'MANAGER'],
+    },
+    {
+      id: 'audit',
+      label: 'Auditoria',
+      icon: Shield,
+      component: AuditReport,
+      roles: ['ADMIN'],
+    },
+  ];
+
+  const availableTabs = chartTabs.filter((tab) => tab.roles.includes(user?.role || ''));
+
+  useEffect(() => {
+    const hasActive = availableTabs.some((tab) => tab.id === activeTab);
+    if (!hasActive && availableTabs.length > 0) {
+      setActiveTab(availableTabs[0].id);
+    }
+  }, [availableTabs, activeTab]);
+
+  const ActiveComponent =
+    availableTabs.find((tab) => tab.id === activeTab)?.component ??
+    availableTabs[0]?.component ??
+    ReportsOverviewCharts;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -22,7 +159,7 @@ const Graficos: React.FC = () => {
             Gráficos
           </h1>
           <p className="text-gray-500 mt-1">
-            Total gasto, comparação de meses, gasto por setor e indicadores de saldo
+            Análises, estatísticas e indicadores do sistema de controle de extras
           </p>
         </div>
 
@@ -78,14 +215,43 @@ const Graficos: React.FC = () => {
         </div>
       </header>
 
-      <Suspense fallback={<DatabaseLoading message="Carregando gráficos..." minHeight="min-h-[40vh]" />}>
-        <ReportsOverviewCharts
-          startDate={startDate || undefined}
-          endDate={endDate || undefined}
-          sector={selectedSector}
-          event={selectedEvent || undefined}
-        />
-      </Suspense>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="border-b border-gray-100 overflow-x-auto">
+          <div className="flex gap-1 p-2">
+            {availableTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                    ${activeTab === tab.id
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  <Icon size={18} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-6">
+          <Suspense fallback={<DatabaseLoading message="Carregando gráficos..." minHeight="min-h-[40vh]" />}>
+            <ActiveComponent
+              startDate={startDate || undefined}
+              endDate={endDate || undefined}
+              sector={selectedSector}
+              event={selectedEvent || undefined}
+            />
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 };

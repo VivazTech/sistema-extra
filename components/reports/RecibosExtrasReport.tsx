@@ -7,7 +7,6 @@ import { FileText, Download, Calendar } from 'lucide-react';
 import { formatDateBR, toDateOnlyString } from '../../utils/date';
 import type { ExtraRequest, WorkDay } from '../../types';
 import { roundMoney } from '../../utils/round';
-import SheetsExportPreviewReport from './SheetsExportPreviewReport';
 
 /** Ordenação alfabética por nome do extra (e desempate por setor e código). */
 function sortRequestsByExtraName(list: ExtraRequest[]): ExtraRequest[] {
@@ -89,10 +88,9 @@ function getDateRange(preset: PeriodPreset, customStart?: string, customEnd?: st
 interface RecibosExtrasReportProps {
   startDate?: string;
   endDate?: string;
-  sector?: string;
 }
 
-const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd, sector }) => {
+const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: propsStart, endDate: propsEnd }) => {
   const { requests } = useExtras();
   const [period, setPeriod] = useState<PeriodPreset>('30');
   const [customStart, setCustomStart] = useState('');
@@ -121,9 +119,6 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
       return hasWorkDayInRange;
     });
   }, [requests, start, end, period, customStart, customEnd, propsStart, propsEnd]);
-
-  const sheetsStart = toDateOnlyString(start) || start;
-  const sheetsEnd = toDateOnlyString(end) || end;
 
   const handleGenerate = () => {
     if (period === 'custom' && (!customStart || !customEnd)) return;
@@ -296,11 +291,6 @@ const RecibosExtrasReport: React.FC<RecibosExtrasReportProps> = ({ startDate: pr
         </div>
       )}
 
-      {canGenerate && sheetsStart && sheetsEnd && (
-        <section className="w-full mt-10 pt-10 border-t border-gray-200">
-          <SheetsExportPreviewReport embedded startDate={sheetsStart} endDate={sheetsEnd} sector={sector} />
-        </section>
-      )}
     </div>
   );
 };

@@ -1,481 +1,86 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  FileText, 
-  TrendingDown, 
-  Clock, 
-  DollarSign, 
-  BarChart3, 
-  CheckCircle2, 
-  Users, 
-  AlertCircle, 
-  UserCheck, 
-  FileWarning, 
-  Shield, 
-  LayoutDashboard,
-  Download,
-  Calendar,
-  Filter,
-  Timer,
-  X,
-  FileSpreadsheet,
-} from 'lucide-react';
-import { useExtras } from '../context/ExtraContext';
-import type { ExtraRequest } from '../types';
-import { SECTOR_FILTER_OPTIONS, filterBySector } from '../components/ExportFormatModal';
+import React, { useState } from 'react';
+import { FileText, Timer, Filter, Table2 } from 'lucide-react';
+import { SECTOR_FILTER_OPTIONS } from '../components/ExportFormatModal';
 import { DatabaseLoading } from '../components/LoadingLottie';
 
-const FrequencyReport = React.lazy(() => import('../components/reports/FrequencyReport'));
-const PunctualityReport = React.lazy(() => import('../components/reports/PunctualityReport'));
-const FinancialReport = React.lazy(() => import('../components/reports/FinancialReport'));
-const SaldoUsageReport = React.lazy(() => import('../components/reports/SaldoUsageReport'));
-const ApprovalReport = React.lazy(() => import('../components/reports/ApprovalReport'));
-const DemandReport = React.lazy(() => import('../components/reports/DemandReport'));
-const PerformanceReport = React.lazy(() => import('../components/reports/PerformanceReport'));
-const ObservationsReport = React.lazy(() => import('../components/reports/ObservationsReport'));
-const RequesterReport = React.lazy(() => import('../components/reports/RequesterReport'));
-const IncompleteRecordsReport = React.lazy(() => import('../components/reports/IncompleteRecordsReport'));
-const PjHoursReport = React.lazy(() => import('../components/reports/PjHoursReport'));
-const AuditReport = React.lazy(() => import('../components/reports/AuditReport'));
-const ExecutiveDashboard = React.lazy(() => import('../components/reports/ExecutiveDashboard'));
 const RecibosExtrasReport = React.lazy(() => import('../components/reports/RecibosExtrasReport'));
-const ReportsOverviewCharts = React.lazy(() => import('../components/reports/ReportsOverviewCharts'));
-
-interface ReportTab {
-  id: string;
-  label: string;
-  icon: React.ComponentType<{ size?: number }>;
-  component: React.ComponentType<{ startDate?: string; endDate?: string; sector?: string }>;
-  roles: string[];
-}
-
-/** Escapa valor para CSV (aspas se contiver vírgula ou quebra de linha). */
-function csvEscape(value: string | number | undefined): string {
-  if (value === undefined || value === null) return '';
-  const s = String(value).trim();
-  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
-
-/** Formata data ISO para exibição em CSV. */
-function formatDateCSV(iso?: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR');
-}
-
-type ExportRequestsFormat = 'csv' | 'pdf';
+const SheetsExportPreviewReport = React.lazy(() => import('../components/reports/SheetsExportPreviewReport'));
+const PjHoursReport = React.lazy(() => import('../components/reports/PjHoursReport'));
 
 const Reports: React.FC = () => {
-  const { user, requests } = useExtras();
-  const [activeTab, setActiveTab] = useState('resumo-graficos');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
   const [selectedSector, setSelectedSector] = useState<string>('VIVAZ');
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState<ExportRequestsFormat | null>(null);
-
-  const reportTabs: ReportTab[] = [
-    { 
-      id: 'resumo-graficos', 
-      label: 'Resumo e Gráficos', 
-      icon: BarChart3, 
-      component: ReportsOverviewCharts,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'recibos', 
-      label: 'Recibos de Extras', 
-      icon: FileText, 
-      component: RecibosExtrasReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER']
-    },
-    { 
-      id: 'executive', 
-      label: 'Dashboard Executivo', 
-      icon: LayoutDashboard, 
-      component: ExecutiveDashboard,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'frequency', 
-      label: 'Frequência e Faltas', 
-      icon: TrendingDown, 
-      component: FrequencyReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER']
-    },
-    { 
-      id: 'punctuality', 
-      label: 'Pontualidade', 
-      icon: Clock, 
-      component: PunctualityReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER']
-    },
-    { 
-      id: 'financial', 
-      label: 'Financeiro', 
-      icon: DollarSign, 
-      component: FinancialReport,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'saldo', 
-      label: 'Utilização de Saldo', 
-      icon: BarChart3, 
-      component: SaldoUsageReport,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'approval', 
-      label: 'Aprovações', 
-      icon: CheckCircle2, 
-      component: ApprovalReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER']
-    },
-    { 
-      id: 'demand', 
-      label: 'Demanda por Setor', 
-      icon: Users, 
-      component: DemandReport,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'performance', 
-      label: 'Performance de Extras', 
-      icon: UserCheck, 
-      component: PerformanceReport,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'observations', 
-      label: 'Observações', 
-      icon: AlertCircle, 
-      component: ObservationsReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER']
-    },
-    { 
-      id: 'requester', 
-      label: 'Por Solicitante', 
-      icon: FileText, 
-      component: RequesterReport,
-      roles: ['ADMIN', 'MANAGER']
-    },
-    { 
-      id: 'incomplete', 
-      label: 'Registros Incompletos', 
-      icon: FileWarning, 
-      component: IncompleteRecordsReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER']
-    },
-    {
-      id: 'pj-hours',
-      label: 'Ponto PJ',
-      icon: Timer,
-      component: PjHoursReport,
-      roles: ['ADMIN', 'MANAGER', 'LEADER'],
-    },
-    { 
-      id: 'audit', 
-      label: 'Auditoria', 
-      icon: Shield, 
-      component: AuditReport,
-      roles: ['ADMIN']
-    },
-  ];
-
-  const availableTabs = reportTabs.filter(tab => 
-    tab.roles.includes(user?.role || '')
-  );
-
-  useEffect(() => {
-    const hasActive = availableTabs.some(tab => tab.id === activeTab);
-    if (!hasActive && availableTabs.length > 0) {
-      setActiveTab(availableTabs[0].id);
-    }
-  }, [availableTabs, activeTab]);
-
-  const ActiveComponent = availableTabs.find(tab => tab.id === activeTab)?.component ?? availableTabs[0]?.component ?? RecibosExtrasReport;
-
-  // Solicitações filtradas por período e setor (para exportar CSV) — mesma lógica dos modais de listagem/recibos
-  const requestsForExport = useMemo(() => {
-    let list = requests;
-    if (startDate || endDate) {
-      list = list.filter(req => {
-        const hasWorkDayInRange = req.workDays.some(day => {
-          const dayDate = new Date(day.date);
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-          return (!start || dayDate >= start) && (!end || dayDate <= end);
-        });
-        return hasWorkDayInRange;
-      });
-    }
-    list = filterBySector(list, selectedSector);
-    return list;
-  }, [requests, startDate, endDate, selectedSector]);
-
-  const exportFileBaseName = () => {
-    const sectorLabel = selectedSector || 'todos';
-    return `relatorio-extras-${sectorLabel.replace(/\s+/g, '-')}-${startDate || 'inicio'}-${endDate || 'fim'}`;
-  };
-
-  const buildExportRows = (list: ExtraRequest[]) =>
-    list.map((req) => {
-      const dates = req.workDays.map(d => formatDateCSV(d.date)).join('; ');
-      return [
-        req.code || '',
-        req.sector || '',
-        req.role || '',
-        req.extraName || '',
-        req.leaderName || '',
-        req.requester || '',
-        req.reason || '',
-        req.value != null ? String(req.value) : '',
-        req.status || '',
-        String(req.workDays?.length ?? 0),
-        dates,
-        formatDateCSV(req.createdAt),
-        req.observations || '',
-        req.approvalJustification || '',
-        req.approvalJustification ? (req.approvedBy || '') : '',
-      ];
-    });
-
-  const exportHeaders = [
-    'Código', 'Setor', 'Função', 'Nome do Extra', 'Líder', 'Solicitante', 'Motivo',
-    'Valor (R$)', 'Status', 'Qtd. dias', 'Datas dos dias', 'Criado em', 'Observações',
-    'Justificativa aprovação', 'Usuário da justificativa',
-  ];
-
-  const handleExportCSV = () => {
-    const rows = buildExportRows(requestsForExport).map((row) =>
-      row.map((cell) => csvEscape(cell)).join(',')
-    );
-    const csv = [exportHeaders.join(','), ...rows].join('\r\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${exportFileBaseName()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportPDF = async () => {
-    const { jsPDF } = await import('jspdf');
-    const { default: autoTable } = await import('jspdf-autotable');
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const sectorLabel = selectedSector || 'todos';
-    const periodoLabel = `${startDate ? formatDateCSV(startDate) : 'início'} até ${endDate ? formatDateCSV(endDate) : 'hoje'}`;
-
-    doc.setFontSize(14);
-    doc.setTextColor(20, 83, 45);
-    doc.text('Relatório de Solicitações de Extras', 148, 12, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    doc.text(`Setor: ${sectorLabel}  |  Período: ${periodoLabel}  |  Total: ${requestsForExport.length}`, 148, 18, { align: 'center' });
-
-    autoTable(doc, {
-      startY: 22,
-      margin: { left: 8, right: 8 },
-      head: [exportHeaders],
-      body: buildExportRows(requestsForExport),
-      styles: { fontSize: 6, cellPadding: 1.2, overflow: 'linebreak' },
-      headStyles: { fillColor: [5, 150, 105], fontSize: 6, cellPadding: 1.2 },
-      columnStyles: {
-        10: { cellWidth: 28 },
-        12: { cellWidth: 28 },
-        13: { cellWidth: 28 },
-        14: { cellWidth: 22 },
-      },
-    });
-
-    const totalPages = doc.getNumberOfPages();
-    doc.setFontSize(7);
-    doc.setTextColor(120, 120, 120);
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.text(`${i} / ${totalPages}`, 290, 205, { align: 'right' });
-    }
-
-    doc.save(`${exportFileBaseName()}.pdf`);
-  };
-
-  const handleConfirmExport = async () => {
-    if (!exportFormat) return;
-    if (exportFormat === 'csv') handleExportCSV();
-    else await handleExportPDF();
-    setExportFormat(null);
-    setIsExportModalOpen(false);
-  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <header className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
-          <p className="text-gray-500">Análises e estatísticas do sistema de controle de extras</p>
+          <p className="text-gray-500">Recibos de extras e ponto da Portaria PJ</p>
         </div>
-        
-        {/* Filtros: Setor e Período (período oculto na sessão Recibos de Extras) */}
-        <div className="flex flex-col gap-3 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Filter size={18} className="text-gray-400 shrink-0" />
-            <select
-              value={selectedSector}
-              onChange={(e) => setSelectedSector(e.target.value)}
-              className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-              title="Filtrar relatórios e exportação CSV por agrupamento de setor"
-            >
-              {SECTOR_FILTER_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-          {activeTab !== 'recibos' && activeTab !== 'pj-hours' && (
-            <div className="flex items-center gap-2 min-w-0">
-              <Calendar size={18} className="text-gray-400 shrink-0" />
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 w-full min-w-0">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="Data inicial"
-                />
-                <span className="text-gray-400 shrink-0 text-sm">até</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="Data final"
-                />
-              </div>
-            </div>
-          )}
-          {activeTab !== 'pj-hours' && (
-            <button
-              type="button"
-              onClick={() => {
-                setExportFormat(null);
-                setIsExportModalOpen(true);
-              }}
-              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
-              title="Exportar solicitações de extras (período e setor selecionados) em CSV ou PDF — não inclui ponto PJ"
-            >
-              <Download size={18} />
-              Exportar solicitações
-            </button>
-          )}
+        <div className="flex items-center gap-2 min-w-0">
+          <Filter size={18} className="text-gray-400 shrink-0" />
+          <select
+            value={selectedSector}
+            onChange={(e) => setSelectedSector(e.target.value)}
+            className="w-full min-w-0 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+            title="Filtrar por agrupamento de setor"
+          >
+            {SECTOR_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       </header>
 
-      {isExportModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Exportar solicitações</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setExportFormat(null);
-                  setIsExportModalOpen(false);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-500 mb-4">
-              Escolha o formato do relatório com o período e setor já selecionados.
-            </p>
-
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <button
-                type="button"
-                onClick={() => setExportFormat('csv')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                  exportFormat === 'csv'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                    : 'border-gray-200 hover:border-emerald-300 text-gray-700'
-                }`}
-              >
-                <FileSpreadsheet size={28} />
-                <span className="font-semibold text-sm">CSV</span>
-                <span className="text-xs text-gray-500">Planilha (.csv)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setExportFormat('pdf')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                  exportFormat === 'pdf'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                    : 'border-gray-200 hover:border-emerald-300 text-gray-700'
-                }`}
-              >
-                <FileText size={28} />
-                <span className="font-semibold text-sm">PDF</span>
-                <span className="text-xs text-gray-500">Documento (.pdf)</span>
-              </button>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setExportFormat(null);
-                  setIsExportModalOpen(false);
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-semibold hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmExport}
-                disabled={!exportFormat}
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Baixar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs Navigation */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="border-b border-gray-100 overflow-x-auto">
-          <div className="flex gap-1 p-2">
-            {availableTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-                    ${activeTab === tab.id
-                      ? 'bg-emerald-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                    }
-                  `}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="px-6 pt-5 pb-0">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <FileText size={20} className="text-emerald-600" />
+            Recibos de Extras
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Prévia do período e download dos recibos de pagamento em PDF ou Excel.
+          </p>
         </div>
-
-        {/* Report Content */}
         <div className="p-6">
-          <React.Suspense fallback={<DatabaseLoading message="Carregando relatório..." minHeight="min-h-[40vh]" />}>
-            <ActiveComponent startDate={startDate} endDate={endDate} sector={selectedSector || undefined} />
+          <React.Suspense fallback={<DatabaseLoading message="Carregando recibos…" minHeight="min-h-[24vh]" />}>
+            <RecibosExtrasReport />
+          </React.Suspense>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 pt-5 pb-0">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Table2 size={20} className="text-emerald-600" />
+            Prévia para planilha (conferência)
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Aprovadas, quatro horários na portaria; valores como no recibo (excelService).
+          </p>
+        </div>
+        <div className="p-6">
+          <React.Suspense fallback={<DatabaseLoading message="Carregando prévia…" minHeight="min-h-[24vh]" />}>
+            <SheetsExportPreviewReport hideHeader sector={selectedSector || undefined} />
+          </React.Suspense>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 pt-5 pb-0">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Timer size={20} className="text-emerald-600" />
+            Relatório Portaria PJ
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Ponto dos funcionários PJ: nome, setor/função, horários, total do dia e total de horas no período.
+          </p>
+        </div>
+        <div className="p-6">
+          <React.Suspense fallback={<DatabaseLoading message="Carregando ponto PJ…" minHeight="min-h-[24vh]" />}>
+            <PjHoursReport sector={selectedSector || undefined} />
           </React.Suspense>
         </div>
       </div>
