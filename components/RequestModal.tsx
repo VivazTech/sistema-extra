@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Save, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Save, AlertCircle, CheckCircle, AlertTriangle, Search } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { useAuth } from '../context/AuthContext';
 import { useActionLog } from '../context/ActionLogContext';
@@ -34,6 +34,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
   const defaultShift = shiftOptions[0] || 'Manhã';
 
   const [isSaving, setIsSaving] = useState(false);
+  const [extraSearch, setExtraSearch] = useState('');
   const [formData, setFormData] = useState({
     sector: '',
     role: '',
@@ -97,6 +98,49 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
       return inUserSector;
     });
   }, [extras, effectiveSector, isAdmin, user?.sectors]);
+
+  const extrasForPicker = useMemo(() => {
+    type Item = { id: string; fullName: string; label: string };
+    if (!formData.sector) {
+      if (!isAdmin) return [] as Item[];
+      return extras.map((extra) => {
+        const extraSectors = getValidSectorNames(extra, validSectorNames);
+        return {
+          id: extra.id,
+          fullName: extra.fullName,
+          label: `${extra.fullName} ${extraSectors.length ? `(${extraSectors.join(', ')})` : '(Sem setor)'}`,
+        };
+      });
+    }
+    const items: Item[] = availableExtras.map((extra) => {
+      const extraSectors = getValidSectorNames(extra, validSectorNames);
+      return {
+        id: extra.id,
+        fullName: extra.fullName,
+        label: extraSectors.length ? `${extra.fullName} (${extraSectors.join(', ')})` : extra.fullName,
+      };
+    });
+    if (isAdmin) {
+      for (const extra of extras) {
+        if (availableExtras.some((a) => a.id === extra.id)) continue;
+        const extraSectors = getValidSectorNames(extra, validSectorNames);
+        items.push({
+          id: extra.id,
+          fullName: extra.fullName,
+          label: `${extra.fullName} (${extraSectors.length ? extraSectors.join(', ') : 'Sem setor'})`,
+        });
+      }
+    }
+    return items;
+  }, [formData.sector, isAdmin, extras, availableExtras, validSectorNames]);
+
+  const filteredExtrasForPicker = useMemo(() => {
+    const q = extraSearch.trim().toLowerCase();
+    if (!q) return extrasForPicker;
+    return extrasForPicker.filter(
+      (e) => e.fullName.toLowerCase().includes(q) || e.label.toLowerCase().includes(q)
+    );
+  }, [extrasForPicker, extraSearch]);
 
   // Calcular saldo disponível para a semana da primeira data selecionada
   const saldoDisponivel = useMemo(() => {
@@ -187,6 +231,7 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
   useEffect(() => {
     if (isOpen) {
       const initialShift = shiftOptions[0] || 'Manhã';
+      setExtraSearch('');
       if (initialRequest) {
         setFormData({
           sector: initialRequest.sector,
@@ -393,7 +438,10 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
                 required
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.sector || leaderSector || ''}
-                onChange={(e) => setFormData({ ...formData, sector: e.target.value, role: '', extraName: '' })}
+                onChange={(e) => {
+                  setExtraSearch('');
+                  setFormData({ ...formData, sector: e.target.value, role: '', extraName: '' });
+                }}
               >
                 <option value="">Selecione o setor</option>
                 {availableSectors.map(s => (
@@ -485,74 +533,79 @@ const RequestModal: React.FC<RequestModalProps> = ({ isOpen, onClose, initialReq
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase">Nome do Extra *</label>
-              <select 
-                required
-                className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.extraName}
-                onChange={(e) => {
-                  setFormData({ 
-                    ...formData, 
-                    extraName: e.target.value
-                  });
-                }}
-              >
-                <option value="">Selecione o extra</option>
-                {extras.length === 0 && (
-                  <option value="" disabled>Nenhum extra cadastrado no banco</option>
-                )}
-                {formData.sector && availableExtras.length === 0 && extras.length > 0 && (
-                  <option value="" disabled>Nenhum extra cadastrado para este setor</option>
-                )}
-                {formData.sector ? (
-                  <>
-                    {availableExtras.map(extra => {
-                      const extraSectors = getValidSectorNames(extra, validSectorNames);
-                      const label = extraSectors.length ? `${extra.fullName} (${extraSectors.join(', ')})` : extra.fullName;
-                      return (
-                        <option key={extra.id} value={extra.fullName}>
-                          {label}
-                        </option>
-                      );
-                    })}
-                    {isAdmin && extras.filter(e => !availableExtras.some(a => a.id === e.id)).map(extra => {
-                      const extraSectors = getValidSectorNames(extra, validSectorNames);
-                      return (
-                        <option key={extra.id} value={extra.fullName}>
-                          {extra.fullName} ({extraSectors.length ? extraSectors.join(', ') : 'Sem setor'})
-                        </option>
-                      );
-                    })}
-                  </>
-                ) : (
-                  isAdmin
-                    ? extras.map(extra => {
-                        const extraSectors = getValidSectorNames(extra, validSectorNames);
-                        return (
-                          <option key={extra.id} value={extra.fullName}>
-                            {extra.fullName} {extraSectors.length ? `(${extraSectors.join(', ')})` : '(Sem setor)'}
-                          </option>
-                        );
-                      })
-                    : null
-                )}
-              </select>
-              {extras.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
-                  ⚠️ Nenhum extra cadastrado. Cadastre extras no "Banco de Extras" primeiro.
-                </p>
-              )}
-              {formData.extraName && selectedExtraConsecutiveDays >= 3 && (
-                <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-2">
-                  <AlertTriangle size={16} className="text-amber-600 mt-0.5" />
-                  <p className="text-sm font-semibold text-amber-800">
-                    Você está gerando risco! Este extra já trabalhou {selectedExtraConsecutiveDays} dias seguidos.
-                  </p>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 uppercase">Nome do Extra *</label>
+            <p className="text-xs text-gray-500 mb-2">Selecione um extra da lista.</p>
+            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <div className="p-2 border-b border-gray-100 bg-gray-50">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={extraSearch}
+                    onChange={(e) => setExtraSearch(e.target.value)}
+                    placeholder="Pesquisar extra..."
+                    className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                  />
                 </div>
-              )}
+              </div>
+              <div className="h-44 overflow-y-auto divide-y divide-gray-100">
+                {extras.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-amber-600 text-center">
+                    Nenhum extra cadastrado. Cadastre extras no &quot;Banco de Extras&quot; primeiro.
+                  </p>
+                )}
+                {extras.length > 0 && formData.sector && availableExtras.length === 0 && !isAdmin && (
+                  <p className="px-3 py-4 text-sm text-gray-400 text-center">
+                    Nenhum extra cadastrado para este setor.
+                  </p>
+                )}
+                {extras.length > 0 && !formData.sector && !isAdmin && (
+                  <p className="px-3 py-4 text-sm text-gray-400 text-center">
+                    Selecione o setor para listar os extras.
+                  </p>
+                )}
+                {filteredExtrasForPicker.map((extra) => {
+                  const selected = formData.extraName === extra.fullName;
+                  return (
+                    <button
+                      key={extra.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, extraName: extra.fullName })}
+                      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-emerald-50/60 ${
+                        selected ? 'bg-emerald-50' : ''
+                      }`}
+                    >
+                      <span
+                        className={`w-4 h-4 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                          selected ? 'border-emerald-600' : 'border-gray-300'
+                        }`}
+                      >
+                        {selected && <span className="w-2 h-2 rounded-full bg-emerald-600" />}
+                      </span>
+                      <span className="text-sm font-medium text-gray-700">{extra.label}</span>
+                    </button>
+                  );
+                })}
+                {extras.length > 0 && filteredExtrasForPicker.length === 0 && (formData.sector || isAdmin) && (
+                  <p className="px-3 py-4 text-sm text-gray-400 text-center">Nenhum extra encontrado.</p>
+                )}
+              </div>
             </div>
+            {!formData.extraName && (
+              <p className="text-xs text-amber-600 mt-1">Selecione um extra.</p>
+            )}
+            {formData.extraName && selectedExtraConsecutiveDays >= 3 && (
+              <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-amber-600 mt-0.5" />
+                <p className="text-sm font-semibold text-amber-800">
+                  Você está gerando risco! Este extra já trabalhou {selectedExtraConsecutiveDays} dias seguidos.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {isAdmin && (
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-500 uppercase">Tipo de valor *</label>
