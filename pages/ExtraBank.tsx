@@ -3,6 +3,7 @@ import { Copy, Trash2, Users, Plus, X, Save, Search, ArrowUpDown, Pencil, Chevro
 import { useExtras } from '../context/ExtraContext';
 import type { ExtraPerson } from '../types';
 import { lettersAndNumbers, lettersOnlyName } from '../utils/personName';
+import { birthDateBRToISO, birthDateISOToBR, maskBirthDateBR } from '../utils/date';
 
 const PAGE_SIZE_OPTIONS = [10, 50, 100, 500, 1000] as const;
 const DEFAULT_PAGE_SIZE = 10;
@@ -41,6 +42,9 @@ const ExtraBank: React.FC = () => {
   const [cepError, setCepError] = useState('');
   const [contactError, setContactError] = useState('');
   const [isCepLoading, setIsCepLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [sectorSearch, setSectorSearch] = useState('');
+  const [birthDateDisplay, setBirthDateDisplay] = useState('');
 
   const isAdult = useMemo(() => {
     if (!formData.birthDate) return false;
@@ -50,6 +54,12 @@ const ExtraBank: React.FC = () => {
     adultDate.setFullYear(adultDate.getFullYear() + 18);
     return adultDate <= today;
   }, [formData.birthDate]);
+
+  const filteredSectorsForForm = useMemo(() => {
+    const q = sectorSearch.trim().toLowerCase();
+    if (!q) return sectors;
+    return sectors.filter(s => (s.name || '').toLowerCase().includes(q));
+  }, [sectors, sectorSearch]);
 
   // Função para normalizar CPF (remover formatação)
   const normalizeCpf = (cpf: string) => {
@@ -288,6 +298,8 @@ const ExtraBank: React.FC = () => {
     setCpfError('');
     setCepError('');
     setContactError('');
+    setSectorSearch('');
+    setBirthDateDisplay(birthDateISOToBR(extra.birthDate || ''));
     setEditingExtraId(extra.id);
     setIsModalOpen(true);
   };
@@ -326,7 +338,10 @@ const ExtraBank: React.FC = () => {
     setCpfError('');
     setCepError('');
     setContactError('');
+    setSectorSearch('');
+    setBirthDateDisplay('');
     setEditingExtraId(null);
+    setIsSaving(false);
     setIsModalOpen(false);
   };
 
@@ -459,35 +474,62 @@ const ExtraBank: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.fullName || formData.sectors.length === 0) {
-      alert('Preencha pelo menos o nome e selecione ao menos um setor.');
+    if (isSaving) return;
+
+    const showFieldError = (message: string, kind: 'cpf' | 'contact' | 'general' = 'general') => {
+      if (kind === 'cpf') setCpfError(message);
+      if (kind === 'contact') setContactError(message);
+      alert(message);
+      // No modal com scroll, a validação nativa do browser não aparece — sobe ao topo para ver o erro
+      const formEl = (e.target as HTMLFormElement);
+      formEl?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    };
+
+    const fullName = lettersOnlyName(formData.fullName).trim();
+    if (!fullName) {
+      showFieldError('Informe o nome completo.');
+      return;
+    }
+
+    if (formData.sectors.length === 0) {
+      showFieldError('Selecione ao menos um setor.');
       return;
     }
 
     if (formData.birthDate && !isAdult) {
-      alert('É necessário ter 18 anos ou mais para se cadastrar.');
+      showFieldError('É necessário ter 18 anos ou mais para se cadastrar.');
       return;
     }
 
-    if (!formData.isForeign && formData.cpf && !isValidCpf(formData.cpf)) {
-      setCpfError('CPF inválido.');
-      return;
-    }
-
-    // Verificar CPF duplicado no banco (fonte de verdade)
-    const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
-    if (cpfToCheck) {
-      const exists = await checkCpfExists(cpfToCheck, editingExtraId || undefined);
-      if (exists) {
-        setCpfError('Este CPF já está cadastrado no banco de extras.');
+    if (formData.isForeign) {
+      if (!formData.foreignDoc?.trim()) {
+        showFieldError('Informe o documento estrangeiro.', 'cpf');
+        return;
+      }
+    } else {
+      if (!formData.cpf?.trim()) {
+        showFieldError('Informe o CPF.', 'cpf');
+        return;
+      }
+      if (!isValidCpf(formData.cpf)) {
+        showFieldError('CPF inválido.', 'cpf');
         return;
       }
     }
 
-    if (formData.isForeign && !formData.foreignDoc) {
-      alert('Informe o documento estrangeiro.');
-      return;
+    // Verificar CPF/documento duplicado no banco (fonte de verdade)
+    const cpfToCheck = formData.isForeign ? formData.foreignDoc : formData.cpf;
+    if (cpfToCheck) {
+      const exists = await checkCpfExists(cpfToCheck, editingExtraId || undefined);
+      if (exists) {
+        showFieldError(
+          formData.isForeign
+            ? 'Este documento já está cadastrado no banco de extras.'
+            : 'Este CPF já está cadastrado no banco de extras.',
+          'cpf'
+        );
+        return;
+      }
     }
 
     // Validar se contatos são diferentes
@@ -495,7 +537,7 @@ const ExtraBank: React.FC = () => {
       const contactDigits = formData.contactNumber.replace(/\D/g, '');
       const emergencyDigits = formData.emergencyContactNumber.replace(/\D/g, '');
       if (contactDigits === emergencyDigits && formData.ddiContact === formData.ddiEmergency) {
-        setContactError('O contato e o contato de emergência não podem ser iguais.');
+        showFieldError('O contato e o contato de emergência não podem ser iguais.', 'contact');
         return;
       }
     }
@@ -519,13 +561,16 @@ const ExtraBank: React.FC = () => {
     const contactStr = formData.contactNumber ? `${formData.ddiContact} ${formData.contactNumber}` : '';
     const emergencyStr = formData.emergencyContactNumber ? `${formData.ddiEmergency} ${formData.emergencyContactNumber}` : '';
     const addressStr = editingExtraId ? (formData.address || '') : address;
+    const cpfValue = formData.isForeign
+      ? formData.foreignDoc.trim()
+      : normalizeCpf(formData.cpf);
 
     if (editingExtraId) {
       const extraToUpdate: ExtraPerson = {
         id: editingExtraId,
-        fullName: lettersOnlyName(formData.fullName).trim(),
+        fullName,
         birthDate: formData.birthDate || '',
-        cpf: formData.isForeign ? formData.foreignDoc : (formData.cpf || ''),
+        cpf: cpfValue,
         contact: contactStr,
         address: addressStr,
         emergencyContact: emergencyStr,
@@ -534,27 +579,32 @@ const ExtraBank: React.FC = () => {
         createdAt: '', // não alterado na atualização
       };
       try {
+        setIsSaving(true);
         await updateExtra(extraToUpdate);
         resetFormAndClose();
         alert('Alterações salvas com sucesso.');
       } catch (err) {
         console.error('Erro ao salvar extra:', err);
         const msg = err instanceof Error ? err.message : 'Erro ao salvar alterações. Tente novamente.';
-        if (msg.includes('CPF já está cadastrado')) {
+        if (msg.includes('CPF já está cadastrado') || msg.includes('documento já está cadastrado')) {
           setCpfError(msg);
+          alert(msg);
         } else {
           alert(msg);
         }
+      } finally {
+        setIsSaving(false);
       }
       return;
     }
 
     try {
+      setIsSaving(true);
       await addExtra({
         id: Math.random().toString(36).substr(2, 9),
-        fullName: lettersOnlyName(formData.fullName).trim(),
+        fullName,
         birthDate: formData.birthDate || '',
-        cpf: formData.isForeign ? formData.foreignDoc : (formData.cpf || ''),
+        cpf: cpfValue,
         contact: contactStr,
         address: addressStr,
         emergencyContact: emergencyStr,
@@ -563,14 +613,18 @@ const ExtraBank: React.FC = () => {
         createdAt: new Date().toISOString(),
       });
       resetFormAndClose();
+      alert('Extra cadastrado com sucesso.');
     } catch (err) {
       console.error('Erro ao cadastrar extra:', err);
       const msg = err instanceof Error ? err.message : 'Erro ao cadastrar. Tente novamente.';
-      if (msg.includes('CPF já está cadastrado')) {
+      if (msg.includes('CPF já está cadastrado') || msg.includes('documento já está cadastrado')) {
         setCpfError(msg);
+        alert(msg);
       } else {
         alert(msg);
       }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -591,6 +645,8 @@ const ExtraBank: React.FC = () => {
                 cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', sectors: [], address: '',
               });
               setCpfError(''); setCepError(''); setContactError('');
+              setSectorSearch('');
+              setBirthDateDisplay('');
               setIsModalOpen(true);
             }}
             className="flex items-center justify-center gap-2 w-full md:w-auto px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-bold text-sm shadow-md shrink-0"
@@ -769,7 +825,7 @@ const ExtraBank: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Nome Completo *</label>
                 <input
@@ -789,11 +845,24 @@ const ExtraBank: React.FC = () => {
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase">Data de Nascimento</label>
                   <input
-                    type="date"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="bday"
+                    maxLength={10}
+                    placeholder="DD/MM/AAAA"
                     className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={formData.birthDate}
-                    onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                    value={birthDateDisplay}
+                    onChange={(e) => {
+                      const masked = maskBirthDateBR(e.target.value);
+                      setBirthDateDisplay(masked);
+                      const iso = birthDateBRToISO(masked);
+                      setFormData({ ...formData, birthDate: iso || '' });
+                    }}
                   />
+                  <p className="text-xs text-gray-400 mt-1">Digite no formato DD/MM/AAAA.</p>
+                  {birthDateDisplay.length === 10 && !formData.birthDate && (
+                    <p className="text-xs text-red-500 mt-1">Data inválida.</p>
+                  )}
                   {formData.birthDate && !isAdult && (
                     <p className="text-xs text-red-500 mt-1">Apenas maiores de 18 anos.</p>
                   )}
@@ -947,23 +1016,45 @@ const ExtraBank: React.FC = () => {
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Setores *</label>
                 <p className="text-xs text-gray-500 mb-2">Selecione até 2 setores em que o extra pode atuar.</p>
-                <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50 max-h-56 overflow-y-auto">
-                  {sectors.map(s => {
-                    const selected = formData.sectors.includes(s.name);
-                    const atLimit = formData.sectors.length >= 2 && !selected;
-                    return (
-                    <label key={s.id} className={`flex items-center gap-2 ${atLimit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+                  <div className="p-2 border-b border-gray-100 bg-gray-50">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                       <input
-                        type="checkbox"
-                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                        checked={selected}
-                        disabled={atLimit}
-                        onChange={() => toggleSector(s.name)}
+                        type="text"
+                        value={sectorSearch}
+                        onChange={(e) => setSectorSearch(e.target.value)}
+                        placeholder="Pesquisar setor..."
+                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                       />
-                      <span className="text-sm font-medium text-gray-700">{s.name}</span>
-                    </label>
-                    );
-                  })}
+                    </div>
+                  </div>
+                  <div className="h-44 overflow-y-auto divide-y divide-gray-100">
+                    {filteredSectorsForForm.map(s => {
+                      const selected = formData.sectors.includes(s.name);
+                      const atLimit = formData.sectors.length >= 2 && !selected;
+                      return (
+                        <label
+                          key={s.id}
+                          className={`flex items-center gap-3 px-3 py-2.5 ${
+                            atLimit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-emerald-50/60'
+                          } ${selected ? 'bg-emerald-50' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 shrink-0 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                            checked={selected}
+                            disabled={atLimit}
+                            onChange={() => toggleSector(s.name)}
+                          />
+                          <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                        </label>
+                      );
+                    })}
+                    {filteredSectorsForForm.length === 0 && (
+                      <p className="px-3 py-4 text-sm text-gray-400 text-center">Nenhum setor encontrado.</p>
+                    )}
+                  </div>
                 </div>
                 {formData.sectors.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">Selecione ao menos um setor.</p>
@@ -1098,15 +1189,17 @@ const ExtraBank: React.FC = () => {
                 <button
                   type="button"
                   onClick={resetFormAndClose}
-                  className="flex-1 py-3 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+                  disabled={isSaving}
+                  className="flex-1 py-3 font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all"
+                  disabled={isSaving}
+                  className="flex-1 py-3 font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <Save size={20} /> Salvar Extra
+                  <Save size={20} /> {isSaving ? 'Salvando...' : 'Salvar Extra'}
                 </button>
               </div>
             </form>

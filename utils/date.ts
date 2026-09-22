@@ -82,3 +82,34 @@ export function formatDateTimeWithSeconds(date?: Date | string | null): string {
   }).format(d);
 }
 
+/** Máscara digitável DD/MM/AAAA (evita date picker nativo problemático em alguns Androids). */
+export function maskBirthDateBR(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+/** Converte DD/MM/AAAA válido em YYYY-MM-DD; retorna null se incompleto/inválido. */
+export function birthDateBRToISO(br: string): string | null {
+  const match = (br || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const dt = new Date(year, month - 1, day);
+  if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Converte YYYY-MM-DD (ou já BR) para DD/MM/AAAA. */
+export function birthDateISOToBR(iso: string): string {
+  const s = (iso || '').trim();
+  if (!s) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+

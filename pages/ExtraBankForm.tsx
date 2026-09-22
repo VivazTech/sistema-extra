@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { useExtras } from '../context/ExtraContext';
 import { lettersAndNumbers, lettersOnlyName } from '../utils/personName';
+import { birthDateBRToISO, maskBirthDateBR } from '../utils/date';
 
 const ExtraBankForm: React.FC = () => {
   const { sectors, addExtra, checkCpfExists } = useExtras();
@@ -28,6 +30,8 @@ const ExtraBankForm: React.FC = () => {
   const [cepError, setCepError] = useState('');
   const [contactError, setContactError] = useState('');
   const [isCepLoading, setIsCepLoading] = useState(false);
+  const [sectorSearch, setSectorSearch] = useState('');
+  const [birthDateDisplay, setBirthDateDisplay] = useState('');
 
   const isAdult = useMemo(() => {
     if (!formData.birthDate) return false;
@@ -37,6 +41,12 @@ const ExtraBankForm: React.FC = () => {
     adultDate.setFullYear(adultDate.getFullYear() + 18);
     return adultDate <= today;
   }, [formData.birthDate]);
+
+  const filteredSectorsForForm = useMemo(() => {
+    const q = sectorSearch.trim().toLowerCase();
+    if (!q) return sectors;
+    return sectors.filter(s => (s.name || '').toLowerCase().includes(q));
+  }, [sectors, sectorSearch]);
 
   const maskCpf = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -182,8 +192,12 @@ const ExtraBankForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdult) {
-      alert('É necessário ter 18 anos ou mais para se cadastrar.');
+    if (!formData.birthDate || !isAdult) {
+      alert(
+        !formData.birthDate
+          ? 'Informe a data de nascimento no formato DD/MM/AAAA.'
+          : 'É necessário ter 18 anos ou mais para se cadastrar.'
+      );
       return;
     }
     if (!formData.isForeign && !isValidCpf(formData.cpf)) {
@@ -219,7 +233,7 @@ const ExtraBankForm: React.FC = () => {
     if (
       !formData.fullName ||
       !formData.birthDate ||
-      !formData.cpf ||
+      !(formData.isForeign ? formData.foreignDoc : formData.cpf) ||
       !formData.contactNumber ||
       !formData.emergencyContactNumber ||
       !formData.cep ||
@@ -298,11 +312,24 @@ const ExtraBankForm: React.FC = () => {
               <label className="text-xs font-bold text-gray-500 uppercase">Data de Nascimento *</label>
               <input
                 required
-                type="date"
+                type="text"
+                inputMode="numeric"
+                autoComplete="bday"
+                maxLength={10}
+                placeholder="DD/MM/AAAA"
                 className="w-full border border-gray-200 rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none"
-                value={formData.birthDate}
-                onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                value={birthDateDisplay}
+                onChange={(e) => {
+                  const masked = maskBirthDateBR(e.target.value);
+                  setBirthDateDisplay(masked);
+                  const iso = birthDateBRToISO(masked);
+                  setFormData({ ...formData, birthDate: iso || '' });
+                }}
               />
+              <p className="text-xs text-gray-400 mt-1">Digite no formato DD/MM/AAAA.</p>
+              {birthDateDisplay.length === 10 && !formData.birthDate && (
+                <p className="text-xs text-red-500 mt-1">Data inválida.</p>
+              )}
               {formData.birthDate && !isAdult && (
                 <p className="text-xs text-red-500 mt-1">Apenas maiores de 18 anos.</p>
               )}
@@ -592,31 +619,53 @@ const ExtraBankForm: React.FC = () => {
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase">Setores *</label>
             <p className="text-xs text-gray-500 mb-2">Selecione até 2 setores em que o extra pode atuar.</p>
-            <div className="flex flex-wrap gap-3 p-3 border border-gray-200 rounded-xl bg-gray-50 max-h-56 overflow-y-auto">
-              {sectors.map(s => {
-                const selected = formData.sectors.includes(s.name);
-                const atLimit = formData.sectors.length >= 2 && !selected;
-                return (
-                <label key={s.id} className={`flex items-center gap-2 ${atLimit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <div className="p-2 border-b border-gray-100 bg-gray-50">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input
-                    type="checkbox"
-                    className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                    checked={selected}
-                    disabled={atLimit}
-                    onChange={() => {
-                      setFormData(prev => {
-                        if (prev.sectors.includes(s.name)) {
-                          return { ...prev, sectors: prev.sectors.filter(sec => sec !== s.name) };
-                        }
-                        if (prev.sectors.length >= 2) return prev;
-                        return { ...prev, sectors: [...prev.sectors, s.name] };
-                      });
-                    }}
+                    type="text"
+                    value={sectorSearch}
+                    onChange={(e) => setSectorSearch(e.target.value)}
+                    placeholder="Pesquisar setor..."
+                    className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                   />
-                  <span className="text-sm font-medium text-gray-700">{s.name}</span>
-                </label>
-                );
-              })}
+                </div>
+              </div>
+              <div className="h-44 overflow-y-auto divide-y divide-gray-100">
+                {filteredSectorsForForm.map(s => {
+                  const selected = formData.sectors.includes(s.name);
+                  const atLimit = formData.sectors.length >= 2 && !selected;
+                  return (
+                    <label
+                      key={s.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 ${
+                        atLimit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-emerald-50/60'
+                      } ${selected ? 'bg-emerald-50' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 shrink-0 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                        checked={selected}
+                        disabled={atLimit}
+                        onChange={() => {
+                          setFormData(prev => {
+                            if (prev.sectors.includes(s.name)) {
+                              return { ...prev, sectors: prev.sectors.filter(sec => sec !== s.name) };
+                            }
+                            if (prev.sectors.length >= 2) return prev;
+                            return { ...prev, sectors: [...prev.sectors, s.name] };
+                          });
+                        }}
+                      />
+                      <span className="text-sm font-medium text-gray-700">{s.name}</span>
+                    </label>
+                  );
+                })}
+                {filteredSectorsForForm.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-gray-400 text-center">Nenhum setor encontrado.</p>
+                )}
+              </div>
             </div>
             {formData.sectors.length === 0 && (
               <p className="text-xs text-amber-600 mt-1">Selecione ao menos um setor.</p>

@@ -6,7 +6,6 @@ import { calculateExtraSaldo } from '../services/extraSaldoService';
 import { requiresSaldoApprovalJustification } from '../utils/requestApproval';
 import { supabase } from '../services/supabase';
 import { useAuth } from './AuthContext';
-import { todayDateString, toDateOnlyString } from '../utils/date';
 import { 
   mapSector, 
   mapRequester, 
@@ -550,11 +549,9 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addRequest = async (data: any) => {
     try {
-      // Apenas admins podem criar solicitações para datas passadas (dia civil em Brasília)
-      const todayStr = todayDateString();
-      const hasPastDate = data.workDays?.some(
-        (d: { date: string }) => toDateOnlyString(d.date) < todayStr
-      );
+      // Apenas admins podem criar solicitações para datas passadas
+      const todayStr = new Date().toISOString().split('T')[0];
+      const hasPastDate = data.workDays?.some((d: { date: string }) => d.date < todayStr);
       if (hasPastDate && user?.role !== 'ADMIN') {
         throw new Error('Apenas administradores podem criar solicitações para datas passadas.');
       }
@@ -571,7 +568,7 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Setor não encontrado. Verifique o setor selecionado e tente novamente.');
       }
 
-    const firstDay = data.workDays?.[0]?.date || todayDateString();
+    const firstDay = data.workDays?.[0]?.date || new Date().toISOString().split('T')[0];
     const { start: weekStart, end: weekEnd } = getWeekRange(firstDay);
     const requestedDiarias = countWorkDaysInWeek(data.workDays || [], weekStart, weekEnd);
     const remainingSaldo = getRemainingSaldoForWeek(data.sector, weekStart, weekEnd);
@@ -1824,8 +1821,10 @@ export const ExtraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .eq('id', newExtra.id)
       .single();
 
-    const mappedExtra = mapExtraPerson(fullExtra || newExtra);
-    setExtras(prev => (prev.some(e => e.id === mappedExtra.id) ? prev : [mappedExtra, ...prev]));
+    if (fullExtra) {
+      const mappedExtra = mapExtraPerson(fullExtra);
+      setExtras(prev => [mappedExtra, ...prev]);
+    }
   };
 
   const deleteExtra = async (id: string) => {
