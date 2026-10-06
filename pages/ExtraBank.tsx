@@ -309,7 +309,6 @@ const ExtraBank: React.FC = () => {
       if (prev.sectors.includes(sectorName)) {
         return { ...prev, sectors: prev.sectors.filter(s => s !== sectorName) };
       }
-      if (prev.sectors.length >= 2) return prev;
       return { ...prev, sectors: [...prev.sectors, sectorName] };
     });
   };
@@ -1015,7 +1014,7 @@ const ExtraBank: React.FC = () => {
 
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Setores *</label>
-                <p className="text-xs text-gray-500 mb-2">Selecione até 2 setores em que o extra pode atuar.</p>
+                <p className="text-xs text-gray-500 mb-2">Selecione os setores em que o extra pode atuar.</p>
                 <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
                   <div className="p-2 border-b border-gray-100 bg-gray-50">
                     <div className="relative">
@@ -1032,19 +1031,17 @@ const ExtraBank: React.FC = () => {
                   <div className="h-44 overflow-y-auto divide-y divide-gray-100">
                     {filteredSectorsForForm.map(s => {
                       const selected = formData.sectors.includes(s.name);
-                      const atLimit = formData.sectors.length >= 2 && !selected;
                       return (
                         <label
                           key={s.id}
-                          className={`flex items-center gap-3 px-3 py-2.5 ${
-                            atLimit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-emerald-50/60'
-                          } ${selected ? 'bg-emerald-50' : ''}`}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-emerald-50/60 ${
+                            selected ? 'bg-emerald-50' : ''
+                          }`}
                         >
                           <input
                             type="checkbox"
                             className="w-4 h-4 shrink-0 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
                             checked={selected}
-                            disabled={atLimit}
                             onChange={() => toggleSector(s.name)}
                           />
                           <span className="text-sm font-medium text-gray-700">{s.name}</span>
@@ -1059,8 +1056,10 @@ const ExtraBank: React.FC = () => {
                 {formData.sectors.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">Selecione ao menos um setor.</p>
                 )}
-                {formData.sectors.length >= 2 && (
-                  <p className="text-xs text-gray-500 mt-1">Máximo de 2 setores selecionados.</p>
+                {formData.sectors.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.sectors.length} {formData.sectors.length === 1 ? 'setor selecionado' : 'setores selecionados'}.
+                  </p>
                 )}
               </div>
 
